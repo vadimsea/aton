@@ -1,0 +1,87 @@
+// PostgreSQL — единственный источник истины (имена полей совместимы с прежним API).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id
+  email         String    @unique
+  username      String    @unique
+  displayName   String
+  passwordHash  String
+  publicId      String    @unique
+  bio           String    @default("")
+  avatarDataUrl String?   @db.Text
+  sessionToken  String?   @unique
+  lastSeen      DateTime?
+  createdAt     DateTime  @default(now())
+
+  verified      Boolean   @default(false)
+  isVerified    Boolean   @default(false)
+  isSuperAdmin  Boolean   @default(false)
+  verifyToken   String?
+  resetToken    String?
+  resetTokenExp DateTime?
+
+  friends Json @default("[]")
+  blocked Json @default("[]")
+
+  @@map("users")
+}
+
+model Chat {
+  id            String   @id
+  type          String
+  title         String?
+  description   String?
+  owner         String?
+  ownerId       String?
+  visibility    String   @default("public")
+  inviteToken   String?
+  verified      Boolean  @default(false)
+  avatarDataUrl String?  @db.Text
+  createdAt     DateTime @default(now())
+
+  members Json @default("[]")
+  admins  Json @default("[]")
+
+  @@map("chats")
+}
+
+model Message {
+  id              String    @id
+  chatId          String
+  senderUsername  String    @map("from_username")
+  recipientUsername String? @map("to_username")
+
+  type           String
+  text           String    @default("")
+  imageDataUrl   String?   @db.Text
+  audioDataUrl   String?   @db.Text
+  createdAt      DateTime  @map("time")
+  editedAt       DateTime?
+  replyTo        Json?
+  pinned         Boolean   @default(false)
+  reactions      Json      @default("[]")
+
+  @@index([chatId, createdAt(sort: Desc)])
+  @@map("messages")
+}
+
+model Report {
+  id         String   @id
+  chatId     String
+  reportedBy String
+  reason     String
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+
+  @@unique([chatId, reportedBy])
+  @@map("reports")
+}

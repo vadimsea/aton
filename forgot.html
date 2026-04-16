@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Атон — восстановление доступа</title>
+  <meta name="description" content="Запросите ссылку для сброса пароля к аккаунту Атон." />
+  <meta name="robots" content="noindex, follow" />
+  <meta name="theme-color" content="#020617" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="aton-api-base" content="" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app" style="align-items:center;justify-content:center;">
+    <div class="aton-shell" style="max-width:480px;max-height:none;">
+      <div class="aton-main" style="padding:20px;">
+        <div class="aton-topbar-left" style="margin-bottom:12px;">
+          <div class="aton-topbar-title">Восстановление доступа</div>
+          <div class="aton-topbar-status" id="forgot-status">
+            Укажите email, к которому привязан ваш аккаунт. Мы отправим письмо со ссылкой для сброса пароля.
+          </div>
+        </div>
+        <form id="forgot-form" class="aton-auth-form">
+          <label class="aton-input-label">Email</label>
+          <input type="email" id="forgot-email" class="aton-input" autocomplete="email" />
+          <button type="submit" class="aton-primary-button">Отправить ссылку</button>
+          <div class="aton-auth-hint" id="forgot-hint"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function atonApiBase() {
+      const m = document.querySelector('meta[name="aton-api-base"]')?.getAttribute("content")?.trim();
+      return m ? m.replace(/\/$/, "") : "";
+    }
+    document.getElementById("forgot-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const emailInput = document.getElementById("forgot-email");
+      const hintEl = document.getElementById("forgot-hint");
+      const email = emailInput.value.trim();
+      if (!email) {
+        hintEl.textContent = "Введите email, который вы использовали при регистрации.";
+        return;
+      }
+      hintEl.textContent = "Отправляем письмо…";
+      try {
+        const res = await fetch(`${atonApiBase()}/api/password/reset-request`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          hintEl.textContent = data.error || "Не удалось отправить письмо.";
+          return;
+        }
+        hintEl.textContent = "Если такой email есть в системе, на него отправлена ссылка для восстановления.";
+      } catch (err) {
+        hintEl.textContent = "Ошибка сети. Попробуйте ещё раз.";
+      }
+    });
+  </script>
+</body>
+</html>
+

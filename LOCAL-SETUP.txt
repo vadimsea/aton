@@ -1,0 +1,27 @@
+Локальный бэкенд (кратко)
+========================
+
+Самый простой вариант (без Docker и без установки PostgreSQL в систему):
+
+  npm run dev:embedded
+
+Поднимается встроенная БД (embedded-postgres, порт 5433), синхронизируется схема Prisma,
+дымовой тест, в .env прописывается DATABASE_URL, затем запускается server.js.
+Остановка: Ctrl+C.
+
+Данные кластера: папка .data/ (в .gitignore).
+
+---
+
+Если PostgreSQL уже установлен (порт 5432 или свой):
+
+1) В .env — DATABASE_URL на вашу БД и имя базы aton.
+
+2) На пустой БД: сначала  npm run db:push  , затем по ситуации миграции
+   (в репозитории одна миграция-дополнение; для baseline см. prisma docs).
+
+3) npm run db:smoke  и  npm start
+
+Docker: docker compose up -d  и строка из .env.example (вариант B).
+
+Прод: Render + PostgreSQL, в .env.deploy для фронта — ATON_API_BASE.

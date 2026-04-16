@@ -1,0 +1,139 @@
+[
+  {
+    "id": "group:f2c34903ecb22dd3d5d2e9bb3618258a0c7d087eba029bb174802dc4d5afa620",
+    "type": "group",
+    "title": "АТОН мессенджер",
+    "owner": "Akhenaten",
+    "createdAt": "2026-03-19T15:50:44.423Z",
+    "ownerId": "d484551dcf2208336f626b775f9595d6c3a213e29e04918109e56a435d51659e",
+    "members": [
+      "d484551dcf2208336f626b775f9595d6c3a213e29e04918109e56a435d51659e"
+    ],
+    "admins": [
+      "d484551dcf2208336f626b775f9595d6c3a213e29e04918109e56a435d51659e"
+    ],
+    "avatarDataUrl": null,
+    "verified": true,
+    "visibility": "public",
+    "inviteToken": null
+  },
+  {
+    "id": "group:fb5a08bba26f8acfb4f0b8b66a3f8d6b22f2e4fea09d4d4f93be9c05ebd13e08",
+    "type": "group",
+    "title": "QA Socket 1776186999720",
+    "description": null,
+    "owner": "sockuser1776186999720",
+    "ownerId": "7f3fded06b36aed327ba37d9310d5a76c3e629659836c8b4294d5e96ae40609c",
+    "members": [
+      "7f3fded06b36aed327ba37d9310d5a76c3e629659836c8b4294d5e96ae40609c"
+    ],
+    "admins": [
+      "7f3fded06b36aed327ba37d9310d5a76c3e629659836c8b4294d5e96ae40609c"
+    ],
+    "avatarDataUrl": null,
+    "verified": false,
+    "visibility": "public",
+    "inviteToken": null,
+    "createdAt": "2026-04-14T17:16:39.869Z"
+  },
+  {
+    "id": "group:5d1aab0ead0bd0c1dc00219bd2359ed47e5a9a939bdcbc38ab5b1bd6c132dc28",
+    "type": "group",
+    "title": "QA Group 1776187584003",
+    "description": null,
+    "owner": "qa_u1_1776187584003",
+    "ownerId": "7138fab20f6d2e2833504b16c3060419facb66ef688ee577bb136d887e96aa30",
+    "members": [
+      "7138fab20f6d2e2833504b16c3060419facb66ef688ee577bb136d887e96aa30",
+      "f7f4804c51e434640f95c16b710cd1c2bd51aab0d8ce6f19986e2191b127bf58"
+    ],
+    "admins": [
+      "7138fab20f6d2e2833504b16c3060419facb66ef688ee577bb136d887e96aa30"
+    ],
+    "avatarDataUrl": null,
+    "verified": false,
+    "visibility": "public",
+    "inviteToken": null,
+    "createdAt": "2026-04-14T17:27:03.719Z"
+  },
+  {
+    "id": "group:503d41ec1f09f16b1e71c42e0d285079de3810ca17ab434a0525cee0b53b710d",
+    "type": "group",
+    "title": "QA Group 1776187710428",
+    "description": null,
+    "owner": "qa_u1_1776187710428",
+    "ownerId": "af7d546b4df4410a3d6ad86a82d030700c18871668629a7eed7a0d4d0dbac8c3",
+    "members": [
+      "af7d546b4df4410a3d6ad86a82d030700c18871668629a7eed7a0d4d0dbac8c3",
+      "eb015e4f508005e8581b1abb2a38a884b10530721e81a61423f00199412aedb3"
+    ],
+    "admins": [
+      "af7d546b4df4410a3d6ad86a82d030700c18871668629a7eed7a0d4d0dbac8c3"
+    ],
+    "avatarDataUrl": null,
+    "verified": false,
+    "visibility": "public",
+    "inviteToken": null,
+    "createdAt": "2026-04-14T17:29:08.089Z"
+  },
+  {
+    "id": "group:0f70109ab03f7303325ee976f8297c584da3780b9da79931abc8ca704a0fc171",
+    "type": "group",
+    "title": "QA Group 1776187977016",
+    "description": null,
+    "owner": "qa_u1_1776187977016",
+    "ownerId": "71877287941ffde667efaf07b7ff082d6529bcde314f4abd5387004109e2d995",
+    "members": [
+      "71877287941ffde667efaf07b7ff082d6529bcde314f4abd5387004109e2d995",
+      "aaf3b1e1117e9e31261bb8092c57b4f454497b1d6b230911cc068ad84c65c8fa"
+    ],
+    "admins": [
+      "71877287941ffde667efaf07b7ff082d6529bcde314f4abd5387004109e2d995"
+    ],
+    "avatarDataUrl": null,
+    "verified": false,
+    "visibility": "public",
+    "inviteToken": null,
+    "createdAt": "2026-04-14T17:33:34.738Z"
+  },
+  {
+    "id": "group:60f802ca28c5e827180b65444837f5fc13af494ffb33f8567bba1d5635082cec",
+    "type": "group",
+    "title": "QA Group 1776188629018",
+    "description": null,
+    "owner": "qa_u1_1776188629018",
+    "ownerId": "7ac145f60aa49817068fcfa975d8efdb0c1c3921f3349d1177d530da10fae41c",
+    "members": [
+      "7ac145f60aa49817068fcfa975d8efdb0c1c3921f3349d1177d530da10fae41c",
+      "14740d0f20ad2010f0c7a56117d8925c4140bf36d7fded3b6b31b6071f13addd"
+    ],
+    "admins": [
+      "7ac145f60aa49817068fcfa975d8efdb0c1c3921f3349d1177d530da10fae41c"
+    ],
+    "avatarDataUrl": null,
+    "verified": false,
+    "visibility": "public",
+    "inviteToken": null,
+    "createdAt": "2026-04-14T17:44:26.989Z"
+  },
+  {
+    "id": "group:d2556a2f5574c06f867aa8e1bde27be625c5a65ace0c3558a4ea2caedaacc802",
+    "type": "group",
+    "title": "QA Group 1776189232750",
+    "description": null,
+    "owner": "qa_u1_1776189232750",
+    "ownerId": "b11724e5dd874460ca00233e527e2281c9db0df3c8ddcf7ab60816f439bd6921",
+    "members": [
+      "b11724e5dd874460ca00233e527e2281c9db0df3c8ddcf7ab60816f439bd6921",
+      "350487bdc39abd699d1f7b12d2a114ffd3fe919032a19b1ebfb8516826d400ad"
+    ],
+    "admins": [
+      "b11724e5dd874460ca00233e527e2281c9db0df3c8ddcf7ab60816f439bd6921"
+    ],
+    "avatarDataUrl": null,
+    "verified": false,
+    "visibility": "public",
+    "inviteToken": null,
+    "createdAt": "2026-04-14T17:53:53.781Z"
+  }
+]

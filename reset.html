@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Атон — новый пароль</title>
+  <meta name="description" content="Задайте новый пароль для входа в Атон." />
+  <meta name="robots" content="noindex, follow" />
+  <meta name="theme-color" content="#020617" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="aton-api-base" content="" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app" style="align-items:center;justify-content:center;">
+    <div class="aton-shell" style="max-width:480px;max-height:none;">
+      <div class="aton-main" style="padding:20px;">
+        <div class="aton-topbar-left" style="margin-bottom:12px;">
+          <div class="aton-topbar-title">Восстановление пароля</div>
+          <div class="aton-topbar-status" id="reset-status">Введите новый пароль для вашей учётной записи.</div>
+        </div>
+        <form id="reset-form" class="aton-auth-form">
+          <label class="aton-input-label">Новый пароль</label>
+          <input type="password" id="reset-password" class="aton-input" autocomplete="new-password" />
+          <button type="submit" class="aton-primary-button">Сменить пароль</button>
+          <div class="aton-auth-hint" id="reset-hint"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function atonApiBase() {
+      const m = document.querySelector('meta[name="aton-api-base"]')?.getAttribute("content")?.trim();
+      return m ? m.replace(/\/$/, "") : "";
+    }
+    function getTokenFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("token");
+    }
+
+    document.getElementById("reset-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const token = getTokenFromUrl();
+      const statusEl = document.getElementById("reset-status");
+      const hintEl = document.getElementById("reset-hint");
+      const password = document.getElementById("reset-password").value.trim();
+      if (!token) {
+        hintEl.textContent = "Ссылка недействительна: отсутствует токен.";
+        return;
+      }
+      if (!password) {
+        hintEl.textContent = "Введите новый пароль.";
+        return;
+      }
+      try {
+        const res = await fetch(`${atonApiBase()}/api/password/reset`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          hintEl.textContent = data.error || "Не удалось сменить пароль.";
+          return;
+        }
+        statusEl.textContent = "Пароль успешно обновлён. Теперь вы можете войти в Атон.";
+        hintEl.textContent = "";
+      } catch (err) {
+        hintEl.textContent = "Ошибка сети.";
+      }
+    });
+  </script>
+</body>
+</html>
+

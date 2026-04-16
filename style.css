@@ -1,0 +1,1437 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --aton-bg: #020617;
+  --aton-bg-elevated: #02081b;
+  --aton-bg-soft: #0b1120;
+  --aton-border-soft: rgba(148, 163, 184, 0.25);
+  --aton-text-main: #f9fafb;
+  --aton-text-muted: #9ca3af;
+  --aton-accent-gold: #fbbf24;
+  --aton-accent-amber: #fb923c;
+  --aton-accent-blue: #38bdf8;
+  --aton-accent-blue-deep: #0ea5e9;
+  --aton-error: #f97373;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(248, 181, 81, 0.28) 0, transparent 55%),
+    radial-gradient(circle at bottom right, rgba(56, 189, 248, 0.22) 0, transparent 60%),
+    linear-gradient(145deg, var(--aton-bg), var(--aton-bg) 40%, #02011a 100%);
+  color: var(--aton-text-main);
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+}
+
+#app {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+  overflow: hidden;
+}
+
+.aton-shell {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(circle at top left, rgba(148, 163, 253, 0.18), transparent 55%),
+    radial-gradient(circle at bottom right, rgba(236, 72, 153, 0.24), transparent 55%),
+    rgba(10, 12, 24, 0.96);
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.aton-sidebar {
+  width: 320px;
+  border-right: 1px solid rgba(148, 163, 184, 0.35);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(15, 23, 42, 0.96));
+  display: flex;
+  flex-direction: column;
+}
+
+.aton-sidebar-header {
+  padding: 16px 18px 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.aton-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: conic-gradient(from 200deg, #f97316, #fde68a, #22d3ee, #f97316);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 24px rgba(251, 191, 36, 0.8);
+}
+
+.aton-logo-inner {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: radial-gradient(circle at top, #fee2b3, #f97316 60%, #7c2d12 100%);
+}
+
+.aton-product-name {
+  display: flex;
+  flex-direction: column;
+}
+
+.aton-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.aton-subtitle {
+  font-size: 11px;
+  color: var(--aton-text-muted);
+}
+
+.aton-auth {
+  padding: 12px 18px 18px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.35) 0%, transparent 100%);
+}
+
+.aton-auth-tabs {
+  display: inline-flex;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.9);
+  padding: 3px;
+  border: 1px solid rgba(71, 85, 105, 0.65);
+  margin-bottom: 14px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.aton-auth-tab {
+  border: none;
+  background: transparent;
+  color: var(--aton-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 10px 14px;
+  min-height: 40px;
+  border-radius: 999px;
+  cursor: pointer;
+  flex: 1;
+  text-align: center;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.aton-auth-tab.active {
+  background: radial-gradient(circle at top, #f97316, #facc15);
+  color: #020617;
+}
+
+.aton-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.aton-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+}
+
+.aton-input-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #94a3b8;
+}
+
+.aton-input {
+  margin-top: 0;
+  padding: 11px 12px;
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(100, 116, 139, 0.55);
+  background: rgba(15, 23, 42, 0.92);
+  color: #e5e7eb;
+  font-size: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.aton-input:focus {
+  outline: none;
+  border-color: #f97316;
+  box-shadow:
+    0 0 0 1px rgba(251, 146, 60, 0.5),
+    0 0 20px rgba(251, 191, 36, 0.12);
+}
+
+.aton-primary-button {
+  margin-top: 4px;
+  padding: 14px 18px;
+  min-height: 48px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  background: linear-gradient(120deg, #fb923c, #eab308);
+  color: #020617;
+  box-shadow: 0 8px 28px rgba(248, 181, 81, 0.45);
+  transition: transform 0.12s ease-out, box-shadow 0.12s ease-out, filter 0.12s ease-out;
+}
+
+.aton-primary-button:hover {
+  filter: brightness(1.05);
+}
+
+.aton-primary-button:active {
+  transform: translateY(1px);
+  box-shadow: 0 4px 18px rgba(248, 181, 81, 0.5);
+}
+
+.aton-auth-hint {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--aton-text-muted);
+  text-align: center;
+}
+
+.aton-auth-footer {
+  margin-top: 4px;
+  text-align: center;
+}
+
+.aton-auth-link {
+  color: var(--aton-accent-blue);
+  font-size: 12px;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.35);
+  padding-bottom: 1px;
+}
+
+.aton-auth-link:hover {
+  color: #7dd3fc;
+  border-bottom-color: rgba(125, 211, 252, 0.55);
+}
+
+.aton-auth-logged {
+  padding: 6px 12px 6px;
+  border-bottom: 1px solid rgba(55, 65, 81, 0.9);
+  font-size: 11px;
+  color: #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.aton-auth-logged-title {
+  display: none;
+}
+
+.aton-auth-logged-user {
+  font-size: 11px;
+  color: var(--aton-text-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.aton-auth-logged-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.aton-logout-button {
+  border-radius: 999px;
+  border: none;
+  padding: 4px 10px;
+  background: linear-gradient(120deg, rgba(248, 113, 113, 0.12), rgba(239, 68, 68, 0.2));
+  color: #fecaca;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s ease-out, color 0.15s ease-out, box-shadow 0.15s ease-out;
+}
+
+.aton-logout-button:hover {
+  background: linear-gradient(120deg, #f97373, #ef4444);
+  color: #111827;
+  box-shadow: 0 0 16px rgba(248, 113, 113, 0.6);
+}
+
+.aton-chats {
+  padding: 6px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-height: 0;
+}
+
+.aton-chats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--aton-text-muted);
+  padding: 0 8px;
+}
+
+.aton-new-chat-button {
+  border: none;
+  border-radius: 999px;
+  padding: 3px 10px;
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+}
+
+.aton-new-chat-button:hover {
+  background: rgba(30, 64, 175, 0.9);
+}
+
+.aton-search {
+  margin-top: 4px;
+  padding: 0 4px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.aton-search-input {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(31, 41, 55, 0.95);
+  background: rgba(15, 23, 42, 0.96);
+  color: #e5e7eb;
+  font-size: 12px;
+}
+
+.aton-search-input:focus {
+  outline: none;
+  border-color: var(--aton-accent-blue);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.4);
+}
+
+.aton-search-input.aton-search-onboarding {
+  border-color: rgba(56, 189, 248, 0.95);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.28);
+}
+
+.aton-search-results {
+  max-height: 120px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.aton-search-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: 10px;
+  border: none;
+  padding: 4px 8px;
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.aton-search-item span {
+  color: var(--aton-text-muted);
+}
+
+.aton-search-item:hover {
+  background: rgba(37, 99, 235, 0.85);
+}
+
+.aton-search-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.aton-search-action {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(55, 65, 81, 0.8);
+  background: rgba(15, 23, 42, 0.7);
+  color: #94a3b8;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.aton-search-action:hover {
+  background: rgba(37, 99, 235, 0.3);
+  color: #e5e7eb;
+}
+
+.aton-search-join {
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #38bdf8;
+  font-weight: 500;
+}
+
+.aton-search-join:hover {
+  background: rgba(56, 189, 248, 0.18);
+  color: #e5e7eb;
+}
+
+.aton-search-join:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.aton-chat-list {
+  margin-top: 4px;
+  padding: 2px 0;
+  border-radius: 10px;
+  background: transparent;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-y: auto;
+}
+
+.aton-chat-list-empty {
+  padding: 14px 16px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--aton-text-muted);
+  text-align: center;
+}
+
+.aton-chat-onboarding {
+  width: 100%;
+  padding: 2px 6px 6px;
+  margin: 0;
+}
+
+.aton-chat-onboarding .aton-chat-onboarding-card {
+  position: relative;
+}
+
+.aton-chat-onboarding-card {
+  padding: 8px 10px 8px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(31, 41, 55, 0.85);
+}
+
+.aton-chat-onboarding-title {
+  font-size: 12px;
+  font-weight: 650;
+  opacity: 0.95;
+  margin-bottom: 6px;
+}
+
+.aton-chat-onboarding-desc {
+  font-size: 10.5px;
+  line-height: 1.45;
+  opacity: 0.82;
+  margin-bottom: 8px;
+}
+
+.aton-chat-onboarding-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.aton-onboarding-cta {
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  padding: 5px 10px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  transition: transform 0.12s ease-out, filter 0.12s ease-out, box-shadow 0.12s ease-out;
+}
+
+.aton-onboarding-cta-primary {
+  background: radial-gradient(circle at top, var(--aton-accent-blue), var(--aton-accent-blue-deep));
+  color: #020617;
+  box-shadow: 0 10px 26px rgba(56, 189, 248, 0.14);
+}
+
+.aton-onboarding-cta-primary:hover {
+  filter: brightness(1.05);
+}
+
+.aton-onboarding-cta-secondary {
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+  border: 1px solid rgba(55, 65, 81, 0.9);
+}
+
+.aton-onboarding-cta-secondary:hover {
+  background: rgba(30, 64, 175, 0.35);
+}
+
+.aton-chat-item {
+  border-radius: 0;
+  border: none;
+  padding: 6px 10px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease-out;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.95);
+}
+
+.aton-chat-item-title {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.aton-chat-item-subtitle {
+  font-size: 10px;
+  color: var(--aton-text-muted);
+}
+
+.aton-chat-item.active {
+  background: radial-gradient(circle at left, rgba(56, 189, 248, 0.22), transparent 60%);
+}
+
+.aton-chat-item:not(.active):hover {
+  background: rgba(15, 23, 42, 0.95);
+}
+
+.aton-chat-item-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex: 1;
+}
+
+.aton-chat-pin {
+  font-size: 11px;
+  color: #fbbf24;
+  margin-left: 4px;
+}
+
+.aton-chat-item-title-text {
+  display: inline-flex;
+  align-items: center;
+}
+
+.aton-chat-verified-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.16);
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  color: #38bdf8;
+  font-size: 11px;
+  line-height: 1;
+  margin-left: 6px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.aton-chat-menu-btn {
+  border: none;
+  border-radius: 999px;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: rgba(148, 163, 184, 0.85);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+  flex-shrink: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.aton-chat-item:hover .aton-chat-menu-btn,
+.aton-chat-item.active .aton-chat-menu-btn,
+.aton-chat-item:active .aton-chat-menu-btn,
+.aton-chat-item:focus-within .aton-chat-menu-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.aton-chat-menu-btn:hover {
+  background: rgba(15, 23, 42, 0.9);
+  color: #38bdf8;
+}
+
+.aton-chat-menu-dropdown {
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(55, 65, 81, 0.9);
+  border-radius: 14px;
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.9);
+  padding: 6px;
+  min-width: 170px;
+}
+
+.aton-chat-menu-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: #e5e7eb;
+  cursor: pointer;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.aton-chat-menu-item:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.14);
+  color: #38bdf8;
+}
+
+.aton-chat-menu-item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.aton-chat-unread-badge {
+  min-width: 18px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.95);
+  color: #020617;
+  font-size: 10px;
+  text-align: center;
+}
+
+.aton-chat-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  margin-left: 6px;
+  font-size: 10px;
+  color: var(--aton-text-muted);
+  flex-shrink: 0;
+}
+
+.aton-chat-time {
+  font-size: 10px;
+  color: var(--aton-text-muted);
+}
+
+.aton-chat-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: radial-gradient(circle at top, #facc15, #f97316 70%, #7c2d12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #111827;
+}
+
+.aton-chat-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.aton-chat-online-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  margin-right: 4px;
+  vertical-align: middle;
+  background: #4b5563;
+}
+
+.aton-chat-online-dot.online {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.7);
+}
+
+.aton-chat-online-dot.offline {
+  background: #4b5563;
+}
+
+.aton-chat-item-delete {
+  margin-left: 6px;
+  border: none;
+  border-radius: 999px;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: rgba(148, 163, 184, 0.85);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.aton-chat-item-delete:hover {
+  background: rgba(15, 23, 42, 0.9);
+  color: #f97316;
+}
+
+.aton-chat-verify-menu {
+  display: none;
+  margin-left: 6px;
+  border: none;
+  border-radius: 999px;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: rgba(148, 163, 184, 0.85);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.aton-chat-item:hover .aton-chat-verify-menu,
+.aton-chat-item.active .aton-chat-verify-menu {
+  display: inline-flex;
+}
+
+.aton-chat-verify-menu:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.9);
+  color: #38bdf8;
+}
+
+.aton-chat-verify-menu:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.aton-profile-link {
+  margin-top: auto;
+  padding: 8px 12px 10px;
+  font-size: 11px;
+  color: var(--aton-text-muted);
+  border-top: 1px solid rgba(31, 41, 55, 0.9);
+  cursor: pointer;
+}
+
+.aton-profile-link span {
+  text-decoration: underline;
+}
+
+.aton-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(16px);
+  overflow: hidden;
+}
+
+.aton-topbar {
+  height: 52px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+}
+
+.aton-topbar-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.aton-topbar-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.aton-topbar-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.aton-topbar-title-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.aton-title-text {
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.aton-verified-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.16);
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  color: #38bdf8;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.aton-topbar-status {
+  font-size: 11px;
+  color: var(--aton-text-muted);
+  line-height: 1.35;
+}
+
+.aton-topbar--guest .aton-topbar-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.aton-topbar--guest .aton-topbar-status {
+  max-width: 220px;
+}
+
+.aton-topbar-icon {
+  position: relative;
+  border: none;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #e5e7eb;
+  cursor: pointer;
+  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.aton-topbar-icon-badge {
+  position: absolute;
+  right: 0;
+  top: 0;
+  transform: translate(40%, -40%);
+  min-width: 14px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.95);
+  color: #020617;
+  font-size: 9px;
+}
+
+.aton-topbar-icon.active {
+  background: radial-gradient(circle at top, #38bdf8, #0ea5e9);
+  color: #020617;
+}
+
+.aton-user-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(55, 65, 81, 0.9);
+  font-size: 12px;
+  position: relative;
+  padding-left: 18px;
+  cursor: pointer;
+}
+
+.aton-user-pill::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #4b5563;
+}
+
+.aton-user-pill.online::before {
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.7);
+}
+
+.aton-user-pill.offline::before {
+  background: #6b7280;
+}
+
+.aton-user-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: radial-gradient(circle at top, #facc15, #f97316 70%, #7c2d12);
+}
+
+.aton-user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.aton-chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px 14px;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.aton-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.aton-message-row {
+  display: flex;
+}
+
+.aton-message-row.self {
+  justify-content: flex-end;
+}
+
+.aton-message-inner {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.aton-message-row.self .aton-message-inner {
+  flex-direction: row-reverse;
+}
+
+.aton-message-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: radial-gradient(circle at top, #facc15, #f97316 70%, #7c2d12);
+}
+
+.aton-message-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.aton-message-bubble {
+  max-width: min(70%, 520px);
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.4;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(75, 85, 99, 0.8);
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.aton-message-image {
+  display: block;
+  max-width: 100%;
+  border-radius: 10px;
+  margin: 8px 0 6px;
+}
+
+.aton-message-bubble.self {
+  background: linear-gradient(135deg, #fb923c, #facc15);
+  color: #111827;
+  border-color: transparent;
+}
+
+@keyframes aton-message-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.aton-message-bubble-enter {
+  animation: aton-message-enter 0.18s ease-out;
+}
+
+.aton-message-meta {
+  margin-top: 2px;
+  font-size: 10px;
+  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.aton-message-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+}
+
+.aton-message-action-button {
+  border: none;
+  background: transparent;
+  color: rgba(148, 163, 184, 0.9);
+  cursor: pointer;
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 0 5px;
+}
+
+.aton-message-action-button:hover {
+  background: rgba(15, 23, 42, 0.95);
+  color: #f97316;
+}
+
+.aton-user-verify-button {
+  border: none;
+  border-radius: 999px;
+  padding: 0 6px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.6);
+  color: rgba(148, 163, 184, 0.95);
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.aton-user-verify-button:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.95);
+  color: #38bdf8;
+  transform: translateY(-1px);
+}
+
+.aton-user-verify-button:disabled {
+  opacity: 0.7;
+  cursor: default;
+  transform: none;
+}
+
+.aton-message-reply-preview {
+  font-size: 11px;
+  color: #e5e7eb;
+  opacity: 0.8;
+  padding: 4px 6px;
+  margin-bottom: 4px;
+  border-left: 2px solid rgba(248, 181, 81, 0.8);
+}
+
+.aton-message-reactions {
+  margin-top: 4px;
+  display: inline-flex;
+  gap: 4px;
+}
+
+.aton-reaction-pill {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(55, 65, 81, 0.9);
+  font-size: 11px;
+}
+
+.aton-reaction-picker {
+  z-index: 80;
+  padding: 4px 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(55, 65, 81, 0.9);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.9);
+  display: inline-flex;
+  gap: 2px;
+}
+
+.aton-reaction-picker-item {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 15px;
+  padding: 2px 4px;
+}
+
+.aton-reaction-picker-item:hover {
+  transform: translateY(-1px);
+}
+
+.aton-compose {
+  border-top: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 8px 10px;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.aton-typing-indicator {
+  font-size: 11px;
+  color: var(--aton-text-muted);
+  margin-bottom: 4px;
+  margin-left: 6px;
+}
+
+.aton-compose-input {
+  flex: 1;
+  min-height: 38px;
+  max-height: min(40vh, 200px);
+  padding: 8px 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(55, 65, 81, 0.9);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+  font-size: 13px;
+  line-height: 1.45;
+  font-family: inherit;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  resize: none;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.aton-compose-input:focus {
+  outline: none;
+  border-color: var(--aton-accent-blue);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.5);
+}
+
+.aton-send-button {
+  border-radius: 999px;
+  border: none;
+  padding: 7px 11px;
+  background: radial-gradient(circle at top, var(--aton-accent-blue), var(--aton-accent-blue-deep));
+  color: #020617;
+  cursor: pointer;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.aton-send-button:hover {
+  filter: brightness(1.05);
+}
+
+.aton-mic-button {
+  border-radius: 999px;
+  border: none;
+  padding: 6px 8px;
+  background: rgba(15, 23, 42, 0.95);
+  color: #e5e7eb;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.aton-mic-button.recording {
+  background: radial-gradient(circle at top, #fb7185, #b91c1c);
+  color: #fee2e2;
+}
+
+.aton-attach-button {
+  border-radius: 999px;
+  border: none;
+  padding: 6px 8px;
+  background: rgba(15, 23, 42, 0.95);
+  color: #e5e7eb;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.aton-attach-button:hover {
+  background: rgba(17, 24, 39, 0.95);
+}
+
+.aton-image-lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 70;
+}
+
+.aton-image-lightbox img {
+  max-width: 92vw;
+  max-height: 92vh;
+  border-radius: 16px;
+  box-shadow: 0 32px 120px rgba(0, 0, 0, 0.9);
+}
+
+.aton-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  padding: 24px;
+  animation: aton-empty-fade 360ms ease-out;
+}
+
+.aton-empty-state--landing {
+  align-items: stretch;
+  text-align: left;
+  justify-content: flex-start;
+  max-width: 26rem;
+  margin: 0 auto;
+  padding: 24px 20px 32px;
+  box-sizing: border-box;
+}
+
+.aton-empty-state--pick {
+  max-width: 22rem;
+  padding: 28px 20px;
+}
+
+.aton-empty-kicker {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--aton-accent-blue);
+  margin: 0 0 10px;
+  opacity: 0.95;
+}
+
+.aton-empty-title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  opacity: 0.95;
+  margin: 0 0 12px;
+}
+
+.aton-empty-state--landing .aton-empty-title {
+  font-size: 21px;
+}
+
+/* Только десктоп: крупный символ солнца в гостевом лендинге */
+.aton-landing-sun {
+  display: none;
+}
+
+.aton-empty-lead {
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--aton-text-muted);
+  margin: 0;
+  font-weight: 400;
+}
+
+.aton-empty-subtitle {
+  font-size: 15px;
+  line-height: 1.5;
+  opacity: 0.88;
+  margin-bottom: 10px;
+  color: #cbd5e1;
+}
+
+.aton-empty-meta {
+  font-size: 13px;
+  line-height: 1.55;
+  opacity: 0.65;
+  max-width: 36ch;
+}
+
+@media (min-width: 841px) {
+  .aton-empty-state--landing {
+    text-align: center;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 36rem;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .aton-empty-state--landing .aton-empty-kicker,
+  .aton-empty-state--landing .aton-empty-title,
+  .aton-empty-state--landing .aton-empty-lead {
+    text-align: center;
+    width: 100%;
+    max-width: 34rem;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .aton-empty-state--landing .aton-empty-title {
+    font-size: 24px;
+  }
+
+  .aton-landing-sun {
+    display: block;
+    position: relative;
+    width: clamp(120px, 16vw, 220px);
+    height: clamp(120px, 16vw, 220px);
+    margin: 0 auto 28px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: conic-gradient(from 200deg, #f97316, #fde68a, #22d3ee, #f97316);
+    box-shadow:
+      0 0 48px rgba(251, 191, 36, 0.55),
+      0 0 96px rgba(251, 146, 60, 0.22),
+      inset 0 0 32px rgba(254, 226, 179, 0.12);
+  }
+
+  .aton-landing-sun::after {
+    content: "";
+    position: absolute;
+    inset: 18%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 25%, #fee2b3, #f97316 58%, #7c2d12 100%);
+    box-shadow: inset 0 0 24px rgba(124, 45, 18, 0.35);
+  }
+}
+
+@keyframes aton-empty-fade {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 840px) {
+  .aton-shell {
+    flex-direction: column;
+  }
+
+  /* Гость: только форма входа — без топбара и промо-текста (экономия экрана). */
+  .aton-shell--guest-landing .aton-main {
+    display: none !important;
+  }
+
+  .aton-shell--guest-landing .aton-sidebar {
+    flex: 1;
+    min-height: 100dvh;
+    min-height: 100vh;
+    border-bottom: none;
+  }
+
+  /* Шапка сверху, форма входа — по вертикали по центру оставшейся области */
+  .aton-shell--guest-landing .aton-sidebar-header {
+    flex-shrink: 0;
+  }
+
+  .aton-shell--guest-landing .aton-auth {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 0;
+    border-bottom: none;
+    padding-bottom: max(18px, env(safe-area-inset-bottom));
+  }
+
+  .aton-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  }
+
+  .aton-sidebar-header {
+    padding: 14px 18px 8px;
+  }
+
+  .aton-topbar {
+    min-height: 52px;
+    height: auto;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
+  }
+
+  .aton-topbar-left {
+    min-width: 0;
+  }
+
+  .aton-topbar--guest .aton-topbar-status {
+    max-width: none;
+  }
+
+  .aton-messages {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(4px, env(safe-area-inset-right));
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+
+  .aton-input {
+    font-size: 16px;
+  }
+}
+

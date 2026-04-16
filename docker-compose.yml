@@ -1,0 +1,20 @@
+# Локальная PostgreSQL только для разработки (порт 5432).
+# Запуск: docker compose up -d
+# Остановка: docker compose down
+# Строка для .env см. в .env.example
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aton
+      POSTGRES_PASSWORD: aton_dev_local
+      POSTGRES_DB: aton
+    ports:
+      - "5432:5432"
+    volumes:
+      - aton_pgdata:/var/lib/postgresql/data
+
+volumes:
+  aton_pgdata:
