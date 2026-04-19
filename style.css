@@ -1088,6 +1088,7 @@ body {
   display: inline-flex;
   align-items: flex-end;
   gap: 6px;
+  max-width: 100%;
 }
 
 .aton-message-row.self .aton-message-inner {
@@ -1112,10 +1113,12 @@ body {
 
 .aton-message-bubble {
   max-width: min(70%, 520px);
+  min-width: 60px;
   padding: 12px 14px;
   border-radius: 14px;
   font-size: 13px;
   line-height: 1.4;
+  word-break: break-word;
   background: rgba(15, 23, 42, 0.9);
   border: 1px solid rgba(75, 85, 99, 0.8);
   position: relative;
@@ -1263,6 +1266,7 @@ body {
   display: flex;
   align-items: flex-end;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .aton-compose-actions {
@@ -1280,7 +1284,9 @@ body {
 }
 
 .aton-compose-input {
-  flex: 1;
+  flex: 1 1 0%;
+  min-width: 0;
+  width: 0;
   min-height: 38px;
   max-height: min(40vh, 200px);
   padding: 8px 10px;
@@ -2484,8 +2490,9 @@ body {
     padding: 8px 12px;
     border-radius: 20px;
     line-height: 1.4;
-    flex: 1;
+    flex: 1 1 0%;
     min-width: 0;
+    width: 0;
   }
 
   .aton-compose-actions {

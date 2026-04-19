@@ -499,8 +499,11 @@ function createApp() {
 
   function adjustComposeInputHeight() {
     if (!inputMessage || inputMessage.tagName !== "TEXTAREA") return;
-    inputMessage.style.height = "auto";
-    inputMessage.style.height = inputMessage.scrollHeight + "px";
+    const w = inputMessage.style.width;
+    inputMessage.style.width = inputMessage.offsetWidth + "px";
+    inputMessage.style.height = "0";
+    inputMessage.style.height = Math.max(inputMessage.scrollHeight, 40) + "px";
+    inputMessage.style.width = w || "";
   }
   const micButton = document.getElementById("aton-mic");
   const attachButton = document.getElementById("aton-attach");
