@@ -57,33 +57,39 @@ function unlockNotificationAudio() {
 }
 
 function playIncomingMessageSound() {
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    if (!window.__atonAudioCtx) window.__atonAudioCtx = new Ctx();
-    const ctx = window.__atonAudioCtx;
-    if (ctx.state === "suspended") {
-      ctx.resume().catch(() => {});
-    }
-    const t0 = ctx.currentTime;
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = "sine";
-    o.frequency.setValueAtTime(659, t0);
-    o.frequency.exponentialRampToValueAtTime(880, t0 + 0.06);
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.07, t0 + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.14);
-    o.connect(g);
-    g.connect(ctx.destination);
-    o.start(t0);
-    o.stop(t0 + 0.14);
-  } catch (_) {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;
+  if (!window.__atonAudioCtx) window.__atonAudioCtx = new Ctx();
+  const ctx = window.__atonAudioCtx;
+
+  const beep = () => {
     try {
-      const a = new Audio("/notification.mp3");
-      a.volume = 0.35;
-      a.play().catch(() => {});
-    } catch (_) {}
+      const t0 = ctx.currentTime;
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.setValueAtTime(659, t0);
+      o.frequency.exponentialRampToValueAtTime(880, t0 + 0.06);
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(0.09, t0 + 0.02);
+      g.gain.linearRampToValueAtTime(0, t0 + 0.16);
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start(t0);
+      o.stop(t0 + 0.16);
+    } catch (_) {
+      try {
+        const a = new Audio("/notification.mp3");
+        a.volume = 0.35;
+        a.play().catch(() => {});
+      } catch (_) {}
+    }
+  };
+
+  if (ctx.state === "suspended") {
+    ctx.resume().then(beep).catch(beep);
+  } else {
+    beep();
   }
 }
 
@@ -891,6 +897,7 @@ function createApp() {
       }
 
       await bootstrapData();
+      unlockNotificationAudio();
       applyCurrentUserUI();
       renderChatList();
       renderMessages();
@@ -1942,12 +1949,15 @@ function createApp() {
       const text = document.createElement("div");
       text.className = "aton-message-text";
       if (msg.type === "audio" && msg.audioDataUrl) {
+        text.classList.add("aton-message-text--media");
         const audio = document.createElement("audio");
+        audio.className = "aton-message-audio";
         audio.controls = true;
+        audio.preload = "metadata";
         audio.src = msg.audioDataUrl;
-        audio.style.maxWidth = "220px";
         text.appendChild(audio);
       } else if (msg.type === "image" && msg.imageDataUrl) {
+        text.classList.add("aton-message-text--media");
         const img = document.createElement("img");
         img.src = msg.imageDataUrl;
         img.className = "aton-message-image";
@@ -2185,6 +2195,7 @@ function createApp() {
   }
 
   sendButton.addEventListener("click", () => {
+    unlockNotificationAudio();
     const user = currentUser;
     if (!user || !currentChatId) return;
     const text = inputMessage.value.trim();
@@ -2940,6 +2951,7 @@ function createApp() {
 
   // Голосовые сообщения
   micButton.addEventListener("click", async () => {
+    unlockNotificationAudio();
     const user = currentUser;
     if (!user || !currentChatId) return;
 
@@ -3190,6 +3202,10 @@ function createApp() {
     if (currentUser && !currentUser.verified) {
       showVerifyScreen(currentUser.email);
       return;
+    }
+
+    if (currentUser) {
+      unlockNotificationAudio();
     }
 
     if (verifyResult && verifyResult.ok) {
