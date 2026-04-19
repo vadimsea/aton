@@ -293,7 +293,7 @@ function createApp() {
     </div>
     <button class="aton-new-chat-button" id="aton-create-group" disabled style="display:none;">+ Группа</button>
     <div class="aton-search">
-      <input type="text" class="aton-search-input" id="aton-user-search" placeholder="Найти пользователя по @username…" disabled />
+      <input type="text" class="aton-search-input" id="aton-user-search" placeholder="Поиск по имени или @username…" disabled />
       <div class="aton-search-results" id="aton-search-results"></div>
     </div>
     <div class="aton-chat-list" id="aton-chat-list"></div>
@@ -2236,15 +2236,23 @@ function createApp() {
   });
 
   // Поиск пользователя
+  let searchDebounceTimer = null;
   async function handleUserSearch() {
     const current = currentUser;
     const q = searchInput.value.trim().toLowerCase();
     searchResultsEl.innerHTML = "";
     if (!current || !q) return;
 
-    const users = allUsers.filter(
-      (u) => u.username !== current.username && u.username.toLowerCase().includes(q),
-    );
+    const matchUser = (u) => {
+      if (u.username === current.username) return false;
+      const name = (u.displayName || "").toLowerCase();
+      const uname = u.username.toLowerCase();
+      const pid = (u.publicId || "").toLowerCase();
+      const query = q.startsWith("@") ? q.slice(1) : q;
+      return uname.includes(query) || name.includes(query) || pid.includes(query);
+    };
+
+    const users = allUsers.filter(matchUser);
 
     if (users.length) {
       const usersTitle = document.createElement("div");
@@ -2261,9 +2269,14 @@ function createApp() {
       item.className = "aton-search-item";
       const isFriend = contacts.friends.some((f) => f.username === u.username);
       const isBlocked = contacts.blocked.some((b) => b.username === u.username);
+      const nameStr = u.displayName || u.username;
+      const verifiedBadge = u.isVerified ? ' <span style="color:#38bdf8;font-size:12px;">✔</span>' : "";
       item.innerHTML = `
         <div class="aton-search-main">
-          ${escHtml(u.displayName || u.username)} <span>@${escHtml(u.username)}</span>
+          <div class="aton-search-user-info">
+            <span class="aton-search-name">${escHtml(nameStr)}${verifiedBadge}</span>
+            <span class="aton-search-handle">@${escHtml(u.publicId || u.username)}</span>
+          </div>
         </div>
         <div class="aton-search-actions">
           <button type="button" class="aton-search-action aton-search-add">${
@@ -2452,7 +2465,10 @@ function createApp() {
     });
   }
 
-  searchInput.addEventListener("input", handleUserSearch);
+  searchInput.addEventListener("input", () => {
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(handleUserSearch, 200);
+  });
 
   // Создание групп
   if (createGroupButton) {
