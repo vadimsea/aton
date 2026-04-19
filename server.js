@@ -560,6 +560,8 @@ app.get("/api/me", authMiddleware, async (req, res) => {
       bio: u.bio,
       lastSeen: u.lastSeen || null,
       verified: Boolean(row.verified),
+      isVerified: Boolean(u.isVerified),
+      isSuperAdmin: Boolean(u.isSuperAdmin),
     });
   } catch (err) {
     console.error("GET /api/me:", err);
@@ -869,6 +871,7 @@ app.get("/api/users", authMiddleware, requireVerified, async (req, res) => {
     const users = raw.map((row) => {
       const u = userFromPrismaRow(row);
       ensureLists(u);
+      ensureVerificationFlags(u);
       return {
         id: u.id,
         username: u.username,
@@ -878,6 +881,8 @@ app.get("/api/users", authMiddleware, requireVerified, async (req, res) => {
         lastSeen: u.lastSeen || null,
         isFriend: friendsSet.has(u.username),
         isBlocked: blockedSet.has(u.username),
+        isVerified: Boolean(u.isVerified),
+        isSuperAdmin: Boolean(u.isSuperAdmin),
       };
     });
     res.json(users);

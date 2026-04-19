@@ -270,10 +270,13 @@ function createApp() {
   authLoggedBlock.className = "aton-auth-logged";
   authLoggedBlock.style.display = "none";
   authLoggedBlock.innerHTML = `
-    <div class="aton-auth-logged-title">Вы в сети</div>
-    <div class="aton-auth-logged-user" id="aton-logged-user"></div>
-    <div class="aton-auth-logged-actions">
-      <button type="button" class="aton-logout-button" id="aton-logout">Выйти</button>
+    <div class="aton-auth-logged-row">
+      <div class="aton-auth-logged-avatar" id="aton-logged-avatar"></div>
+      <div class="aton-auth-logged-info">
+        <div class="aton-auth-logged-user" id="aton-logged-user"></div>
+        <div class="aton-auth-logged-status" id="aton-logged-status">В сети</div>
+      </div>
+      <button type="button" class="aton-logout-button" id="aton-logout" title="Выйти">⏻</button>
     </div>
   `;
 
@@ -686,7 +689,37 @@ function createApp() {
       const full = allUsers.find((u) => u.username === user.username) || user;
       const displayName = full.displayName || full.username;
       const publicId = full.publicId || full.username;
-      loggedUserLabel.textContent = `${displayName} · ID: @${publicId}`;
+      loggedUserLabel.innerHTML = "";
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = displayName;
+      loggedUserLabel.appendChild(nameSpan);
+      if (full.isVerified) {
+        const badge = document.createElement("span");
+        badge.className = "aton-verified-badge";
+        badge.textContent = "✔";
+        badge.title = "Верифицировано";
+        loggedUserLabel.appendChild(badge);
+      }
+      const idSpan = document.createElement("span");
+      idSpan.className = "aton-logged-id";
+      idSpan.textContent = `@${publicId}`;
+      loggedUserLabel.appendChild(idSpan);
+
+      // Sidebar avatar
+      const loggedAvatar = document.getElementById("aton-logged-avatar");
+      if (loggedAvatar) {
+        loggedAvatar.innerHTML = "";
+        if (full.avatarDataUrl) {
+          const avatarImg = document.createElement("img");
+          avatarImg.src = full.avatarDataUrl;
+          loggedAvatar.appendChild(avatarImg);
+        } else {
+          loggedAvatar.textContent = (displayName[0] || "?").toUpperCase();
+        }
+      }
+
+      // Sidebar online status
+      const loggedStatus = document.getElementById("aton-logged-status");
       const lastSeenIso = full.lastSeen;
       let isOnline = false;
       if (lastSeenIso) {
@@ -695,6 +728,7 @@ function createApp() {
       }
       userPill.classList.toggle("online", isOnline);
       userPill.classList.toggle("offline", !isOnline);
+      if (loggedStatus) loggedStatus.textContent = isOnline ? "В сети" : "Не в сети";
       statusEl.textContent = isOnline
         ? `В сети как ${displayName}`
         : `Недавно были в сети как ${displayName}`;
@@ -704,7 +738,16 @@ function createApp() {
       if (moderationButton) {
         moderationButton.style.display = currentUser?.isSuperAdmin ? "inline-flex" : "none";
       }
-      userNameLabel.textContent = displayName;
+      userNameLabel.innerHTML = "";
+      const pillNameText = document.createTextNode(displayName);
+      userNameLabel.appendChild(pillNameText);
+      if (full.isVerified) {
+        const pillBadge = document.createElement("span");
+        pillBadge.className = "aton-verified-badge";
+        pillBadge.textContent = "✔";
+        pillBadge.title = "Верифицировано";
+        userNameLabel.appendChild(pillBadge);
+      }
       const pillAvatar = userPill.querySelector(".aton-user-avatar");
       pillAvatar.innerHTML = "";
       if (full.avatarDataUrl) {
