@@ -2602,21 +2602,16 @@ function createApp() {
         }),
       });
       currentUser = updated;
+      currentUser.isSuperAdmin = resolveIsSuperAdmin(currentUser);
       const idx = allUsers.findIndex((u) => u.id === updated.id);
       if (idx !== -1) allUsers[idx] = updated;
       else allUsers.push(updated);
 
-      userNameLabel.textContent = updated.displayName || updated.username;
-      const pillAvatar = userPill.querySelector(".aton-user-avatar");
-      pillAvatar.innerHTML = "";
-      if (updated.avatarDataUrl) {
-        const img = document.createElement("img");
-        img.src = updated.avatarDataUrl;
-        pillAvatar.appendChild(img);
-      }
       overlay.remove();
+      applyCurrentUserUI();
       renderChatList();
       renderMessages();
+      updateTopbarTitle();
     } catch (err) {
       alert(err.message);
     }

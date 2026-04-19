@@ -639,6 +639,7 @@ app.post("/api/profile", authMiddleware, requireVerified, async (req, res) => {
       data,
     });
     const u = userFromPrismaRow(updated);
+    ensureVerificationFlags(u);
     res.json({
       id: u.id,
       username: u.username,
@@ -647,6 +648,9 @@ app.post("/api/profile", authMiddleware, requireVerified, async (req, res) => {
       email: u.email,
       avatarDataUrl: u.avatarDataUrl,
       bio: u.bio,
+      verified: Boolean(updated.verified),
+      isVerified: Boolean(u.isVerified),
+      isSuperAdmin: Boolean(u.isSuperAdmin),
     });
   } catch (err) {
     if (err.code === "P2002") {
