@@ -105,7 +105,8 @@ body {
 }
 
 [data-theme="light"] .aton-sidebar {
-  background: linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.96));
+  background: #f9fafb;
+  border-right-color: rgba(0, 0, 0, 0.06);
 }
 
 .aton-sidebar-header {
@@ -1542,13 +1543,32 @@ body {
 }
 
 /* ===== LIGHT THEME OVERRIDES ===== */
-[data-theme="light"] .aton-sidebar {
-  background: #f9fafb;
-  border-right-color: var(--aton-border-soft);
+[data-theme="light"] .aton-auth {
+  background: none;
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .aton-new-chat-button {
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+}
+
+[data-theme="light"] .aton-new-chat-button:hover {
+  background: #1d4ed8;
+}
+
+[data-theme="light"] .aton-chats-header {
+  color: #6b7280;
+}
+
+[data-theme="light"] .aton-main {
+  background: #ffffff;
+  backdrop-filter: none;
 }
 
 [data-theme="light"] .aton-sidebar-header {
-  border-bottom-color: var(--aton-border-soft);
+  border-bottom-color: rgba(0, 0, 0, 0.06);
 }
 
 [data-theme="light"] .aton-logo-inner {
@@ -1669,18 +1689,60 @@ body {
 }
 
 [data-theme="light"] .aton-topbar-icon {
+  background: #f4f6f8;
   color: #6b7280;
 }
 
 [data-theme="light"] .aton-topbar-icon:hover {
-  background: #f0f4ff;
+  background: #e0e7ff;
   color: #2563eb;
+}
+
+[data-theme="light"] .aton-topbar-icon.active {
+  background: #2563eb;
+  color: #ffffff;
 }
 
 [data-theme="light"] .aton-user-pill {
   background: #f4f6f8;
   border-color: rgba(0, 0, 0, 0.08);
   color: #1a1a2e;
+}
+
+[data-theme="light"] .aton-chat-item {
+  border-bottom-color: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .aton-chat-menu-btn {
+  color: #9ca3af;
+}
+
+[data-theme="light"] .aton-chat-unread-badge {
+  background: #2563eb;
+}
+
+[data-theme="light"] .aton-search-item {
+  color: #1a1a2e;
+}
+
+[data-theme="light"] .aton-search-item:hover {
+  background: #f0f4ff;
+}
+
+[data-theme="light"] .aton-search-action {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+[data-theme="light"] .aton-chat-verify-menu {
+  background: #f4f6f8;
+  color: #1a1a2e;
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .aton-chat-verify-menu:hover:not(:disabled) {
+  background: #e0e7ff;
+  color: #2563eb;
 }
 
 [data-theme="light"] .aton-chat-onboarding-card {
