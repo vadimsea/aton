@@ -1172,6 +1172,10 @@ body {
   font-size: 11px;
 }
 
+.aton-message-sender--self {
+  color: rgba(17, 24, 39, 0.55);
+}
+
 @keyframes aton-message-enter {
   from {
     opacity: 0;
@@ -1761,6 +1765,70 @@ body {
 
 [data-theme="light"] .aton-message-sender {
   color: #2563eb;
+}
+
+[data-theme="light"] .aton-message-bubble.self .aton-message-sender--self {
+  color: rgba(17, 24, 39, 0.55);
+}
+
+[data-theme="light"] .aton-messages,
+[data-theme="light"] .aton-chat-list,
+[data-theme="light"] .aton-search-results {
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+[data-theme="light"] .aton-messages::-webkit-scrollbar,
+[data-theme="light"] .aton-chat-list::-webkit-scrollbar,
+[data-theme="light"] .aton-search-results::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+[data-theme="light"] .aton-messages::-webkit-scrollbar-track,
+[data-theme="light"] .aton-chat-list::-webkit-scrollbar-track,
+[data-theme="light"] .aton-search-results::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+[data-theme="light"] .aton-messages::-webkit-scrollbar-thumb,
+[data-theme="light"] .aton-chat-list::-webkit-scrollbar-thumb,
+[data-theme="light"] .aton-search-results::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+[data-theme="light"] .aton-messages::-webkit-scrollbar-thumb:hover,
+[data-theme="light"] .aton-chat-list::-webkit-scrollbar-thumb:hover,
+[data-theme="light"] .aton-search-results::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+:root:not([data-theme="light"]) .aton-messages,
+:root:not([data-theme="light"]) .aton-chat-list,
+:root:not([data-theme="light"]) .aton-search-results {
+  scrollbar-color: #475569 #0f172a;
+}
+
+:root:not([data-theme="light"]) .aton-messages::-webkit-scrollbar,
+:root:not([data-theme="light"]) .aton-chat-list::-webkit-scrollbar,
+:root:not([data-theme="light"]) .aton-search-results::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+:root:not([data-theme="light"]) .aton-messages::-webkit-scrollbar-track,
+:root:not([data-theme="light"]) .aton-chat-list::-webkit-scrollbar-track,
+:root:not([data-theme="light"]) .aton-search-results::-webkit-scrollbar-track {
+  background: #0f172a;
+  border-radius: 4px;
+}
+
+:root:not([data-theme="light"]) .aton-messages::-webkit-scrollbar-thumb,
+:root:not([data-theme="light"]) .aton-chat-list::-webkit-scrollbar-thumb,
+:root:not([data-theme="light"]) .aton-search-results::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
 }
 
 [data-theme="light"] .aton-messages {

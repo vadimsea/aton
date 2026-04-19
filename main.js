@@ -45,6 +45,48 @@ function formatTimeLabel(iso) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+function unlockNotificationAudio() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!window.__atonAudioCtx) window.__atonAudioCtx = new Ctx();
+    if (window.__atonAudioCtx.state === "suspended") {
+      window.__atonAudioCtx.resume().catch(() => {});
+    }
+  } catch (_) {}
+}
+
+function playIncomingMessageSound() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!window.__atonAudioCtx) window.__atonAudioCtx = new Ctx();
+    const ctx = window.__atonAudioCtx;
+    if (ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
+    }
+    const t0 = ctx.currentTime;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.setValueAtTime(659, t0);
+    o.frequency.exponentialRampToValueAtTime(880, t0 + 0.06);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.07, t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.14);
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start(t0);
+    o.stop(t0 + 0.14);
+  } catch (_) {
+    try {
+      const a = new Audio("/notification.mp3");
+      a.volume = 0.35;
+      a.play().catch(() => {});
+    } catch (_) {}
+  }
+}
+
 function getToken() {
   return localStorage.getItem(TOKEN_KEY) || null;
 }
@@ -378,6 +420,10 @@ function createApp() {
   shell.appendChild(main);
   root.appendChild(shell);
 
+  document.addEventListener("click", () => unlockNotificationAudio(), { once: true });
+  document.addEventListener("touchstart", () => unlockNotificationAudio(), { once: true, passive: true });
+  document.addEventListener("keydown", () => unlockNotificationAudio(), { once: true });
+
   // === Состояние ===
   let authMode = "login";
   let currentUser = null;
@@ -437,10 +483,9 @@ function createApp() {
     if (!msg) return;
     // Если сообщение уже есть в истории, не дублируем
     if (allMessages.some((m) => m.id === msg.id)) return;
-    try {
-      const audio = new Audio("/notification.mp3");
-      audio.play().catch(() => {});
-    } catch (_) {}
+    if (currentUser && msg.from !== currentUser.username) {
+      playIncomingMessageSound();
+    }
     allMessages.push(msg);
     // Держим сообщения в хронологическом порядке
     allMessages.sort((a, b) => new Date(a.time) - new Date(b.time));
@@ -1966,6 +2011,18 @@ function createApp() {
             }
           });
           senderEl.appendChild(verifyUserBtn);
+        }
+        bubble.appendChild(senderEl);
+      } else if (current) {
+        const senderEl = document.createElement("div");
+        senderEl.className = "aton-message-sender aton-message-sender--self";
+        const selfName = current.displayName || current.username || "";
+        senderEl.textContent = selfName;
+        if (current.isVerified) {
+          const badge = document.createElement("span");
+          badge.className = "aton-message-sender-badge";
+          badge.textContent = " ✔";
+          senderEl.appendChild(badge);
         }
         bubble.appendChild(senderEl);
       }
