@@ -222,6 +222,86 @@ async function sendMail(to, subject, text) {
   });
 }
 
+function isUserOnline(username) {
+  for (const [, s] of io.sockets.sockets) {
+    if (s.user && s.user.username === username) return true;
+  }
+  return false;
+}
+
+async function notifyNewMessage(msg, sender) {
+  if (!mailer) return;
+  const preview =
+    msg.type === "text"
+      ? (msg.text || "").slice(0, 120)
+      : msg.type === "audio"
+        ? "🎤 Голосовое сообщение"
+        : msg.type === "image"
+          ? "🖼 Изображение"
+          : "Новое сообщение";
+
+  const chatId = msg.chatId;
+
+  if (msg.recipientUsername) {
+    // DM — notify recipient only
+    if (isUserOnline(msg.recipientUsername)) return;
+    try {
+      const recipient = await prisma.user.findUnique({
+        where: { username: msg.recipientUsername },
+      });
+      if (recipient?.email) {
+        await sendMail(
+          recipient.email,
+          `Новое сообщение от ${sender.username}`,
+          [
+            `${sender.username} написал(а) вам:`,
+            ``,
+            preview,
+            ``,
+            `Откройте Атон, чтобы ответить.`,
+          ].join("\n")
+        );
+      }
+    } catch (e) {
+      console.error("notifyNewMessage DM:", e);
+    }
+    return;
+  }
+
+  // Group / channel / global — notify all participants except sender
+  if (chatId === "global") return; // skip global chat notifications
+  try {
+    const chatRow = await prisma.chat.findUnique({ where: { id: chatId } });
+    if (!chatRow) return;
+    const memberIds = Array.isArray(chatRow.members) ? chatRow.members : [];
+    if (memberIds.length === 0) return;
+
+    const members = await prisma.user.findMany({
+      where: { id: { in: memberIds } },
+    });
+    const chatName = chatRow.name || chatId;
+
+    for (const member of members) {
+      if (member.username === sender.username) continue;
+      if (isUserOnline(member.username)) continue;
+      if (!member.email) continue;
+      sendMail(
+        member.email,
+        `Новое сообщение в «${chatName}»`,
+        [
+          `${sender.username} в «${chatName}»:`,
+          ``,
+          preview,
+          ``,
+          `Откройте Атон, чтобы прочитать.`,
+        ].join("\n")
+      ).catch((e) => console.error("notifyNewMessage group mail:", e));
+    }
+  } catch (e) {
+    console.error("notifyNewMessage group:", e);
+  }
+}
+
 async function authMiddleware(req, res, next) {
   try {
     const header = req.headers.authorization || "";
@@ -307,11 +387,28 @@ app.post("/api/register", registerLimiter, async (req, res) => {
     });
 
     const user = userFromPrismaRow(row);
-    const verifyLink = `http://localhost:${PORT}/?verify=${verifyToken}`;
+    const baseUrl = process.env.ATON_PUBLIC_URL || `http://localhost:${PORT}`;
+    const verifyLink = `${baseUrl}/?verify=${verifyToken}`;
     await sendMail(
       email,
-      "Атон — подтверждение регистрации",
-      `Здравствуйте, ${username}!\n\nСпасибо за регистрацию в мессенджере «Атон».\nПерейдите по ссылке, чтобы подтвердить почту:\n${verifyLink}\n\nЕсли вы не регистрировались, просто игнорируйте это письмо.`
+      "Добро пожаловать в Атон!",
+      [
+        `Здравствуйте, ${username}!`,
+        ``,
+        `Добро пожаловать в мессенджер «Атон» — спокойные диалоги под солнцем Ахетатона.`,
+        ``,
+        `Ваш аккаунт создан. Вот что можно сделать:`,
+        `• Найдите друзей по @username`,
+        `• Создайте групповой чат или канал`,
+        `• Настройте профиль — имя, аватар и статус`,
+        ``,
+        `Подтвердите почту по ссылке:`,
+        verifyLink,
+        ``,
+        `Если вы не регистрировались — просто игнорируйте это письмо.`,
+        ``,
+        `— Атон`,
+      ].join("\n")
     );
 
     res.json({
@@ -639,11 +736,24 @@ app.post("/api/password/reset-request", resetLimiter, async (req, res) => {
       where: { id: row.id },
       data: { resetToken: token, resetTokenExp: exp },
     });
-    const link = `http://localhost:${PORT}/reset.html?token=${token}`;
+    const baseUrl = process.env.ATON_PUBLIC_URL || `http://localhost:${PORT}`;
+    const link = `${baseUrl}/reset.html?token=${token}`;
     await sendMail(
       email,
       "Атон — восстановление пароля",
-      `Вы запросили восстановление пароля в мессенджере «Атон».\nПерейдите по ссылке, чтобы задать новый пароль:\n${link}\n\nЕсли это были не вы — просто игнорируйте письмо.`
+      [
+        `Здравствуйте!`,
+        ``,
+        `Вы запросили восстановление пароля в мессенджере «Атон».`,
+        `Перейдите по ссылке, чтобы задать новый пароль:`,
+        link,
+        ``,
+        `Ссылка действительна 30 минут.`,
+        ``,
+        `Если это были не вы — просто игнорируйте это письмо.`,
+        ``,
+        `— Атон`,
+      ].join("\n")
     );
     res.json({ ok: true });
   } catch (err) {
@@ -1446,6 +1556,11 @@ app.post("/api/messages", authMiddleware, async (req, res) => {
     const msg = messageFromPrismaRow(row);
     io.to(msg.chatId).emit("message:new", msg);
     res.json(msg);
+
+    // Async email notifications — don't block the response
+    notifyNewMessage(msg, req.user).catch((e) =>
+      console.error("notifyNewMessage error:", e)
+    );
   } catch (err) {
     console.error("prisma.message.create (POST /api/messages):", err);
     res.status(500).json({ error: "Не удалось сохранить сообщение" });

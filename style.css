@@ -1231,6 +1231,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  flex: 1;
   height: 100%;
   text-align: center;
   padding: 24px;
@@ -1249,6 +1250,7 @@ body {
 
 .aton-empty-state--pick {
   max-width: 22rem;
+  margin: auto;
   padding: 28px 20px;
 }
 
@@ -1366,11 +1368,23 @@ body {
 }
 
 @media (max-width: 840px) {
+  /* ===== LAYOUT ===== */
   .aton-shell {
     flex-direction: column;
   }
 
-  /* Гость: только форма входа — без топбара и промо-текста (экономия экрана). */
+  .aton-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+  }
+
+  .aton-main {
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* ===== GUEST LANDING ===== */
   .aton-shell--guest-landing .aton-main {
     display: none !important;
   }
@@ -1382,9 +1396,9 @@ body {
     border-bottom: none;
   }
 
-  /* Шапка сверху, форма входа — по вертикали по центру оставшейся области */
   .aton-shell--guest-landing .aton-sidebar-header {
     flex-shrink: 0;
+    padding: 20px 20px 12px;
   }
 
   .aton-shell--guest-landing .aton-auth {
@@ -1394,44 +1408,459 @@ body {
     justify-content: center;
     min-height: 0;
     border-bottom: none;
-    padding-bottom: max(18px, env(safe-area-inset-bottom));
+    padding: 16px 20px max(20px, env(safe-area-inset-bottom));
   }
 
-  .aton-sidebar {
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  /* Гость: скрыть чаты, поиск, профиль — показать только auth */
+  .aton-shell--guest-landing .aton-chats,
+  .aton-shell--guest-landing .aton-profile-link {
+    display: none !important;
   }
 
+  /* Нет выбранного чата — sidebar на весь экран, main скрыт */
+  .aton-shell--no-chat .aton-main {
+    display: none !important;
+  }
+
+  .aton-shell--no-chat .aton-sidebar {
+    flex: 1;
+    border-bottom: none;
+  }
+
+  /* ===== HEADER (компактный) ===== */
   .aton-sidebar-header {
-    padding: 14px 18px 8px;
+    padding: 12px 16px 6px;
+    padding-top: max(12px, env(safe-area-inset-top));
   }
 
-  .aton-topbar {
+  .aton-logo {
+    width: 28px;
+    height: 28px;
+  }
+
+  .aton-logo-inner {
+    width: 18px;
+    height: 18px;
+  }
+
+  .aton-title {
+    font-size: 15px;
+  }
+
+  .aton-subtitle {
+    font-size: 11px;
+  }
+
+  /* ===== AUTH FORM ===== */
+  .aton-auth {
+    padding: 14px 16px 18px;
+  }
+
+  .aton-auth-tabs {
+    margin-bottom: 16px;
+  }
+
+  .aton-auth-tab {
+    font-size: 13px;
+    padding: 11px 16px;
+    min-height: 44px;
+  }
+
+  .aton-input-label {
+    font-size: 12px;
+  }
+
+  .aton-input {
+    font-size: 16px;
+    padding: 13px 14px;
+    min-height: 48px;
+    border-radius: 14px;
+  }
+
+  .aton-primary-button {
+    font-size: 16px;
+    padding: 15px 20px;
     min-height: 52px;
+    border-radius: 14px;
+  }
+
+  .aton-auth-hint {
+    font-size: 13px;
+    margin-top: 6px;
+  }
+
+  .aton-auth-link {
+    font-size: 13px;
+  }
+
+  /* ===== AUTH LOGGED BAR (компактный) ===== */
+  .aton-auth-logged {
+    padding: 6px 16px;
+    gap: 8px;
+  }
+
+  .aton-auth-logged-user {
+    font-size: 12px;
+  }
+
+  .aton-logout-button {
+    font-size: 10px;
+    padding: 5px 12px;
+    min-height: 28px;
+  }
+
+  /* ===== CHATS SECTION ===== */
+  .aton-chats {
+    padding: 8px 8px 12px;
+    gap: 6px;
+  }
+
+  .aton-chats-header {
+    font-size: 11px;
+    padding: 0 8px;
+    min-height: 36px;
+    align-items: center;
+  }
+
+  .aton-new-chat-button {
+    font-size: 11px;
+    padding: 6px 14px;
+    min-height: 32px;
+  }
+
+  /* ===== SEARCH ===== */
+  .aton-search {
+    padding: 0 4px 6px;
+  }
+
+  .aton-search-input {
+    font-size: 14px;
+    padding: 10px 14px;
+    min-height: 44px;
+    border-radius: 14px;
+  }
+
+  .aton-search-results {
+    max-height: 160px;
+  }
+
+  .aton-search-item {
+    padding: 8px 12px;
+    font-size: 13px;
+    min-height: 44px;
+    border-radius: 12px;
+  }
+
+  .aton-search-action {
+    font-size: 11px;
+    padding: 5px 12px;
+    min-height: 32px;
+    border-radius: 8px;
+  }
+
+  /* ===== ONBOARDING ===== */
+  .aton-chat-onboarding {
+    padding: 4px 8px 8px;
+  }
+
+  .aton-chat-onboarding-card {
+    padding: 10px 12px;
+    border-radius: 14px;
+  }
+
+  .aton-chat-onboarding-title {
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+
+  .aton-chat-onboarding-desc {
+    font-size: 11px;
+    line-height: 1.4;
+    margin-bottom: 8px;
+  }
+
+  .aton-onboarding-cta {
+    padding: 7px 14px;
+    font-size: 11px;
+    min-height: 34px;
+  }
+
+  /* ===== CHAT LIST ITEMS ===== */
+  .aton-chat-item {
+    padding: 10px 12px;
+    gap: 10px;
+    min-height: 56px;
+    border-bottom-color: rgba(31, 41, 55, 0.5);
+  }
+
+  .aton-chat-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 15px;
+  }
+
+  .aton-chat-item-title {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .aton-chat-item-subtitle {
+    font-size: 12px;
+    margin-top: 2px;
+  }
+
+  .aton-chat-menu-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .aton-chat-item-delete {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .aton-chat-verify-menu {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .aton-chat-unread-badge {
+    min-width: 22px;
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+
+  .aton-chat-time {
+    font-size: 11px;
+  }
+
+  .aton-chat-online-dot {
+    width: 8px;
+    height: 8px;
+  }
+
+  .aton-chat-verified-badge {
+    width: 18px;
+    height: 18px;
+    font-size: 12px;
+  }
+
+  /* ===== PROFILE LINK — скрыт на мобильном (доступен через user pill) ===== */
+  .aton-profile-link {
+    display: none;
+  }
+
+  /* ===== TOPBAR ===== */
+  .aton-topbar {
+    min-height: 56px;
     height: auto;
-    padding-top: 10px;
-    padding-bottom: 10px;
-    padding-left: max(14px, env(safe-area-inset-left));
-    padding-right: max(14px, env(safe-area-inset-right));
+    padding: 10px 16px;
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+    gap: 8px;
   }
 
   .aton-topbar-left {
     min-width: 0;
   }
 
+  .aton-topbar-title {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .aton-topbar-status {
+    font-size: 12px;
+  }
+
+  .aton-topbar--guest .aton-topbar-title {
+    font-size: 16px;
+  }
+
   .aton-topbar--guest .aton-topbar-status {
     max-width: none;
+  }
+
+  .aton-topbar-icon {
+    padding: 8px 10px;
+    font-size: 16px;
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  /* User pill скрыт — имя уже показано в auth-bar */
+  .aton-user-pill {
+    display: none;
+  }
+
+  .aton-user-avatar {
+    width: 24px;
+    height: 24px;
+  }
+
+  .aton-verified-badge {
+    width: 18px;
+    height: 18px;
+    font-size: 12px;
+  }
+
+  /* ===== MESSAGES AREA ===== */
+  .aton-chat {
+    padding: 8px 10px 10px;
+    gap: 6px;
   }
 
   .aton-messages {
     padding-left: max(0px, env(safe-area-inset-left));
     padding-right: max(4px, env(safe-area-inset-right));
     padding-bottom: max(8px, env(safe-area-inset-bottom));
+    gap: 10px;
   }
 
-  .aton-input {
+  .aton-message-avatar {
+    width: 28px;
+    height: 28px;
+  }
+
+  .aton-message-bubble {
+    max-width: min(82%, 520px);
+    padding: 10px 12px;
+    border-radius: 16px;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  .aton-message-meta {
+    font-size: 11px;
+    margin-top: 4px;
+  }
+
+  .aton-message-action-button {
+    font-size: 13px;
+    padding: 2px 8px;
+    min-width: 28px;
+    min-height: 28px;
+  }
+
+  .aton-message-reply-preview {
+    font-size: 12px;
+    padding: 5px 8px;
+  }
+
+  .aton-message-reactions {
+    gap: 6px;
+  }
+
+  .aton-reaction-pill {
+    padding: 4px 8px;
+    font-size: 13px;
+  }
+
+  .aton-reaction-picker {
+    padding: 6px 8px;
+    gap: 4px;
+  }
+
+  .aton-reaction-picker-item {
+    font-size: 20px;
+    padding: 4px 6px;
+    min-width: 36px;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .aton-message-image {
+    border-radius: 12px;
+  }
+
+  /* ===== COMPOSE ===== */
+  .aton-compose {
+    padding: 10px 12px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    gap: 8px;
+  }
+
+  .aton-compose-input {
     font-size: 16px;
+    min-height: 44px;
+    padding: 10px 14px;
+    border-radius: 18px;
+    line-height: 1.4;
+  }
+
+  .aton-send-button {
+    padding: 10px 14px;
+    font-size: 12px;
+    min-height: 44px;
+    border-radius: 14px;
+  }
+
+  .aton-mic-button {
+    padding: 10px 12px;
+    font-size: 16px;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .aton-attach-button {
+    padding: 10px 12px;
+    font-size: 16px;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .aton-typing-indicator {
+    font-size: 12px;
+    margin-left: 8px;
+  }
+
+  /* ===== EMPTY STATES ===== */
+  .aton-empty-title {
+    font-size: 20px;
+  }
+
+  .aton-empty-lead {
+    font-size: 14px;
+  }
+
+  .aton-empty-subtitle {
+    font-size: 14px;
+  }
+
+  /* ===== LIGHTBOX ===== */
+  .aton-image-lightbox img {
+    max-width: 96vw;
+    max-height: 88vh;
+    border-radius: 12px;
+  }
+
+  /* ===== MENUS / DROPDOWNS ===== */
+  .aton-chat-menu-dropdown {
+    border-radius: 16px;
+    padding: 8px;
+    min-width: 200px;
+  }
+
+  .aton-chat-menu-item {
+    padding: 12px 14px;
+    font-size: 14px;
+    border-radius: 12px;
+    min-height: 44px;
   }
 }
 

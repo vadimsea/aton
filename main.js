@@ -664,6 +664,7 @@ function createApp() {
       compose.style.display = currentChatId ? "flex" : "none";
     }
     shell.classList.toggle("aton-shell--guest-landing", !currentUser);
+    shell.classList.toggle("aton-shell--no-chat", !currentChatId);
   }
 
   form.addEventListener("submit", async (event) => {
@@ -1661,6 +1662,7 @@ function createApp() {
     messagesEl.innerHTML = "";
     const current = currentUser;
     shell.classList.toggle("aton-shell--guest-landing", !current);
+    shell.classList.toggle("aton-shell--no-chat", !currentChatId);
 
     if (!current) {
       renderPublicLandingState(messagesEl);
