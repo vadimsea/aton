@@ -1265,6 +1265,13 @@ body {
   gap: 6px;
 }
 
+.aton-compose-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .aton-typing-indicator {
   font-size: 11px;
   color: var(--aton-text-muted);
@@ -1308,39 +1315,42 @@ body {
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.aton-send-icon {
+  display: none;
 }
 
 .aton-send-button:hover {
   filter: brightness(1.05);
 }
 
-.aton-mic-button {
+.aton-mic-button,
+.aton-attach-button {
   border-radius: 999px;
   border: none;
-  padding: 6px 8px;
+  padding: 6px;
   background: rgba(15, 23, 42, 0.95);
   color: #e5e7eb;
   cursor: pointer;
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.aton-mic-button:hover,
+.aton-attach-button:hover {
+  background: rgba(17, 24, 39, 0.95);
 }
 
 .aton-mic-button.recording {
   background: radial-gradient(circle at top, #fb7185, #b91c1c);
   color: #fee2e2;
-}
-
-.aton-attach-button {
-  border-radius: 999px;
-  border: none;
-  padding: 6px 8px;
-  background: rgba(15, 23, 42, 0.95);
-  color: #e5e7eb;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.aton-attach-button:hover {
-  background: rgba(17, 24, 39, 0.95);
 }
 
 .aton-image-lightbox {
@@ -2463,43 +2473,46 @@ body {
 
   /* ===== COMPOSE ===== */
   .aton-compose {
-    padding: 10px 12px;
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
-    gap: 8px;
+    padding: 6px 8px;
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+    gap: 6px;
   }
 
   .aton-compose-input {
     font-size: 16px;
-    min-height: 44px;
-    padding: 10px 14px;
-    border-radius: 18px;
+    min-height: 40px;
+    padding: 8px 12px;
+    border-radius: 20px;
     line-height: 1.4;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .aton-compose-actions {
+    gap: 2px;
   }
 
   .aton-send-button {
-    padding: 10px 14px;
-    font-size: 12px;
-    min-height: 44px;
-    border-radius: 14px;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: 50%;
   }
 
-  .aton-mic-button {
-    padding: 10px 12px;
-    font-size: 16px;
-    min-width: 44px;
-    min-height: 44px;
-    border-radius: 14px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+  .aton-send-icon {
+    display: block !important;
   }
 
+  .aton-send-text {
+    display: none;
+  }
+
+  .aton-mic-button,
   .aton-attach-button {
-    padding: 10px 12px;
-    font-size: 16px;
-    min-width: 44px;
-    min-height: 44px;
-    border-radius: 14px;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 50%;
     display: inline-flex;
     align-items: center;
     justify-content: center;

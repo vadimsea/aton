@@ -352,10 +352,19 @@ function createApp() {
   const compose = document.createElement("div");
   compose.className = "aton-compose";
   compose.innerHTML = `
-    <textarea class="aton-compose-input" id="aton-input" rows="1" placeholder="Напишите сообщение…" disabled></textarea>
-    <button class="aton-attach-button" id="aton-attach" title="Отправить фотографию" disabled>📎</button>
-    <button class="aton-mic-button" id="aton-mic" title="Голосовое сообщение" disabled>🎙</button>
-    <button class="aton-send-button" id="aton-send" disabled>ОТПРАВИТЬ</button>
+    <textarea class="aton-compose-input" id="aton-input" rows="1" placeholder="Сообщение…" disabled></textarea>
+    <div class="aton-compose-actions">
+      <button class="aton-attach-button" id="aton-attach" title="Фото" disabled>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+      </button>
+      <button class="aton-mic-button" id="aton-mic" title="Голосовое" disabled>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </button>
+      <button class="aton-send-button" id="aton-send" disabled>
+        <svg class="aton-send-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        <span class="aton-send-text">ОТПРАВИТЬ</span>
+      </button>
+    </div>
     <input type="file" id="aton-attach-input" accept="image/*" style="display:none;" />
   `;
 
