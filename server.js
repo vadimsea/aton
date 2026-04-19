@@ -338,6 +338,7 @@ async function authMiddleware(req, res, next) {
       }
 
       req.user = user;
+      req.user.verified = Boolean(pgUser.verified);
       return next();
     }
 
@@ -346,6 +347,13 @@ async function authMiddleware(req, res, next) {
     console.error("authMiddleware:", err);
     next(err);
   }
+}
+
+function requireVerified(req, res, next) {
+  if (!req.user || !req.user.verified) {
+    return res.status(403).json({ error: "Подтвердите email для доступа к сервису" });
+  }
+  next();
 }
 
 // Регистрация
@@ -420,6 +428,7 @@ app.post("/api/register", registerLimiter, async (req, res) => {
         displayName: user.displayName,
         email: user.email,
         avatarDataUrl: user.avatarDataUrl,
+        verified: false,
       },
     });
   } catch (err) {
@@ -428,6 +437,57 @@ app.post("/api/register", registerLimiter, async (req, res) => {
     }
     console.error("register:", err);
     res.status(500).json({ error: "Не удалось зарегистрироваться" });
+  }
+});
+
+// Подтверждение email по ссылке из письма
+app.get("/api/verify-email", async (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).json({ error: "Токен отсутствует" });
+  try {
+    const row = await prisma.user.findFirst({ where: { verifyToken: token } });
+    if (!row) return res.status(400).json({ error: "Неверный или устаревший токен" });
+    await prisma.user.update({
+      where: { id: row.id },
+      data: { verified: true, verifyToken: null },
+    });
+    res.json({ ok: true, username: row.username });
+  } catch (err) {
+    console.error("verify-email:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+// Повторная отправка письма подтверждения
+app.post("/api/resend-verify", async (req, res) => {
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ error: "email обязателен" });
+  try {
+    const row = await prisma.user.findUnique({ where: { email } });
+    if (!row || row.verified) return res.json({ ok: true });
+    let token = row.verifyToken;
+    if (!token) {
+      token = generateToken();
+      await prisma.user.update({ where: { id: row.id }, data: { verifyToken: token } });
+    }
+    const baseUrl = process.env.ATON_PUBLIC_URL || `http://localhost:${PORT}`;
+    const verifyLink = `${baseUrl}/?verify=${token}`;
+    await sendMail(
+      email,
+      "Атон — подтверждение почты",
+      [
+        `Здравствуйте, ${row.username}!`,
+        ``,
+        `Подтвердите почту по ссылке:`,
+        verifyLink,
+        ``,
+        `— Атон`,
+      ].join("\n")
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("resend-verify:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
   }
 });
 
@@ -473,6 +533,7 @@ app.post("/api/login", loginLimiter, async (req, res) => {
       displayName: user.displayName,
       email: user.email,
       avatarDataUrl: user.avatarDataUrl,
+      verified: Boolean(pgUser.verified),
     },
   });
 });
@@ -498,6 +559,7 @@ app.get("/api/me", authMiddleware, async (req, res) => {
       avatarDataUrl: u.avatarDataUrl,
       bio: u.bio,
       lastSeen: u.lastSeen || null,
+      verified: Boolean(row.verified),
     });
   } catch (err) {
     console.error("GET /api/me:", err);
@@ -506,7 +568,7 @@ app.get("/api/me", authMiddleware, async (req, res) => {
 });
 
 // Контакты (друзья и заблокированные)
-app.get("/api/contacts", authMiddleware, async (req, res) => {
+app.get("/api/contacts", authMiddleware, requireVerified, async (req, res) => {
   try {
     const meRow = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!meRow) return res.status(404).json({ error: "Пользователь не найден" });
@@ -540,7 +602,7 @@ app.get("/api/contacts", authMiddleware, async (req, res) => {
 });
 
 // Обновление профиля
-app.post("/api/profile", authMiddleware, async (req, res) => {
+app.post("/api/profile", authMiddleware, requireVerified, async (req, res) => {
   const { displayName, bio, avatarDataUrl, publicId } = req.body || {};
   try {
     const row = await prisma.user.findUnique({ where: { id: req.user.id } });
@@ -594,7 +656,7 @@ app.post("/api/profile", authMiddleware, async (req, res) => {
 });
 
 // Добавить в друзья
-app.post("/api/contacts/add", authMiddleware, async (req, res) => {
+app.post("/api/contacts/add", authMiddleware, requireVerified, async (req, res) => {
   const { username, publicId } = req.body || {};
   try {
     await prisma.$transaction(async (tx) => {
@@ -652,7 +714,7 @@ app.post("/api/contacts/add", authMiddleware, async (req, res) => {
 });
 
 // Заблокировать пользователя
-app.post("/api/contacts/block", authMiddleware, async (req, res) => {
+app.post("/api/contacts/block", authMiddleware, requireVerified, async (req, res) => {
   const { username, publicId } = req.body || {};
   try {
     await prisma.$transaction(async (tx) => {
@@ -698,7 +760,7 @@ app.post("/api/contacts/block", authMiddleware, async (req, res) => {
 });
 
 // Разблокировать пользователя
-app.post("/api/contacts/unblock", authMiddleware, async (req, res) => {
+app.post("/api/contacts/unblock", authMiddleware, requireVerified, async (req, res) => {
   const { username, publicId } = req.body || {};
   try {
     const meRow = await prisma.user.findUnique({ where: { id: req.user.id } });
@@ -787,7 +849,7 @@ app.post("/api/password/reset", async (req, res) => {
 });
 
 // Список пользователей (для поиска)
-app.get("/api/users", authMiddleware, async (req, res) => {
+app.get("/api/users", authMiddleware, requireVerified, async (req, res) => {
   try {
     const currentRow = await prisma.user.findUnique({ where: { id: req.user.id } });
     const current = currentRow ? userFromPrismaRow(currentRow) : null;
@@ -826,7 +888,7 @@ app.get("/api/users", authMiddleware, async (req, res) => {
 });
 
 // Верификация пользователя (только super admin)
-app.post("/api/users/:id/verify", authMiddleware, async (req, res) => {
+app.post("/api/users/:id/verify", authMiddleware, requireVerified, async (req, res) => {
   const { id } = req.params;
   console.log("VERIFY USER HIT", id, "as", req.user?.username, "super:", req.user?.isSuperAdmin);
   if (!req.user || !req.user.isSuperAdmin) return res.status(403).json({ error: "Недостаточно прав" });
@@ -842,7 +904,7 @@ app.post("/api/users/:id/verify", authMiddleware, async (req, res) => {
 });
 
 // Чаты (группы)
-app.get("/api/chats", authMiddleware, async (req, res) => {
+app.get("/api/chats", authMiddleware, requireVerified, async (req, res) => {
   try {
     const userRows = await prisma.user.findMany();
     const usersByUsername = {};
@@ -894,7 +956,7 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
 });
 
 // Публичный список чатов, в которых пользователь НЕ состоит (preview для вступления)
-app.get("/api/chats/discover", authMiddleware, async (req, res) => {
+app.get("/api/chats/discover", authMiddleware, requireVerified, async (req, res) => {
   try {
     const userRows = await prisma.user.findMany();
     const usersById = {};
@@ -964,7 +1026,7 @@ app.get("/api/chats/discover", authMiddleware, async (req, res) => {
   }
 });
 
-app.post("/api/chats", authMiddleware, async (req, res) => {
+app.post("/api/chats", authMiddleware, requireVerified, async (req, res) => {
   const { title, type = "group", visibility: visIn = "public", description = null } = req.body || {};
   if (!title) return res.status(400).json({ error: "title обязателен" });
   if (type !== "group" && type !== "channel") {
@@ -1028,7 +1090,7 @@ app.get("/api/chats/invite/:token", async (req, res) => {
 });
 
 // Вступление по приглашению (приватные и при необходимости любые чаты с токеном)
-app.post("/api/chats/invite/:token/join", authMiddleware, async (req, res) => {
+app.post("/api/chats/invite/:token/join", authMiddleware, requireVerified, async (req, res) => {
   const { token } = req.params;
   try {
     const userRows = await prisma.user.findMany();
@@ -1057,7 +1119,7 @@ app.post("/api/chats/invite/:token/join", authMiddleware, async (req, res) => {
   }
 });
 
-app.delete("/api/chats/:id", authMiddleware, async (req, res) => {
+app.delete("/api/chats/:id", authMiddleware, requireVerified, async (req, res) => {
   const { id } = req.params;
   try {
     const row = await prisma.chat.findUnique({ where: { id } });
@@ -1078,7 +1140,7 @@ app.delete("/api/chats/:id", authMiddleware, async (req, res) => {
 });
 
 // Верификация чата (только super admin)
-app.post("/api/chats/:id/verify", authMiddleware, async (req, res) => {
+app.post("/api/chats/:id/verify", authMiddleware, requireVerified, async (req, res) => {
   const { id } = req.params;
   console.log("VERIFY CHAT HIT", id, "as", req.user?.username, "super:", req.user?.isSuperAdmin);
   if (!req.user || !req.user.isSuperAdmin) return res.status(403).json({ error: "Недостаточно прав" });
@@ -1094,7 +1156,7 @@ app.post("/api/chats/:id/verify", authMiddleware, async (req, res) => {
 });
 
 // Жалоба на чат
-app.post("/api/chats/:id/report", authMiddleware, async (req, res) => {
+app.post("/api/chats/:id/report", authMiddleware, requireVerified, async (req, res) => {
   const { id } = req.params;
   const { reason } = req.body || {};
   if (!reason || !String(reason).trim()) {
@@ -1169,7 +1231,7 @@ app.post("/api/chats/:id/report", authMiddleware, async (req, res) => {
 });
 
 // Жалобы (только super admin)
-app.get("/api/reports", authMiddleware, async (req, res) => {
+app.get("/api/reports", authMiddleware, requireVerified, async (req, res) => {
   if (!req.user || !req.user.isSuperAdmin) {
     return res.status(403).json({ error: "Недостаточно прав" });
   }
@@ -1190,7 +1252,7 @@ app.get("/api/reports", authMiddleware, async (req, res) => {
   }
 });
 
-app.post("/api/reports/:id/resolve", authMiddleware, async (req, res) => {
+app.post("/api/reports/:id/resolve", authMiddleware, requireVerified, async (req, res) => {
   if (!req.user || !req.user.isSuperAdmin) {
     return res.status(403).json({ error: "Недостаточно прав" });
   }
@@ -1219,7 +1281,7 @@ app.post("/api/reports/:id/resolve", authMiddleware, async (req, res) => {
   }
 });
 
-app.post("/api/reports/:id/reject", authMiddleware, async (req, res) => {
+app.post("/api/reports/:id/reject", authMiddleware, requireVerified, async (req, res) => {
   if (!req.user || !req.user.isSuperAdmin) {
     return res.status(403).json({ error: "Недостаточно прав" });
   }
@@ -1249,7 +1311,7 @@ app.post("/api/reports/:id/reject", authMiddleware, async (req, res) => {
 });
 
 // Участники (только owner)
-app.post("/api/chats/:id/members/add", authMiddleware, async (req, res) => {
+app.post("/api/chats/:id/members/add", authMiddleware, requireVerified, async (req, res) => {
   const { id } = req.params;
   const { username } = req.body || {};
   if (!username) return res.status(400).json({ error: "username обязателен" });
@@ -1288,7 +1350,7 @@ app.post("/api/chats/:id/members/add", authMiddleware, async (req, res) => {
   }
 });
 
-app.post("/api/chats/:id/members/remove", authMiddleware, async (req, res) => {
+app.post("/api/chats/:id/members/remove", authMiddleware, requireVerified, async (req, res) => {
   const { id } = req.params;
   const { userId } = req.body || {};
   if (!userId) return res.status(400).json({ error: "userId обязателен" });
@@ -1330,7 +1392,7 @@ app.post("/api/chats/:id/members/remove", authMiddleware, async (req, res) => {
 });
 
 // Выход из чата текущего пользователя
-app.post("/api/chats/:id/leave", authMiddleware, async (req, res) => {
+app.post("/api/chats/:id/leave", authMiddleware, requireVerified, async (req, res) => {
   const { id } = req.params;
   try {
     const userRows = await prisma.user.findMany();
@@ -1371,7 +1433,7 @@ app.post("/api/chats/:id/leave", authMiddleware, async (req, res) => {
 });
 
 // Вступление в чат текущего пользователя
-app.post("/api/chats/:id/join", authMiddleware, async (req, res) => {
+app.post("/api/chats/:id/join", authMiddleware, requireVerified, async (req, res) => {
   const { id } = req.params;
   try {
     const userRows = await prisma.user.findMany();
@@ -1408,7 +1470,7 @@ app.post("/api/chats/:id/join", authMiddleware, async (req, res) => {
 });
 
 // Сообщения
-app.get("/api/messages", authMiddleware, async (req, res) => {
+app.get("/api/messages", authMiddleware, requireVerified, async (req, res) => {
   const { chatId = "global" } = req.query;
   try {
     const rows = await prisma.message.findMany({
@@ -1424,7 +1486,7 @@ app.get("/api/messages", authMiddleware, async (req, res) => {
 
 // Все сообщения для текущего пользователя (для построения списка чатов)
 // ACL: для группы/канала — только если пользователь состоит в members
-app.get("/api/messages/all", authMiddleware, async (req, res) => {
+app.get("/api/messages/all", authMiddleware, requireVerified, async (req, res) => {
   const username = req.user.username;
   const userId = req.user.id;
   try {
@@ -1460,7 +1522,7 @@ app.get("/api/messages/all", authMiddleware, async (req, res) => {
   }
 });
 
-app.post("/api/messages", authMiddleware, async (req, res) => {
+app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
   const {
     chatId = "global",
     type,
@@ -1568,7 +1630,7 @@ app.post("/api/messages", authMiddleware, async (req, res) => {
 });
 
 // Редактирование текста сообщения
-app.patch("/api/messages/:id", authMiddleware, async (req, res) => {
+app.patch("/api/messages/:id", authMiddleware, requireVerified, async (req, res) => {
   const { id } = req.params;
   const { text } = req.body || {};
   try {
@@ -1592,7 +1654,7 @@ app.patch("/api/messages/:id", authMiddleware, async (req, res) => {
 });
 
 // Пин сообщения (только автор)
-app.post("/api/messages/:id/pin", authMiddleware, async (req, res) => {
+app.post("/api/messages/:id/pin", authMiddleware, requireVerified, async (req, res) => {
   const { id } = req.params;
   try {
     const row = await prisma.message.findUnique({ where: { id } });
@@ -1612,7 +1674,7 @@ app.post("/api/messages/:id/pin", authMiddleware, async (req, res) => {
 });
 
 // Реакции на сообщение (эмодзи)
-app.post("/api/messages/:id/react", authMiddleware, async (req, res) => {
+app.post("/api/messages/:id/react", authMiddleware, requireVerified, async (req, res) => {
   const { id } = req.params;
   const { emoji } = req.body || {};
   if (!emoji || typeof emoji !== "string") {
@@ -1642,7 +1704,7 @@ app.post("/api/messages/:id/react", authMiddleware, async (req, res) => {
   }
 });
 
-app.delete("/api/messages/:id", authMiddleware, async (req, res) => {
+app.delete("/api/messages/:id", authMiddleware, requireVerified, async (req, res) => {
   const { id } = req.params;
   try {
     const row = await prisma.message.findUnique({ where: { id } });

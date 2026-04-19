@@ -146,11 +146,69 @@ async function fetchJsonPublic(path, options = {}) {
   return data;
 }
 
+async function handleVerifyToken() {
+  const params = new URLSearchParams(window.location.search);
+  const verifyToken = params.get("verify");
+  if (!verifyToken) return false;
+  try {
+    const res = await api(`/api/verify-email?token=${encodeURIComponent(verifyToken)}`);
+    window.history.replaceState({}, "", window.location.pathname);
+    return res;
+  } catch (e) {
+    window.history.replaceState({}, "", window.location.pathname);
+    return { error: e.message };
+  }
+}
+
 function createApp() {
   const root = document.getElementById("app");
 
   const shell = document.createElement("div");
   shell.className = "aton-shell";
+
+  function showVerifyScreen(email) {
+    shell.innerHTML = "";
+    const wrap = document.createElement("div");
+    wrap.className = "aton-verify-screen";
+    wrap.innerHTML = `
+      <div class="aton-verify-card">
+        <div class="aton-logo"><div class="aton-logo-inner"></div></div>
+        <h2>Подтвердите email</h2>
+        <p>Мы отправили письмо на <strong>${email || "ваш email"}</strong>.</p>
+        <p>Перейдите по ссылке в письме, чтобы активировать аккаунт.</p>
+        <button class="aton-primary-button aton-resend-btn">Отправить повторно</button>
+        <p class="aton-verify-hint"></p>
+        <button class="aton-logout-link">Выйти</button>
+      </div>
+    `;
+    shell.appendChild(wrap);
+    root.innerHTML = "";
+    root.appendChild(shell);
+
+    const resendBtn = wrap.querySelector(".aton-resend-btn");
+    const hint = wrap.querySelector(".aton-verify-hint");
+    resendBtn.addEventListener("click", async () => {
+      resendBtn.disabled = true;
+      try {
+        await api("/api/resend-verify", {
+          method: "POST",
+          body: JSON.stringify({ email }),
+        });
+        hint.textContent = "Письмо отправлено повторно.";
+      } catch (e) {
+        hint.textContent = e.message;
+      }
+      setTimeout(() => { resendBtn.disabled = false; }, 30000);
+    });
+
+    wrap.querySelector(".aton-logout-link").addEventListener("click", () => {
+      setToken(null);
+      socket.auth.token = "";
+      socket.disconnect().connect();
+      currentUser = null;
+      window.location.reload();
+    });
+  }
 
   // === Сайдбар: логотип + авторизация ===
   const sidebar = document.createElement("div");
@@ -538,16 +596,21 @@ function createApp() {
     }
 
     try {
-      // Все независимые запросы — параллельно
+      const nextCurrentUser = await api("/api/me");
+      if (version !== bootstrapVersion) return;
+
+      currentUser = nextCurrentUser;
+      currentUser.isSuperAdmin = resolveIsSuperAdmin(currentUser);
+
+      if (!currentUser.verified) return;
+
       const [
-        nextCurrentUser,
         nextAllUsers,
         nextAllChats,
         nextAllMessages,
         nextContacts,
         nextDiscover,
       ] = await Promise.all([
-        api("/api/me"),
         api("/api/users"),
         api("/api/chats"),
         api("/api/messages/all"),
@@ -555,11 +618,8 @@ function createApp() {
         api("/api/chats/discover").catch(() => []),
       ]);
 
-      // если в это время начался более новый bootstrapData — не применяем результат
       if (version !== bootstrapVersion) return;
 
-      currentUser = nextCurrentUser;
-      currentUser.isSuperAdmin = resolveIsSuperAdmin(currentUser);
       allUsers = nextAllUsers;
       allChats = nextAllChats;
       discoverChats = Array.isArray(nextDiscover) ? nextDiscover : [];
@@ -706,17 +766,19 @@ function createApp() {
         hintEl.textContent = "Вход выполнен.";
       }
       setToken(data.token);
-      // Обновляем токен Socket.io и переподключаемся, чтобы сервер
-      // мог аутентифицировать это соединение и проверять ACL в join_chat.
       socket.auth.token = data.token;
       socket.disconnect().connect();
 
-      // Сохраняем пользователя сразу из ответа /login,
-      // чтобы интерфейс работал даже если последующие запросы зафейлятся.
       if (data.user) {
         currentUser = data.user;
         currentUser.isSuperAdmin = resolveIsSuperAdmin(currentUser);
       }
+
+      if (data.user && !data.user.verified) {
+        showVerifyScreen(data.user.email);
+        return;
+      }
+
       await bootstrapData();
       applyCurrentUserUI();
       renderChatList();
@@ -2908,12 +2970,29 @@ function createApp() {
     });
   }
 
-  bootstrapData().then(() => {
+  (async () => {
+    const verifyResult = await handleVerifyToken();
+    if (verifyResult && verifyResult.ok) {
+      if (currentUser) currentUser.verified = true;
+    }
+
+    await bootstrapData();
+
+    if (currentUser && !currentUser.verified) {
+      showVerifyScreen(currentUser.email);
+      return;
+    }
+
+    if (verifyResult && verifyResult.ok) {
+      const hint = document.querySelector(".aton-auth-hint");
+      if (hint) hint.textContent = "Email подтверждён! Добро пожаловать.";
+    }
+
     applyCurrentUserUI();
     renderChatList();
     renderMessages();
     updateTopbarTitle();
-  });
+  })();
 }
 
 window.addEventListener("DOMContentLoaded", createApp);
