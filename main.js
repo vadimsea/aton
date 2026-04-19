@@ -1926,53 +1926,54 @@ function createApp() {
           bubble.appendChild(replyPreview);
         }
       }
-      const meta = document.createElement("div");
-      meta.className = "aton-message-meta";
-      const timeLabel = formatTimeLabel(msg.time);
-      const editedLabel = msg.editedAt ? " • изменено" : "";
-      const pinnedLabel = msg.pinned ? " • закреплено" : "";
-
+      const isSelf = current && current.username === msg.from;
       const canAdmin = current && current.isSuperAdmin === true;
       const authorIsVerified = Boolean(author && author.isVerified);
-      const leftWrap = document.createElement("div");
-      leftWrap.style.display = "inline-flex";
-      leftWrap.style.alignItems = "center";
-      leftWrap.style.gap = "6px";
-      leftWrap.textContent = msg.from;
+      const timeLabel = formatTimeLabel(msg.time);
+      const editedLabel = msg.editedAt ? " · изм." : "";
+      const pinnedLabel = msg.pinned ? " 📌" : "";
 
-      if (canAdmin && author && author.id) {
-        const verifyUserBtn = document.createElement("button");
-        verifyUserBtn.type = "button";
-        verifyUserBtn.className = "aton-user-verify-button";
-        verifyUserBtn.textContent = authorIsVerified ? "✓" : "⋮";
-        verifyUserBtn.title = authorIsVerified
-          ? "Пользователь верифицирован"
-          : "Верифицировать пользователя";
-        verifyUserBtn.disabled = authorIsVerified;
-        verifyUserBtn.addEventListener("click", async (event) => {
-          event.stopPropagation();
-          if (verifyUserBtn.disabled) return;
-          try {
-            await api(`/api/users/${author.id}/verify`, { method: "POST" });
-            author.isVerified = true;
-            if (currentUser && currentUser.id === author.id) {
-              currentUser.isVerified = true;
+      if (!isSelf) {
+        const senderEl = document.createElement("div");
+        senderEl.className = "aton-message-sender";
+        const nameText = author?.displayName || msg.from;
+        senderEl.textContent = nameText;
+        if (authorIsVerified) {
+          const badge = document.createElement("span");
+          badge.className = "aton-message-sender-badge";
+          badge.textContent = " ✔";
+          senderEl.appendChild(badge);
+        }
+        if (canAdmin && author && author.id && !authorIsVerified) {
+          const verifyUserBtn = document.createElement("button");
+          verifyUserBtn.type = "button";
+          verifyUserBtn.className = "aton-user-verify-button";
+          verifyUserBtn.textContent = "⋮";
+          verifyUserBtn.title = "Верифицировать пользователя";
+          verifyUserBtn.addEventListener("click", async (event) => {
+            event.stopPropagation();
+            try {
+              await api(`/api/users/${author.id}/verify`, { method: "POST" });
+              author.isVerified = true;
+              if (currentUser && currentUser.id === author.id) {
+                currentUser.isVerified = true;
+              }
+              renderMessages();
+              updateTopbarTitle();
+            } catch (err) {
+              alert(err.message);
             }
-            renderMessages();
-            updateTopbarTitle();
-          } catch (err) {
-            alert(err.message);
-          }
-        });
-        leftWrap.appendChild(verifyUserBtn);
+          });
+          senderEl.appendChild(verifyUserBtn);
+        }
+        bubble.appendChild(senderEl);
       }
 
-      const rightWrap = document.createElement("div");
-      rightWrap.textContent = `${timeLabel}${editedLabel}${pinnedLabel}`;
-
-      meta.appendChild(leftWrap);
-      meta.appendChild(rightWrap);
       bubble.appendChild(text);
+
+      const meta = document.createElement("div");
+      meta.className = "aton-message-meta";
+      meta.innerHTML = `<span class="aton-message-time">${escHtml(timeLabel)}${escHtml(editedLabel)}${escHtml(pinnedLabel)}</span>`;
       bubble.appendChild(meta);
 
       const actions = document.createElement("div");
