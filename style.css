@@ -1119,20 +1119,14 @@ body {
 
 .aton-message-bubble {
   max-width: min(70%, 520px);
-  min-width: 60px;
-  padding: 8px 12px 6px;
+  padding: 6px 10px 4px;
   border-radius: 12px 12px 12px 4px;
   font-size: 14px;
   line-height: 1.45;
   word-break: break-word;
-  position: relative;
   background: rgba(15, 23, 42, 0.9);
   border: 1px solid rgba(75, 85, 99, 0.8);
   position: relative;
-  overflow: hidden;
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
 }
 
 .aton-message-image {
@@ -1153,10 +1147,10 @@ body {
   font-size: 12px;
   font-weight: 600;
   color: #38bdf8;
-  margin-bottom: 2px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  margin-bottom: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .aton-message-sender-badge {
@@ -1180,14 +1174,13 @@ body {
 }
 
 .aton-message-meta {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 2px;
+  text-align: right;
+  margin-top: 1px;
 }
 
 .aton-message-time {
   font-size: 11px;
-  opacity: 0.55;
+  opacity: 0.5;
   white-space: nowrap;
 }
 
@@ -1224,16 +1217,18 @@ body {
 .aton-user-verify-button {
   border: none;
   border-radius: 999px;
-  padding: 0 6px;
-  height: 16px;
+  padding: 0 4px;
+  height: 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(15, 23, 42, 0.6);
-  color: rgba(148, 163, 184, 0.95);
+  background: transparent;
+  color: rgba(148, 163, 184, 0.6);
   cursor: pointer;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
+  vertical-align: middle;
+  margin-left: 2px;
 }
 
 .aton-user-verify-button:hover:not(:disabled) {
