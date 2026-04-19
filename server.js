@@ -104,6 +104,10 @@ io.use(async (socket, next) => {
 });
 
 io.on("connection", (socket) => {
+  if (socket.user && socket.user.username) {
+    socket.join(`user:${socket.user.username}`);
+  }
+
   socket.on("join_chat", async (chatId) => {
     if (!chatId || typeof chatId !== "string") return;
 
@@ -1626,6 +1630,10 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
     });
     const msg = messageFromPrismaRow(row);
     io.to(msg.chatId).emit("message:new", msg);
+    if (msg.to) {
+      io.to(`user:${msg.to}`).emit("message:new", msg);
+      io.to(`user:${msg.from}`).emit("message:new", msg);
+    }
     res.json(msg);
 
     // Async email notifications — don't block the response

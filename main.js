@@ -313,8 +313,13 @@ function createApp() {
   topbar.id = "aton-topbar";
   topbar.innerHTML = `
     <div class="aton-topbar-left">
-      <div class="aton-topbar-title" id="aton-topbar-title">Атон</div>
-      <div class="aton-topbar-status" id="aton-status">Войдите, чтобы открыть чаты</div>
+      <button class="aton-back-button" id="aton-back-btn" title="Назад к чатам">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="aton-topbar-info">
+        <div class="aton-topbar-title" id="aton-topbar-title">Атон</div>
+        <div class="aton-topbar-status" id="aton-status">Войдите, чтобы открыть чаты</div>
+      </div>
     </div>
     <div class="aton-topbar-right">
       <button class="aton-topbar-icon" id="aton-theme-toggle" title="Сменить тему">
@@ -497,6 +502,7 @@ function createApp() {
   const searchResultsEl = document.getElementById("aton-search-results");
   const loggedUserLabel = document.getElementById("aton-logged-user");
   const logoutButton = document.getElementById("aton-logout");
+  const backButton = document.getElementById("aton-back-btn");
   const createGroupButton = document.getElementById("aton-create-group");
   const forgotLink = document.getElementById("aton-forgot");
   const contactsEl = document.getElementById("aton-contacts");
@@ -772,6 +778,7 @@ function createApp() {
     }
     shell.classList.toggle("aton-shell--guest-landing", !currentUser);
     shell.classList.toggle("aton-shell--no-chat", !currentChatId);
+    shell.classList.toggle("aton-shell--has-chat", Boolean(currentChatId));
   }
 
   form.addEventListener("submit", async (event) => {
@@ -842,7 +849,6 @@ function createApp() {
   if (logoutButton) {
     logoutButton.addEventListener("click", () => {
       setToken(null);
-      // Сбрасываем токен сокета и переподключаемся как аноним
       socket.auth.token = "";
       socket.disconnect().connect();
       currentUser = null;
@@ -850,6 +856,17 @@ function createApp() {
       allChats = [];
       discoverChats = [];
       allMessages = [];
+      switchSocketChat(null);
+      currentChatId = null;
+      applyCurrentUserUI();
+      renderChatList();
+      renderMessages();
+      updateTopbarTitle();
+    });
+  }
+
+  if (backButton) {
+    backButton.addEventListener("click", () => {
       switchSocketChat(null);
       currentChatId = null;
       applyCurrentUserUI();
@@ -1792,6 +1809,7 @@ function createApp() {
     const current = currentUser;
     shell.classList.toggle("aton-shell--guest-landing", !current);
     shell.classList.toggle("aton-shell--no-chat", !currentChatId);
+    shell.classList.toggle("aton-shell--has-chat", Boolean(currentChatId));
 
     if (!current) {
       renderPublicLandingState(messagesEl);

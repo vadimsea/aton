@@ -878,6 +878,27 @@ body {
   padding: 0 18px;
 }
 
+.aton-back-button {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--aton-accent, #c27803);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.aton-back-button:active {
+  background: rgba(194, 120, 3, 0.12);
+}
+
+.aton-topbar-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .aton-topbar-left {
   display: flex;
   flex-direction: column;
@@ -2004,6 +2025,17 @@ body {
     border-bottom: none;
   }
 
+  /* Чат выбран — sidebar скрыт, main на весь экран */
+  .aton-shell--has-chat .aton-sidebar {
+    display: none !important;
+  }
+
+  .aton-shell--has-chat .aton-main {
+    flex: 1;
+    min-height: 100dvh;
+    min-height: 100vh;
+  }
+
   /* ===== HEADER (компактный) ===== */
   .aton-sidebar-header {
     padding: 12px 16px 6px;
@@ -2249,6 +2281,15 @@ body {
 
   .aton-topbar-left {
     min-width: 0;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .aton-shell--has-chat .aton-back-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .aton-topbar-title {
