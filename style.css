@@ -24,21 +24,21 @@
 }
 
 [data-theme="light"] {
-  --aton-bg: #f8fafc;
+  --aton-bg: #ffffff;
   --aton-bg-elevated: #ffffff;
-  --aton-bg-soft: #f1f5f9;
-  --aton-border-soft: rgba(100, 116, 139, 0.2);
-  --aton-text-main: #0f172a;
-  --aton-text-muted: #64748b;
-  --aton-accent-gold: #d97706;
-  --aton-accent-amber: #ea580c;
-  --aton-accent-blue: #0284c7;
-  --aton-accent-blue-deep: #0369a1;
+  --aton-bg-soft: #f4f6f8;
+  --aton-border-soft: rgba(0, 0, 0, 0.08);
+  --aton-text-main: #1a1a2e;
+  --aton-text-muted: #6b7280;
+  --aton-accent-gold: #c27803;
+  --aton-accent-amber: #d4590c;
+  --aton-accent-blue: #2563eb;
+  --aton-accent-blue-deep: #1d4ed8;
   --aton-error: #dc2626;
-  --aton-panel: rgba(255, 255, 255, 0.92);
-  --aton-sidebar-bg: rgba(241, 245, 249, 0.9);
-  --aton-msg-own: rgba(2, 132, 199, 0.08);
-  --aton-msg-other: rgba(241, 245, 249, 0.8);
+  --aton-panel: #ffffff;
+  --aton-sidebar-bg: #f9fafb;
+  --aton-msg-own: #eff6ff;
+  --aton-msg-other: #f4f6f8;
 }
 
 html,
@@ -61,10 +61,7 @@ body {
 }
 
 [data-theme="light"] body {
-  background:
-    radial-gradient(circle at top left, rgba(248, 181, 81, 0.08) 0, transparent 55%),
-    radial-gradient(circle at bottom right, rgba(56, 189, 248, 0.06) 0, transparent 60%),
-    linear-gradient(145deg, #f8fafc, #f1f5f9 40%, #e2e8f0 100%);
+  background: #ffffff;
 }
 
 body {
@@ -90,6 +87,12 @@ body {
     radial-gradient(circle at bottom right, rgba(236, 72, 153, 0.24), transparent 55%),
     rgba(10, 12, 24, 0.96);
   border-top: 1px solid rgba(148, 163, 184, 0.25);
+  transition: background 0.3s ease;
+}
+
+[data-theme="light"] .aton-shell {
+  background: #ffffff;
+  border-top-color: var(--aton-border-soft);
 }
 
 .aton-sidebar {
@@ -1539,14 +1542,43 @@ body {
 }
 
 /* ===== LIGHT THEME OVERRIDES ===== */
+[data-theme="light"] .aton-sidebar {
+  background: #f9fafb;
+  border-right-color: var(--aton-border-soft);
+}
+
+[data-theme="light"] .aton-sidebar-header {
+  border-bottom-color: var(--aton-border-soft);
+}
+
+[data-theme="light"] .aton-logo-inner {
+  filter: brightness(0.85);
+}
+
+[data-theme="light"] .aton-title {
+  color: #1a1a2e;
+}
+
+[data-theme="light"] .aton-subtitle {
+  color: #6b7280;
+}
+
 [data-theme="light"] .aton-auth-logged {
   border-bottom-color: var(--aton-border-soft);
 }
 
 [data-theme="light"] .aton-auth-logged-avatar {
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-  border-color: rgba(2, 132, 199, 0.25);
-  color: #475569;
+  background: linear-gradient(135deg, #e0e7ff, #dbeafe);
+  border-color: rgba(37, 99, 235, 0.2);
+  color: #3b82f6;
+}
+
+[data-theme="light"] .aton-auth-logged-user {
+  color: #1a1a2e;
+}
+
+[data-theme="light"] .aton-auth-logged-status {
+  color: #2563eb;
 }
 
 [data-theme="light"] .aton-chats {
@@ -1554,97 +1586,221 @@ body {
 }
 
 [data-theme="light"] .aton-topbar {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  border-bottom-color: var(--aton-border-soft);
+  background: #ffffff;
+  border-bottom: 1px solid var(--aton-border-soft);
+}
+
+[data-theme="light"] .aton-topbar-title,
+[data-theme="light"] .aton-title-text {
+  color: #1a1a2e;
+}
+
+[data-theme="light"] .aton-topbar-status {
+  color: #6b7280;
 }
 
 [data-theme="light"] .aton-chat-item {
   color: var(--aton-text-main);
 }
 
-[data-theme="light"] .aton-chat-item.active,
 [data-theme="light"] .aton-chat-item:hover {
-  background: rgba(2, 132, 199, 0.08);
+  background: #f0f4ff;
+}
+
+[data-theme="light"] .aton-chat-item.active {
+  background: #e0e7ff;
+}
+
+[data-theme="light"] .aton-chat-avatar {
+  background: linear-gradient(135deg, #e0e7ff, #dbeafe);
+  border-color: rgba(37, 99, 235, 0.15);
+  color: #3b82f6;
+}
+
+[data-theme="light"] .aton-chat-item-title {
+  color: #1a1a2e;
+}
+
+[data-theme="light"] .aton-chat-item-preview {
+  color: #6b7280;
 }
 
 [data-theme="light"] .aton-message-bubble {
-  background: var(--aton-msg-other);
-  color: var(--aton-text-main);
+  background: #f4f6f8;
+  color: #1a1a2e;
+  border: 1px solid rgba(0, 0, 0, 0.04);
 }
 
 [data-theme="light"] .aton-message-bubble.own {
-  background: var(--aton-msg-own);
-}
-
-[data-theme="light"] .aton-compose {
-  background: rgba(255, 255, 255, 0.9);
-  border-top-color: var(--aton-border-soft);
-}
-
-[data-theme="light"] .aton-compose-input {
-  background: var(--aton-bg-soft);
-  color: var(--aton-text-main);
-  border-color: var(--aton-border-soft);
-}
-
-[data-theme="light"] .aton-input {
-  background: var(--aton-bg-soft);
-  color: var(--aton-text-main);
-  border-color: var(--aton-border-soft);
-}
-
-[data-theme="light"] .aton-search-input {
-  background: var(--aton-bg-soft);
-  color: var(--aton-text-main);
-  border-color: var(--aton-border-soft);
+  background: #eff6ff;
+  border-color: rgba(37, 99, 235, 0.1);
 }
 
 [data-theme="light"] .aton-messages {
-  background: rgba(248, 250, 252, 0.6);
+  background: #ffffff;
+}
+
+[data-theme="light"] .aton-compose {
+  background: #ffffff;
+  border-top: 1px solid var(--aton-border-soft);
+}
+
+[data-theme="light"] .aton-compose-input {
+  background: #f4f6f8;
+  color: #1a1a2e;
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .aton-input {
+  background: #ffffff;
+  color: #1a1a2e;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .aton-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+[data-theme="light"] .aton-search-input {
+  background: #f4f6f8;
+  color: #1a1a2e;
+  border-color: rgba(0, 0, 0, 0.08);
 }
 
 [data-theme="light"] .aton-topbar-icon {
-  color: var(--aton-text-muted);
+  color: #6b7280;
 }
 
 [data-theme="light"] .aton-topbar-icon:hover {
-  background: rgba(2, 132, 199, 0.08);
-  color: var(--aton-accent-blue);
+  background: #f0f4ff;
+  color: #2563eb;
 }
 
 [data-theme="light"] .aton-user-pill {
-  background: var(--aton-bg-soft);
-  border-color: var(--aton-border-soft);
+  background: #f4f6f8;
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #1a1a2e;
 }
 
 [data-theme="light"] .aton-chat-onboarding-card {
-  background: rgba(241, 245, 249, 0.8);
-  border-color: var(--aton-border-soft);
+  background: #f9fafb;
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .aton-chat-onboarding-title {
+  color: #1a1a2e;
+}
+
+[data-theme="light"] .aton-chat-onboarding-desc {
+  color: #6b7280;
 }
 
 [data-theme="light"] .aton-verify-screen {
-  background: var(--aton-bg);
+  background: #ffffff;
 }
 
 [data-theme="light"] .aton-verify-card {
-  background: var(--aton-bg-elevated);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .aton-verify-card h2 {
+  color: #c27803;
+}
+
+[data-theme="light"] .aton-verify-card p {
+  color: #374151;
 }
 
 [data-theme="light"] .aton-logout-button {
-  background: rgba(220, 38, 38, 0.06);
-  border-color: rgba(220, 38, 38, 0.15);
-  color: #dc2626;
+  background: rgba(220, 38, 38, 0.05);
+  border-color: rgba(220, 38, 38, 0.12);
+  color: #ef4444;
 }
 
 [data-theme="light"] .aton-logout-button:hover {
-  background: rgba(220, 38, 38, 0.12);
-  color: #b91c1c;
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
 }
 
 [data-theme="light"] .aton-primary-button {
-  background: linear-gradient(135deg, #d97706, #ea580c);
+  background: linear-gradient(135deg, #c27803, #d4590c);
+  color: #ffffff;
+}
+
+[data-theme="light"] .aton-onboarding-cta-primary {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+[data-theme="light"] .aton-onboarding-cta-secondary {
+  background: #ffffff;
+  color: #1a1a2e;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .aton-onboarding-cta-secondary:hover {
+  background: #f0f4ff;
+}
+
+[data-theme="light"] .aton-verified-badge {
+  background: rgba(37, 99, 235, 0.1);
+  border-color: rgba(37, 99, 235, 0.3);
+  color: #2563eb;
+}
+
+[data-theme="light"] .aton-chat-verified-badge {
+  color: #2563eb;
+}
+
+[data-theme="light"] .aton-empty-title {
+  color: #1a1a2e;
+}
+
+[data-theme="light"] .aton-empty-lead,
+[data-theme="light"] .aton-empty-subtitle {
+  color: #6b7280;
+}
+
+[data-theme="light"] .aton-empty-icon {
+  color: #2563eb;
+}
+
+[data-theme="light"] .aton-chat-onboarding-icon {
+  color: #2563eb;
+}
+
+[data-theme="light"] .aton-profile-link {
+  color: #6b7280;
+  border-top-color: var(--aton-border-soft);
+}
+
+[data-theme="light"] .aton-profile-link:hover {
+  color: #2563eb;
+}
+
+[data-theme="light"] .aton-send-button {
+  background: #2563eb;
+}
+
+[data-theme="light"] .aton-message-avatar {
+  background: linear-gradient(135deg, #e0e7ff, #dbeafe);
+  color: #3b82f6;
+}
+
+[data-theme="light"] .aton-auth-tab {
+  color: #6b7280;
+}
+
+[data-theme="light"] .aton-auth-tab.active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+}
+
+[data-theme="light"] .aton-main {
+  background: #ffffff;
 }
 
 /* ===== ANIMATIONS ===== */
