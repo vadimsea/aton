@@ -317,16 +317,19 @@ function createApp() {
       <div class="aton-topbar-status" id="aton-status">Войдите, чтобы открыть чаты</div>
     </div>
     <div class="aton-topbar-right">
+      <button class="aton-topbar-icon" id="aton-theme-toggle" title="Сменить тему">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
       <button class="aton-topbar-icon" id="aton-filter-private" title="Личные диалоги">
-        💬
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         <span class="aton-topbar-icon-badge" id="aton-filter-private-badge"></span>
       </button>
       <button class="aton-topbar-icon" id="aton-filter-group" title="Группы и каналы">
-        ☀
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         <span class="aton-topbar-icon-badge" id="aton-filter-group-badge"></span>
       </button>
       <button class="aton-topbar-icon" id="aton-moderation" title="Модерация" style="display:none;">
-        ⚖
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       </button>
       <div class="aton-user-pill" id="aton-user-pill" style="display:none;">
         <div class="aton-user-avatar"></div>
@@ -502,6 +505,7 @@ function createApp() {
   const moderationButton = document.getElementById("aton-moderation");
   const filterPrivateBadge = document.getElementById("aton-filter-private-badge");
   const filterGroupBadge = document.getElementById("aton-filter-group-badge");
+  const themeToggle = document.getElementById("aton-theme-toggle");
 
   // Индикатор «печатает…»
   const typingIndicator = document.createElement("div");
@@ -1401,14 +1405,24 @@ function createApp() {
       empty.className = "aton-chat-onboarding";
       empty.innerHTML = `
         <div class="aton-chat-onboarding-card">
+          <div class="aton-chat-onboarding-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
           <div class="aton-chat-onboarding-title">Начните первый диалог</div>
           <div class="aton-chat-onboarding-desc">
-            Найдите пользователя по @username или создайте группу, чтобы начать общение.
-            Все ваши диалоги появятся здесь.
+            Найдите собеседника или создайте группу — все чаты появятся здесь.
           </div>
           <div class="aton-chat-onboarding-actions">
-            <button type="button" class="aton-onboarding-cta aton-onboarding-cta-primary">Найти пользователя</button>
-            <button type="button" class="aton-onboarding-cta aton-onboarding-cta-secondary">Создать группу</button>
+            <button type="button" class="aton-onboarding-cta aton-onboarding-cta-primary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              Найти
+            </button>
+            <button type="button" class="aton-onboarding-cta aton-onboarding-cta-secondary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+              Группа
+            </button>
           </div>
         </div>
       `;
@@ -1568,6 +1582,12 @@ function createApp() {
   function renderEmptyState(container) {
     container.innerHTML = `
       <div class="aton-empty-state aton-empty-state--pick">
+        <div class="aton-empty-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            <line x1="9" y1="10" x2="15" y2="10" opacity="0.5"/>
+          </svg>
+        </div>
         <h2 class="aton-empty-title">Выберите чат</h2>
         <p class="aton-empty-lead">
           Откройте диалог слева или найдите пользователя по @username.
@@ -1579,9 +1599,13 @@ function createApp() {
   function renderEmptyChatState(container) {
     container.innerHTML = `
       <div class="aton-empty-state">
+        <div class="aton-empty-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+        </div>
         <div class="aton-empty-title">В этом чате пока нет сообщений</div>
         <div class="aton-empty-subtitle">Напишите первое сообщение, чтобы начать диалог.</div>
-        <div class="aton-empty-meta">Ваше первое сообщение задаст тон разговору.</div>
       </div>
     `;
   }
@@ -2620,6 +2644,34 @@ function createApp() {
 
   profileLink.addEventListener("click", openProfileModal);
   userPill.addEventListener("click", openProfileModal);
+
+  // Sidebar avatar click opens profile
+  const loggedAvatarEl = document.getElementById("aton-logged-avatar");
+  if (loggedAvatarEl) {
+    loggedAvatarEl.style.cursor = "pointer";
+    loggedAvatarEl.title = "Открыть профиль";
+    loggedAvatarEl.addEventListener("click", openProfileModal);
+  }
+
+  // Theme toggle
+  const THEME_KEY = "aton_theme";
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem(THEME_KEY, theme);
+    const icon = themeToggle?.querySelector("svg");
+    if (icon) {
+      icon.innerHTML = theme === "light"
+        ? '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'
+        : '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+    }
+  }
+  applyTheme(localStorage.getItem(THEME_KEY) || "dark");
+  if (themeToggle) {
+    themeToggle.addEventListener("click", () => {
+      const current = document.documentElement.getAttribute("data-theme") || "dark";
+      applyTheme(current === "dark" ? "light" : "dark");
+    });
+  }
 
   async function openModerationModal() {
     if (!currentUser || !currentUser.isSuperAdmin) return;
