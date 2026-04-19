@@ -2974,7 +2974,14 @@ function createApp() {
     const peerUser = allUsers.find((u) => u.username === peer);
     const name = peerUser?.displayName || peer;
     const verified = Boolean(peerUser && peerUser.isVerified);
-    setTitle(`Диалог с ${name}`, verified);
+    setTitle(name, verified);
+
+    let peerOnline = false;
+    if (peerUser?.lastSeen) {
+      const diff = Date.now() - new Date(peerUser.lastSeen).getTime();
+      peerOnline = diff < 60 * 1000;
+    }
+    statusEl.textContent = peerOnline ? "в сети" : "приватный чат";
   }
 
   // Инициализация
