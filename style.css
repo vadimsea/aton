@@ -1085,9 +1085,9 @@ body {
 }
 
 .aton-message-inner {
-  display: inline-flex;
+  display: flex;
   align-items: flex-end;
-  gap: 6px;
+  gap: 8px;
   max-width: 100%;
 }
 
@@ -1118,15 +1118,28 @@ body {
 }
 
 .aton-message-bubble {
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  min-width: min(100%, 140px);
+  width: fit-content;
   max-width: min(70%, 520px);
-  padding: 6px 10px 4px;
+  padding: 8px 12px 6px;
   border-radius: 12px 12px 12px 4px;
   font-size: 14px;
   line-height: 1.45;
-  word-break: break-word;
-  background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(75, 85, 99, 0.8);
+  overflow-wrap: break-word;
+  word-break: normal;
+  background: #2b3039;
+  border: none;
+  color: #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
   position: relative;
+}
+
+.aton-message-text {
+  text-align: left;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .aton-message-image {
@@ -1146,8 +1159,9 @@ body {
 .aton-message-sender {
   font-size: 12px;
   font-weight: 600;
-  color: #38bdf8;
-  margin-bottom: 1px;
+  color: #60a5fa;
+  margin-bottom: 2px;
+  max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1736,11 +1750,13 @@ body {
   background: #f0f2f5;
   color: #1a1a2e;
   border: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
 [data-theme="light"] .aton-message-bubble.self {
   background: #dcf8c6;
   color: #111827;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 [data-theme="light"] .aton-message-sender {
@@ -2488,6 +2504,9 @@ body {
   }
 
   .aton-message-bubble {
+    flex-shrink: 0;
+    min-width: min(100%, 120px);
+    width: fit-content;
     max-width: min(82%, 520px);
     padding: 8px 12px 6px;
     border-radius: 14px 14px 14px 4px;

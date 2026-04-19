@@ -1895,6 +1895,7 @@ function createApp() {
         "aton-message-bubble aton-message-bubble-enter" +
         (current && current.username === msg.from ? " self" : "");
       const text = document.createElement("div");
+      text.className = "aton-message-text";
       if (msg.type === "audio" && msg.audioDataUrl) {
         const audio = document.createElement("audio");
         audio.controls = true;
