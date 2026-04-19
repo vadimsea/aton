@@ -2109,7 +2109,7 @@ function createApp() {
         bubble.appendChild(reactionsBar);
       }
 
-      meta.appendChild(actions);
+      bubble.appendChild(actions);
 
       inner.appendChild(avatarWrap);
       inner.appendChild(bubble);

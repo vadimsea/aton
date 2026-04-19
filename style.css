@@ -1163,13 +1163,27 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.aton-message-meta > div:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.aton-message-meta > div:last-child {
+  flex-shrink: 0;
 }
 
 .aton-message-actions {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 2px;
-  margin-left: 6px;
+  margin-top: 4px;
+  flex-wrap: wrap;
 }
 
 .aton-message-action-button {
@@ -2005,8 +2019,19 @@ body {
 
 @media (max-width: 840px) {
   /* ===== LAYOUT ===== */
+  html, body, #app {
+    height: 100dvh;
+    height: 100vh;
+    overflow: hidden;
+  }
+
   .aton-shell {
     flex-direction: column;
+    height: 100dvh;
+    height: 100vh;
+    max-height: 100dvh;
+    max-height: 100vh;
+    overflow: hidden;
   }
 
   .aton-sidebar {
@@ -2018,6 +2043,7 @@ body {
   .aton-main {
     flex: 1;
     min-height: 0;
+    overflow: hidden;
   }
 
   /* ===== GUEST LANDING ===== */
@@ -2070,8 +2096,9 @@ body {
 
   .aton-shell--has-chat .aton-main {
     flex: 1;
-    min-height: 100dvh;
-    min-height: 100vh;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
   }
 
   /* ===== HEADER (компактный) ===== */
