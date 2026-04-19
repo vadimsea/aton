@@ -1672,14 +1672,23 @@ body {
 }
 
 [data-theme="light"] .aton-input {
-  background: #ffffff;
-  color: #1a1a2e;
+  background: #ffffff !important;
+  color: #1a1a2e !important;
+  border-color: rgba(0, 0, 0, 0.12);
+  -webkit-text-fill-color: #1a1a2e;
+}
+
+[data-theme="light"] .aton-input:-webkit-autofill,
+[data-theme="light"] .aton-input:-webkit-autofill:hover,
+[data-theme="light"] .aton-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: #1a1a2e !important;
   border-color: rgba(0, 0, 0, 0.12);
 }
 
 [data-theme="light"] .aton-input:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  border-color: #c27803;
+  box-shadow: 0 0 0 3px rgba(194, 120, 3, 0.1);
 }
 
 [data-theme="light"] .aton-search-input {
@@ -1852,13 +1861,46 @@ body {
   color: #3b82f6;
 }
 
+[data-theme="light"] .aton-auth-tabs {
+  background: #f0f0f3;
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
 [data-theme="light"] .aton-auth-tab {
   color: #6b7280;
 }
 
 [data-theme="light"] .aton-auth-tab.active {
+  background: #ffffff;
+  color: #1a1a2e;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .aton-input-label {
+  color: #4b5563;
+}
+
+[data-theme="light"] .aton-auth-hint {
+  color: #6b7280;
+}
+
+[data-theme="light"] .aton-auth-link,
+[data-theme="light"] .aton-auth-footer a {
   color: #2563eb;
-  border-bottom-color: #2563eb;
+}
+
+[data-theme="light"] .aton-primary-button {
+  background: linear-gradient(135deg, #c27803, #d4590c);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(194, 120, 3, 0.2);
+}
+
+[data-theme="light"] .aton-landing-sun {
+  filter: saturate(0.8);
+}
+
+[data-theme="light"] .aton-empty-kicker {
+  color: #c27803;
 }
 
 [data-theme="light"] .aton-main {
