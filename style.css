@@ -1102,6 +1102,12 @@ body {
   overflow: hidden;
   flex-shrink: 0;
   background: radial-gradient(circle at top, #facc15, #f97316 70%, #7c2d12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: #fff;
 }
 
 .aton-message-avatar img {
@@ -1184,6 +1190,13 @@ body {
   gap: 2px;
   margin-top: 4px;
   flex-wrap: wrap;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.aton-message-bubble:hover .aton-message-actions,
+.aton-message-actions:focus-within {
+  opacity: 1;
 }
 
 .aton-message-action-button {
@@ -1621,13 +1634,13 @@ body {
 }
 
 [data-theme="light"] .aton-new-chat-button {
-  background: #2563eb;
-  color: #ffffff;
-  border: none;
+  background: #f0f4ff;
+  color: #2563eb;
+  border: 1px solid rgba(37, 99, 235, 0.15);
 }
 
 [data-theme="light"] .aton-new-chat-button:hover {
-  background: #1d4ed8;
+  background: #dbeafe;
 }
 
 [data-theme="light"] .aton-chats-header {
@@ -2462,6 +2475,10 @@ body {
   .aton-message-meta {
     font-size: 11px;
     margin-top: 4px;
+  }
+
+  .aton-message-actions {
+    opacity: 1;
   }
 
   .aton-message-action-button {

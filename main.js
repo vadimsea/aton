@@ -1886,6 +1886,8 @@ function createApp() {
         const img = document.createElement("img");
         img.src = author.avatarDataUrl;
         avatarWrap.appendChild(img);
+      } else {
+        avatarWrap.textContent = (msg.from || "?").slice(0, 1).toUpperCase();
       }
 
       const bubble = document.createElement("div");
@@ -2997,8 +2999,13 @@ function createApp() {
   }
 
   // Инициализация
-  // По умолчанию показываем режим «Вход» — только email и пароль
   switchMode("login");
+
+  const hasToken = Boolean(getToken());
+  if (hasToken) {
+    authLoginBlock.style.display = "none";
+    authLoggedBlock.style.display = "none";
+  }
 
   const joinUrlMatch = window.location.pathname.match(/^\/join\/([^/]+)\/?$/);
   const pendingInviteToken = joinUrlMatch ? joinUrlMatch[1] : null;
