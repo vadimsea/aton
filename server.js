@@ -1818,14 +1818,22 @@ app.get("/api/messages/all", authMiddleware, requireVerified, async (req, res) =
   const username = req.user.username;
   const userId = req.user.id;
   try {
-    const userRows = await prisma.user.findMany();
+    const chatRows = await prisma.chat.findMany();
+    const ownerNames = new Set();
+    for (const raw of chatRows) {
+      if (raw && raw.owner) ownerNames.add(raw.owner);
+    }
     const usersByUsername = {};
-    for (const row of userRows) {
-      const u = userFromPrismaRow(row);
-      if (u.username) usersByUsername[u.username] = u;
+    if (ownerNames.size > 0) {
+      const ownerRows = await prisma.user.findMany({
+        where: { username: { in: [...ownerNames] } },
+      });
+      for (const row of ownerRows) {
+        const u = userFromPrismaRow(row);
+        if (u.username) usersByUsername[u.username] = u;
+      }
     }
 
-    const chatRows = await prisma.chat.findMany();
     const memberChatIds = new Set();
     for (const raw of chatRows) {
       const chat = ensureChatFields(chatFromPrismaRow(raw), usersByUsername);

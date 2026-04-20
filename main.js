@@ -825,6 +825,29 @@ function createApp() {
   let hasOnboardingAutoFocused = false;
   let bootstrapVersion = 0;
 
+  function userFromContacts(username) {
+    if (!username) return null;
+    const lists = [
+      ...(contacts.friends || []),
+      ...(contacts.blocked || []),
+      ...(contacts.requestsIn || []),
+      ...(contacts.requestsOut || []),
+    ];
+    return lists.find((u) => u && u.username === username) || null;
+  }
+
+  /** Полный каталог или контакты (уже с аватаром), пока не загружен /api/users; для себя — currentUser. */
+  function userByUsername(username) {
+    if (!username) return null;
+    if (currentUser && username === currentUser.username) {
+      const fromDir = allUsers.find((u) => u.username === username);
+      return fromDir || currentUser;
+    }
+    const fromDir = allUsers.find((u) => u.username === username);
+    if (fromDir) return fromDir;
+    return userFromContacts(username);
+  }
+
   function closeChatMenu() {
     if (openChatMenu) {
       openChatMenu.remove();
@@ -867,7 +890,7 @@ function createApp() {
     }
     const peer = getPeerFromDmChatId(chatId);
     if (!peer) return "Новое сообщение";
-    const u = allUsers.find((x) => x.username === peer);
+    const u = userByUsername(peer);
     return u?.displayName || peer;
   }
 
@@ -1373,14 +1396,14 @@ function createApp() {
 
       if (!currentUser.verified) return;
 
+      // Сначала без /api/users — полный список пользователей может быть тяжёлым и
+      // блокирует первый кадр со списком чатов после входа.
       const [
-        nextAllUsers,
         nextAllChats,
         nextAllMessages,
         nextContacts,
         nextDiscover,
       ] = await Promise.all([
-        api("/api/users"),
         api("/api/chats"),
         api("/api/messages/all"),
         api("/api/contacts").catch(() => ({
@@ -1394,7 +1417,7 @@ function createApp() {
 
       if (version !== bootstrapVersion) return;
 
-      allUsers = nextAllUsers;
+      allUsers = [];
       allChats = nextAllChats;
       discoverChats = Array.isArray(nextDiscover) ? nextDiscover : [];
       allMessages = nextAllMessages;
@@ -1404,6 +1427,22 @@ function createApp() {
 
       // Важно: при загрузке НЕ выбираем чат автоматически.
       // currentChatId остаётся null, пока пользователь явно не кликнет по чату.
+
+      (async function loadUsersDirectory() {
+        try {
+          const nextAllUsers = await api("/api/users");
+          if (version !== bootstrapVersion) return;
+          allUsers = Array.isArray(nextAllUsers) ? nextAllUsers : [];
+          applyCurrentUserUI();
+          renderChatList();
+          renderMessages();
+          updateTopbarTitle();
+          updateFriendsBadge();
+          renderContacts();
+        } catch (err) {
+          console.error("GET /api/users (bootstrap):", err);
+        }
+      })();
     } catch (err) {
       console.error(err);
 
@@ -1464,7 +1503,7 @@ function createApp() {
       authLoggedBlock.style.display = "block";
       const tb = document.getElementById("aton-topbar");
       if (tb) tb.classList.remove("aton-topbar--guest");
-      const full = allUsers.find((u) => u.username === user.username) || user;
+      const full = userByUsername(user.username) || user;
       const displayName = full.displayName || full.username;
       const publicId = full.publicId || full.username;
       loggedUserLabel.innerHTML = "";
@@ -1610,6 +1649,7 @@ function createApp() {
       await bootstrapData();
       unlockNotificationAudio();
       applyCurrentUserUI();
+      renderContacts();
       renderChatList();
       renderMessages();
       updateTopbarTitle();
@@ -1772,7 +1812,7 @@ function createApp() {
     wrap.hidden = false;
     const st = peerContactStatus(peer);
     const isBlocked = st === "blocked";
-    const peerUser = allUsers.find((u) => u.username === peer);
+    const peerUser = userByUsername(peer);
     const name = peerUser?.displayName || peer;
     let html = `<div class="aton-peer-action-inner">
       <span class="aton-peer-action-label">${escHtml(name)}</span>
@@ -1953,8 +1993,6 @@ function createApp() {
         privateChatIds.add(id);
       }
     });
-
-    const users = allUsers;
 
     // Учитываем пин и непрочитанные для групп
     const sortedChats = [...chats].sort((a, b) => {
@@ -2549,7 +2587,7 @@ function createApp() {
     privateIdsSorted.forEach((id) => {
       const [a, b] = id.split("|");
       const peer = a === current.username ? b : a;
-      const peerUser = users.find((u) => u.username === peer);
+      const peerUser = userByUsername(peer);
       const title = peerUser?.displayName || peer;
       const chatMessages = allMessages
         .filter((m) => messageBelongsToDmId(m, id))
@@ -2937,8 +2975,6 @@ function createApp() {
       return;
     }
 
-    const users = allUsers;
-
     // Обновляем признак «прочитано до» для активного чата
     const reads = getChatReads(current.username);
     if (currentChatId) {
@@ -2957,7 +2993,7 @@ function createApp() {
 
       const avatarWrap = document.createElement("div");
       avatarWrap.className = "aton-message-avatar";
-      const author = users.find((u) => u.username === msg.from);
+      const author = userByUsername(msg.from);
       if (author?.avatarDataUrl) {
         const img = document.createElement("img");
         img.src = author.avatarDataUrl;
@@ -3761,7 +3797,7 @@ function createApp() {
       alert("Сначала войдите или зарегистрируйтесь.");
       return;
     }
-    const user = allUsers.find((u) => u.username === currentUser.username) || currentUser;
+    const user = userByUsername(currentUser.username) || currentUser;
 
     const overlay = document.createElement("div");
     overlay.style.position = "fixed";
@@ -4213,7 +4249,7 @@ function createApp() {
         statusEl.removeAttribute("title");
         return;
       }
-      const peerUser = allUsers.find((u) => u.username === peer);
+      const peerUser = userByUsername(peer);
       const name = peerUser?.displayName || peer;
       const verified = Boolean(peerUser && peerUser.isVerified);
       setTitle(name, verified);
