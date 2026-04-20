@@ -1,11 +1,11 @@
 /**
- * QA-бот: смоук API → скриншот фронта (Playwright) → анализ UI (Groq Vision, опционально)
+ * QA-бот: смоук API → скриншоты фронта (Playwright: список чатов + открытые диалоги) → Groq Vision (опционально)
  * → личное сообщение админу через API (токен верифицированного бота).
  *
  * GitHub Actions Secrets:
  *   QA_BOT_TOKEN       — session token бота (аккаунт с подтверждённой почтой)
  *   QA_ADMIN_USERNAME  — username получателя отчёта
- *   GROQ_API_KEY       — опционально, для разбора скриншота
+ *   GROQ_API_KEY       — опционально, для разбора скринов
  *
  * Env:
  *   QA_API_BASE / QA_BASE     — API (по умолчанию https://aton-api.onrender.com)
@@ -14,7 +14,7 @@
  */
 
 import { spawnSync } from "child_process";
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, mkdirSync, copyFileSync } from "fs";
 import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -59,40 +59,138 @@ function runSmoke() {
   };
 }
 
-async function takeScreenshot() {
+const ATON_TOKEN_KEY = "aton_token";
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Вход по токену бота, скрин списка чатов и (если есть) 1–2 открытых диалога.
+ * @returns {{ paths: string[], labels: string[] }}
+ */
+async function takeFrontendScreenshots() {
   const { chromium } = await import("playwright");
-  const outPath = path.join(os.tmpdir(), `aton-qa-${Date.now()}.png`);
+  if (!TOKEN || !String(TOKEN).trim()) {
+    throw new Error("Нужен QA_BOT_TOKEN для скринов с авторизацией");
+  }
+  const stamp = Date.now();
+  const tmp = os.tmpdir();
+  const out = { paths: [], labels: [] };
+
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage({
       viewport: { width: 390, height: 844 },
       deviceScaleFactor: 2,
     });
-    await page.goto(FRONT, { waitUntil: "networkidle", timeout: 90000 });
-    await new Promise((r) => setTimeout(r, 2500));
-    await page.screenshot({ path: outPath, fullPage: false, type: "png" });
-    return outPath;
+    await page.goto(FRONT, { waitUntil: "domcontentloaded", timeout: 90000 });
+    await page.evaluate(
+      ({ key, val }) => {
+        localStorage.setItem(key, val);
+      },
+      { key: ATON_TOKEN_KEY, val: TOKEN }
+    );
+    await page.reload({ waitUntil: "networkidle", timeout: 120000 });
+    await sleep(2500);
+
+    await page.waitForSelector("#aton-chat-list", { timeout: 90000 });
+
+    const listPath = path.join(tmp, `aton-qa-list-${stamp}.png`);
+    await page.screenshot({ path: listPath, fullPage: false, type: "png" });
+    out.paths.push(listPath);
+    out.labels.push("список чатов после входа");
+
+    const itemLoc = page.locator(".aton-chat-item");
+    const n = await itemLoc.count();
+    if (n === 0) {
+      out.labels.push("нет элементов .aton-chat-item — второй скрин не делался");
+      return out;
+    }
+
+    await itemLoc.nth(0).click();
+    await page.waitForSelector(".aton-messages", { state: "visible", timeout: 20000 });
+    await sleep(900);
+    const chat1 = path.join(tmp, `aton-qa-chat-a-${stamp}.png`);
+    await page.screenshot({ path: chat1, fullPage: false, type: "png" });
+    out.paths.push(chat1);
+    out.labels.push("открыт первый чат в списке");
+
+    if (n > 1) {
+      const back = page.locator("#aton-back-btn");
+      if (await back.count()) {
+        await back.click();
+        await sleep(700);
+        await page.waitForSelector(".aton-chat-item", { timeout: 15000 });
+        await page.locator(".aton-chat-item").nth(1).click();
+        await page.waitForSelector(".aton-messages", { state: "visible", timeout: 20000 });
+        await sleep(900);
+        const chat2 = path.join(tmp, `aton-qa-chat-b-${stamp}.png`);
+        await page.screenshot({ path: chat2, fullPage: false, type: "png" });
+        out.paths.push(chat2);
+        out.labels.push("открыт второй чат в списке");
+      }
+    }
+
+    if (process.env.GITHUB_WORKSPACE) {
+      const destDir = path.join(process.env.GITHUB_WORKSPACE, "qa-frontend-screens");
+      mkdirSync(destDir, { recursive: true });
+      out.paths.forEach((p) => {
+        if (existsSync(p)) {
+          copyFileSync(p, path.join(destDir, path.basename(p)));
+        }
+      });
+    }
+    return out;
   } finally {
     await browser.close();
   }
 }
 
-async function analyzeUxWithGroq(pngPath) {
+async function analyzeUxWithGroq(pngPaths, labels) {
   if (!GROQ) {
     return [
       "GROQ_API_KEY не задан — автоматический разбор UI пропущен.",
-      "Добавь секрет GROQ_API_KEY в GitHub (или локально в .env) для анализа скриншота.",
+      "Добавь секрет GROQ_API_KEY в GitHub (или локально в .env) для анализа скринов.",
     ].join("\n");
   }
-  const buf = readFileSync(pngPath);
-  if (buf.length > 3.5 * 1024 * 1024) {
-    return "Скриншот слишком большой для Groq (>3.5MB) — уменьши viewport или отключи fullPage.";
+  const paths = Array.isArray(pngPaths) ? pngPaths : [pngPaths];
+  const labs = Array.isArray(labels) ? labels : [];
+
+  let total = 0;
+  const parts = [];
+  for (let i = 0; i < paths.length; i++) {
+    const p = paths[i];
+    if (!existsSync(p)) continue;
+    const buf = readFileSync(p);
+    total += buf.length;
+    if (buf.length > 3.5 * 1024 * 1024) {
+      return `Скрин ${i + 1} слишком большой для Groq (>3.5MB).`;
+    }
+    const label = labs[i] || `кадр ${i + 1}`;
+    parts.push({ label, b64: buf.toString("base64") });
   }
-  const b64 = buf.toString("base64");
-  const prompt =
-    "Ты UX-ревьюер. Проанализируй скриншот мобильной веб-страницы мессенджера «Атон». " +
-    "Найди конкретные проблемы: отступы от выреза/status bar, выравнивание кнопок, читаемость, контраст, перегруженность. " +
-    "Ответь 5–8 короткими пунктами на русском, без вступлений.";
+  if (parts.length === 0) {
+    return "Нет файлов скринов для Groq.";
+  }
+  if (total > 10 * 1024 * 1024) {
+    return "Суммарный размер скринов слишком большой — сократи число кадров.";
+  }
+
+  const intro =
+    "Ты UX-ревьюер. Ниже скриншоты мобильного веб-мессенджера «Атон»: сначала список чатов, затем один или два открытых диалога. " +
+    "Опиши отдельно: (1) список чатов (2) область переписки и поле ввода. " +
+    "Ищи проблемы: safe area, шапка, пузыри, контраст, отступы, перегруженность. " +
+    "8–12 коротких пунктов на русском, без вступлений.";
+
+  const content = [{ type: "text", text: intro }];
+  for (const part of parts) {
+    content.push({ type: "text", text: `Кадр: ${part.label}` });
+    content.push({
+      type: "image_url",
+      image_url: { url: `data:image/png;base64,${part.b64}` },
+    });
+  }
 
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -102,19 +200,8 @@ async function analyzeUxWithGroq(pngPath) {
     },
     body: JSON.stringify({
       model: GROQ_MODEL,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            {
-              type: "image_url",
-              image_url: { url: `data:image/png;base64,${b64}` },
-            },
-          ],
-        },
-      ],
-      max_tokens: 900,
+      messages: [{ role: "user", content }],
+      max_tokens: 1200,
       temperature: 0.4,
     }),
   });
@@ -189,20 +276,22 @@ async function main() {
   }
   lines.push("");
 
-  let shotNote = "▸ Скриншот: не сделан";
+  let shotNote = "▸ Скриншоты: не сделаны";
   let uxNote = "";
   try {
-    const pngPath = await takeScreenshot();
-    shotNote = `▸ Скриншот: ${pngPath}`;
+    const shots = await takeFrontendScreenshots();
+    shotNote =
+      "▸ Скриншоты:\n" +
+      shots.paths.map((p, i) => `  ${i + 1}. ${shots.labels[i] || "кадр"} → ${p}`).join("\n");
     lines.push(shotNote);
     try {
-      uxNote = await analyzeUxWithGroq(pngPath);
+      uxNote = await analyzeUxWithGroq(shots.paths, shots.labels);
     } catch (e) {
       uxNote = `Анализ UI: ${e.message || e}`;
     }
   } catch (e) {
-    lines.push(`▸ Скриншот: ошибка — ${e.message || e}`);
-    uxNote = "(Playwright недоступен или таймаут загрузки страницы)";
+    lines.push(`▸ Скриншоты: ошибка — ${e.message || e}`);
+    uxNote = "(Playwright недоступен, нет токена бота или таймаут загрузки)";
   }
 
   lines.push("");

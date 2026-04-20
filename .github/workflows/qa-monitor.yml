@@ -1,4 +1,4 @@
-# QA-бот: смоук API + скриншот фронта + Groq UI + ЛС админу.
+# QA-бот: смоук API + скрины (список чатов + 1–2 открытых диалога) + Groq + ЛС админу.
 #
 # Secrets (Settings → Secrets → Actions):
 #   QA_BOT_TOKEN       — токен сессии бота (аккаунт с подтверждённой почтой; залогиниться через POST /api/login)
@@ -44,3 +44,11 @@ jobs:
             exit 1
           fi
           node scripts/qa-monitor-dm.mjs
+
+      - name: Upload frontend screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-frontend-screens
+          path: qa-frontend-screens/
+          if-no-files-found: ignore
