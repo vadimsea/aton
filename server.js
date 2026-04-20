@@ -270,13 +270,15 @@ async function notifyNewMessage(msg, sender) {
           : "Новое сообщение";
 
   const chatId = msg.chatId;
+  // messageFromPrismaRow отдаёт получателя как `to`; в БД поле — recipientUsername
+  const recipientUsername = msg.recipientUsername || msg.to;
 
-  if (msg.recipientUsername) {
+  if (recipientUsername) {
     // DM — notify recipient only
-    if (isUserOnline(msg.recipientUsername)) return;
+    if (isUserOnline(recipientUsername)) return;
     try {
       const recipient = await prisma.user.findUnique({
-        where: { username: msg.recipientUsername },
+        where: { username: recipientUsername },
       });
       if (recipient?.email) {
         await sendMail(
