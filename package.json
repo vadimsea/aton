@@ -12,6 +12,7 @@
     "db:studio": "prisma studio",
     "db:smoke": "node scripts/pg-smoke.js",
     "qa:prod": "node scripts/qa-prod-smoke.js",
+    "qa:monitor": "node scripts/qa-monitor-dm.mjs",
     "dev:embedded": "node scripts/embedded-dev.mjs",
     "postinstall": "prisma generate"
   },
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "embedded-postgres": "^18.3.0-beta.16",
+    "playwright": "^1.49.1",
     "prisma": "^6.19.0",
     "socket.io-client": "^4.8.3"
   }

@@ -1,0 +1,46 @@
+# QA-бот: смоук API + скриншот фронта + Groq UI + ЛС админу.
+#
+# Secrets (Settings → Secrets → Actions):
+#   QA_BOT_TOKEN       — токен сессии бота (аккаунт с подтверждённой почтой; залогиниться через POST /api/login)
+#   QA_ADMIN_USERNAME  — username, кому слать отчёт (например akhenaten)
+#   GROQ_API_KEY       — опционально, для анализа скрина (console.groq.com)
+#
+# После первого запуска открой диалог с ботом в приложении и напиши ему любое сообщение
+# (или добавь в друзья), чтобы ЛС не блокировались политикой.
+name: QA monitor → DM
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Run QA monitor (API + screenshot + Groq + DM)
+        env:
+          QA_API_BASE: https://aton-api.onrender.com
+          QA_FRONTEND_URL: https://aten.vadzim.by
+          QA_BOT_TOKEN: ${{ secrets.QA_BOT_TOKEN }}
+          QA_ADMIN_USERNAME: ${{ secrets.QA_ADMIN_USERNAME }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          if [ -z "${QA_BOT_TOKEN}" ] || [ -z "${QA_ADMIN_USERNAME}" ]; then
+            echo "Missing QA_BOT_TOKEN or QA_ADMIN_USERNAME secrets"
+            exit 1
+          fi
+          node scripts/qa-monitor-dm.mjs
