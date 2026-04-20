@@ -14,7 +14,7 @@
  */
 
 import { spawnSync } from "child_process";
-import { readFileSync, existsSync, mkdirSync, copyFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -130,16 +130,6 @@ async function takeFrontendScreenshots() {
         out.paths.push(chat2);
         out.labels.push("открыт второй чат в списке");
       }
-    }
-
-    if (process.env.GITHUB_WORKSPACE) {
-      const destDir = path.join(process.env.GITHUB_WORKSPACE, "qa-frontend-screens");
-      mkdirSync(destDir, { recursive: true });
-      out.paths.forEach((p) => {
-        if (existsSync(p)) {
-          copyFileSync(p, path.join(destDir, path.basename(p)));
-        }
-      });
     }
     return out;
   } finally {

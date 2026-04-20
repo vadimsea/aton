@@ -44,11 +44,3 @@ jobs:
             exit 1
           fi
           node scripts/qa-monitor-dm.mjs
-
-      - name: Upload frontend screenshots
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: qa-frontend-screens
-          path: qa-frontend-screens/
-          if-no-files-found: ignore

@@ -3,6 +3,5 @@ node_modules/
 .env
 .env.deploy
 .deploy-staging/
-qa-frontend-screens/
 .DS_Store
 LOCAL-SECRETS.txt
