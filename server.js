@@ -226,6 +226,31 @@ async function sendMail(to, subject, text) {
   });
 }
 
+/** Письмо получателю при новой заявке в друзья */
+async function sendFriendRequestEmail({ to, senderDisplayName, senderUsername }) {
+  if (!to || !String(to).includes("@")) return;
+  const baseUrl = (process.env.ATON_PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, "");
+  const who = `${senderDisplayName} (@${senderUsername})`;
+  const subject = `${senderDisplayName} хочет добавить вас в друзья в Атоне`;
+  const text = [
+    `Здравствуйте!`,
+    ``,
+    `${who} отправил(а) вам заявку в друзья в мессенджере «Атон».`,
+    ``,
+    `Откройте приложение, чтобы принять или отклонить заявку в разделе «Друзья» (иконка людей в шапке):`,
+    `${baseUrl}/`,
+    ``,
+    `Если вы не ожидали это письмо, просто проигнорируйте его.`,
+    ``,
+    `— Атон`,
+  ].join("\n");
+  try {
+    await sendMail(to, subject, text);
+  } catch (e) {
+    console.error("sendFriendRequestEmail:", e);
+  }
+}
+
 function isUserOnline(username) {
   for (const [, s] of io.sockets.sockets) {
     if (s.user && s.user.username === username) return true;
@@ -696,6 +721,7 @@ app.post("/api/profile", authMiddleware, requireVerified, async (req, res) => {
 // Заявка в друзья (или принятие, если заявка уже была)
 app.post("/api/contacts/add", authMiddleware, requireVerified, async (req, res) => {
   const { username, publicId } = req.body || {};
+  let friendRequestEmailPayload = null;
   try {
     const result = await prisma.$transaction(async (tx) => {
       const meRow = await tx.user.findUnique({ where: { id: req.user.id } });
@@ -795,9 +821,19 @@ app.post("/api/contacts/add", authMiddleware, requireVerified, async (req, res) 
         where: { id: target.id },
         data: { friendRequestsIn: target.friendRequestsIn, friendRequestsOut: target.friendRequestsOut },
       });
+      friendRequestEmailPayload = {
+        to: targetRow.email,
+        senderDisplayName: me.displayName || me.username,
+        senderUsername: me.username,
+      };
       return { status: "requested" };
     });
     res.json({ ok: true, ...result });
+    if (friendRequestEmailPayload && friendRequestEmailPayload.to) {
+      sendFriendRequestEmail(friendRequestEmailPayload).catch((e) =>
+        console.error("POST /api/contacts/add friend request email:", e)
+      );
+    }
   } catch (err) {
     if (err.code === "NOTFOUND") return res.status(404).json({ error: "Пользователь не найден" });
     if (err.code === "NOTARGET") return res.status(404).json({ error: "Пользователь не найден" });
