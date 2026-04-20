@@ -23,10 +23,74 @@ const socket = API_BASE
 const LOCAL_PINS_KEY = "aton_pinned_chats";
 const LOCAL_READS_KEY = "aton_chat_reads";
 const LAST_CHAT_KEY_PREFIX = "aton_last_chat_";
+/** Локально: для каких chatId отключены звук и всплывающие уведомления */
+const LOCAL_NOTIFY_MUTED_KEY = "aton_notify_muted_chats";
+
+function getNotifyMutedMap(username) {
+  if (!username) return {};
+  const raw = localStorage.getItem(LOCAL_NOTIFY_MUTED_KEY);
+  try {
+    const obj = raw ? JSON.parse(raw) : {};
+    return obj[username] && typeof obj[username] === "object" ? obj[username] : {};
+  } catch {
+    return {};
+  }
+}
+
+function isChatNotifyMuted(username, chatId) {
+  if (!username || !chatId) return false;
+  return Boolean(getNotifyMutedMap(username)[chatId]);
+}
+
+function setChatNotifyMuted(username, chatId, muted) {
+  if (!username || !chatId) return;
+  const raw = localStorage.getItem(LOCAL_NOTIFY_MUTED_KEY);
+  let obj = {};
+  try {
+    obj = raw ? JSON.parse(raw) : {};
+  } catch {
+    obj = {};
+  }
+  if (!obj[username]) obj[username] = {};
+  if (muted) obj[username][chatId] = true;
+  else delete obj[username][chatId];
+  localStorage.setItem(LOCAL_NOTIFY_MUTED_KEY, JSON.stringify(obj));
+}
 
 function chatIdForUsers(a, b) {
   const arr = [a, b].sort();
   return arr.join("|");
+}
+
+/** Сообщение относится к личному чату user|user (учёт рассинхрона chatId в БД). */
+function messageBelongsToDmId(msg, dmId) {
+  if (!dmId || typeof dmId !== "string" || !dmId.includes("|")) return false;
+  if (msg.chatId === dmId) return true;
+  if (msg.to && chatIdForUsers(msg.from, msg.to) === dmId) return true;
+  return false;
+}
+
+function lastActivityAtForDmChatId(dmId, messages) {
+  let max = 0;
+  if (!Array.isArray(messages)) return 0;
+  for (const m of messages) {
+    if (!m || !m.time) continue;
+    if (!messageBelongsToDmId(m, dmId)) continue;
+    const t = new Date(m.time).getTime();
+    if (!Number.isNaN(t) && t > max) max = t;
+  }
+  return max;
+}
+
+function lastActivityAtForGroupChatId(chatId, messages) {
+  let max = 0;
+  if (!Array.isArray(messages) || !chatId) return 0;
+  for (const m of messages) {
+    if (!m || m.chatId !== chatId || !m.time) continue;
+    const t = new Date(m.time).getTime();
+    if (!Number.isNaN(t) && t > max) max = t;
+  }
+  return max;
 }
 
 function escHtml(s) {
@@ -43,6 +107,166 @@ function formatTimeLabel(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatVoiceDuration(sec) {
+  if (!Number.isFinite(sec) || sec < 0) return "0:00";
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function pauseOtherVoiceAudios(except) {
+  document.querySelectorAll("audio.aton-voice-audio").forEach((a) => {
+    if (a !== except && !a.paused) a.pause();
+  });
+}
+
+/** Кастомный плеер голосового (без нативных controls). */
+function createVoicePlayer(audioSrc, isSelf) {
+  const wrap = document.createElement("div");
+  wrap.className =
+    "aton-voice-player" + (isSelf ? " aton-voice-player--self" : "");
+
+  const audio = document.createElement("audio");
+  audio.className = "aton-voice-audio";
+  audio.preload = "metadata";
+  audio.setAttribute("playsinline", "");
+  audio.src = audioSrc;
+
+  const playBtn = document.createElement("button");
+  playBtn.type = "button";
+  playBtn.className = "aton-voice-play";
+  playBtn.setAttribute("aria-label", "Воспроизвести");
+  playBtn.innerHTML =
+    '<svg class="aton-voice-icon aton-voice-icon--play" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>' +
+    '<svg class="aton-voice-icon aton-voice-icon--pause" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M6 6h4v12H6V6zm8 0h4v12h-4V6z"/></svg>';
+
+  const main = document.createElement("div");
+  main.className = "aton-voice-main";
+
+  const track = document.createElement("div");
+  track.className = "aton-voice-track";
+  track.setAttribute("role", "slider");
+  track.setAttribute("tabindex", "0");
+  track.setAttribute("aria-label", "Позиция воспроизведения");
+  track.setAttribute("aria-valuemin", "0");
+  track.setAttribute("aria-valuemax", "100");
+  track.setAttribute("aria-valuenow", "0");
+
+  const trackFill = document.createElement("div");
+  trackFill.className = "aton-voice-progress-fill";
+
+  const timeEl = document.createElement("div");
+  timeEl.className = "aton-voice-time";
+  timeEl.textContent = "…";
+
+  track.appendChild(trackFill);
+  main.appendChild(track);
+  main.appendChild(timeEl);
+  wrap.appendChild(playBtn);
+  wrap.appendChild(main);
+  wrap.appendChild(audio);
+
+  function syncPlayingClass() {
+    const playing = !audio.paused;
+    wrap.classList.toggle("aton-voice-player--playing", playing);
+    playBtn.setAttribute("aria-label", playing ? "Пауза" : "Воспроизвести");
+  }
+
+  function updateUi() {
+    const d = audio.duration;
+    const t = audio.currentTime;
+    if (Number.isFinite(d) && d > 0) {
+      const pct = (t / d) * 100;
+      trackFill.style.width = `${pct}%`;
+      timeEl.textContent = `${formatVoiceDuration(t)} / ${formatVoiceDuration(d)}`;
+      track.setAttribute("aria-valuenow", String(Math.round(pct)));
+    }
+  }
+
+  function seekFromClientX(clientX) {
+    const rect = track.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    if (Number.isFinite(audio.duration) && audio.duration > 0) {
+      audio.currentTime = ratio * audio.duration;
+    }
+  }
+
+  playBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (audio.paused) {
+      pauseOtherVoiceAudios(audio);
+      audio.play().catch(() => {});
+    } else {
+      audio.pause();
+    }
+  });
+
+  track.addEventListener("click", (e) => {
+    e.stopPropagation();
+    seekFromClientX(e.clientX);
+  });
+
+  let dragging = false;
+  track.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    dragging = true;
+    try {
+      track.setPointerCapture(e.pointerId);
+    } catch (_) {}
+    seekFromClientX(e.clientX);
+  });
+  track.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    seekFromClientX(e.clientX);
+  });
+  track.addEventListener("pointerup", (e) => {
+    dragging = false;
+    try {
+      track.releasePointerCapture(e.pointerId);
+    } catch (_) {}
+  });
+  track.addEventListener("pointercancel", () => {
+    dragging = false;
+  });
+
+  track.addEventListener("keydown", (e) => {
+    const dur = audio.duration;
+    if (!Number.isFinite(dur) || dur <= 0) return;
+    const step = dur * 0.05;
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      audio.currentTime = Math.max(0, audio.currentTime - step);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      audio.currentTime = Math.min(dur, audio.currentTime + step);
+    }
+  });
+
+  audio.addEventListener("loadedmetadata", () => {
+    updateUi();
+  });
+  audio.addEventListener("timeupdate", updateUi);
+  audio.addEventListener("play", () => {
+    syncPlayingClass();
+  });
+  audio.addEventListener("pause", () => {
+    syncPlayingClass();
+  });
+  audio.addEventListener("ended", () => {
+    audio.currentTime = 0;
+    syncPlayingClass();
+    updateUi();
+  });
+  audio.addEventListener("error", () => {
+    timeEl.textContent = "Не удалось загрузить";
+    trackFill.style.width = "0%";
+  });
+
+  return wrap;
 }
 
 function unlockNotificationAudio() {
@@ -370,6 +594,13 @@ function createApp() {
       </div>
     </div>
     <div class="aton-topbar-right">
+      <button class="aton-topbar-icon aton-notify-permission-btn" id="aton-notify-permission" title="Разрешить уведомления о сообщениях вне вкладки" type="button" style="display:none;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M19 8h2l-2 2"/></svg>
+      </button>
+      <button class="aton-topbar-icon" id="aton-friends-btn" title="Друзья, заявки и блокировки" style="display:none;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span class="aton-topbar-icon-badge" id="aton-friends-badge"></span>
+      </button>
       <button class="aton-topbar-icon" id="aton-theme-toggle" title="Сменить тему">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       </button>
@@ -400,18 +631,35 @@ function createApp() {
   const compose = document.createElement("div");
   compose.className = "aton-compose";
   compose.innerHTML = `
-    <textarea class="aton-compose-input" id="aton-input" rows="1" placeholder="Сообщение…" disabled></textarea>
-    <div class="aton-compose-actions">
-      <button class="aton-attach-button" id="aton-attach" title="Фото" disabled>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
-      </button>
-      <button class="aton-mic-button" id="aton-mic" title="Голосовое" disabled>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-      </button>
-      <button class="aton-send-button" id="aton-send" disabled>
-        <svg class="aton-send-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-        <span class="aton-send-text">ОТПРАВИТЬ</span>
-      </button>
+    <div class="aton-compose-record-hint" id="aton-compose-record-hint" hidden>
+      <span class="aton-compose-record-dot" aria-hidden="true"></span>
+      <span class="aton-compose-record-timer" id="aton-compose-record-timer">0:00</span>
+      <span class="aton-compose-record-text">Идёт запись. Нажмите кнопку ещё раз, чтобы остановить.</span>
+    </div>
+    <div class="aton-compose-row">
+      <textarea class="aton-compose-input" id="aton-input" rows="1" placeholder="Сообщение…" disabled></textarea>
+      <div class="aton-compose-actions">
+        <button class="aton-attach-button" id="aton-attach" title="Фото" disabled>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+        </button>
+        <button class="aton-mic-button" id="aton-mic" type="button" title="Голосовое сообщение" disabled>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        </button>
+        <button class="aton-send-button" id="aton-send" disabled>
+          <svg class="aton-send-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          <span class="aton-send-text">ОТПРАВИТЬ</span>
+        </button>
+      </div>
+    </div>
+    <div class="aton-voice-preview" id="aton-voice-preview" hidden>
+      <div class="aton-voice-preview-inner">
+        <span class="aton-voice-preview-dot" aria-hidden="true"></span>
+        <span class="aton-voice-preview-label">Голосовое</span>
+        <span class="aton-voice-preview-time" id="aton-voice-preview-time">0:00</span>
+        <button type="button" class="aton-voice-preview-play" id="aton-voice-preview-play" title="Прослушать" aria-label="Прослушать"></button>
+        <button type="button" class="aton-voice-preview-cancel" id="aton-voice-preview-cancel">Удалить</button>
+        <button type="button" class="aton-voice-preview-send" id="aton-voice-preview-send">Отправить</button>
+      </div>
     </div>
     <input type="file" id="aton-attach-input" accept="image/*" style="display:none;" />
   `;
@@ -419,8 +667,47 @@ function createApp() {
   chat.appendChild(messagesEl);
   chat.appendChild(compose);
 
+  const peerActionBar = document.createElement("div");
+  peerActionBar.className = "aton-peer-action-bar";
+  peerActionBar.id = "aton-peer-action-bar";
+  peerActionBar.setAttribute("hidden", "");
+  peerActionBar.innerHTML = `<div class="aton-peer-action-bar-inner" id="aton-peer-action-bar-inner"></div>`;
+
+  const friendsOverlay = document.createElement("div");
+  friendsOverlay.className = "aton-friends-overlay";
+  friendsOverlay.id = "aton-friends-overlay";
+  friendsOverlay.setAttribute("hidden", "");
+  friendsOverlay.innerHTML = `
+    <div class="aton-friends-overlay-backdrop" data-close-friends="1"></div>
+    <div class="aton-friends-panel" role="dialog" aria-labelledby="aton-friends-panel-title">
+      <div class="aton-friends-panel-header">
+        <div class="aton-friends-panel-title" id="aton-friends-panel-title">Друзья и контакты</div>
+        <button type="button" class="aton-friends-panel-close" id="aton-friends-close" aria-label="Закрыть">×</button>
+      </div>
+      <p class="aton-friends-hint">В друзьях — те, кого вы добавили и кто принял заявку. Переписка возможна и без этого; друзья видны в списке ниже.</p>
+      <div class="aton-friends-section" id="aton-friends-incoming-wrap">
+        <div class="aton-friends-section-title">Входящие заявки <span class="aton-friends-count" id="aton-friends-in-count"></span></div>
+        <div id="aton-friends-incoming"></div>
+      </div>
+      <div class="aton-friends-section" id="aton-friends-outgoing-wrap">
+        <div class="aton-friends-section-title">Исходящие заявки</div>
+        <div id="aton-friends-outgoing"></div>
+      </div>
+      <div class="aton-friends-section">
+        <div class="aton-friends-section-title">Друзья</div>
+        <div id="aton-friends-list"></div>
+      </div>
+      <div class="aton-friends-section">
+        <div class="aton-friends-section-title">Заблокированные</div>
+        <div id="aton-friends-blocked"></div>
+      </div>
+    </div>
+  `;
+
   main.appendChild(topbar);
+  main.appendChild(peerActionBar);
   main.appendChild(chat);
+  document.body.appendChild(friendsOverlay);
 
   shell.appendChild(sidebar);
   shell.appendChild(main);
@@ -438,11 +725,20 @@ function createApp() {
   let discoverChats = [];
   let allMessages = [];
   let reports = [];
-  let contacts = { friends: [], blocked: [] };
+  let contacts = { friends: [], blocked: [], requestsIn: [], requestsOut: [] };
   let chatFilter = "all"; // all | private | group
   let currentChatId = null; // глобального чата нет, по умолчанию ничего не выбрано
   let mediaRecorder = null;
   let recordedChunks = [];
+  /** Чат, в котором начата запись / превью ГС — сброс при смене чата */
+  let voiceSessionChatId = null;
+  let discardVoiceOnNextStop = false;
+  let pendingVoiceBlob = null;
+  let pendingVoiceObjectUrl = null;
+  let activeMicStream = null;
+  let recordingTimerId = null;
+  let recordingStartedAt = 0;
+  let previewAudioEl = null;
   let replyToMessage = null;
   let typingTimeoutId = null;
   let openReactionPicker = null;
@@ -450,12 +746,6 @@ function createApp() {
   let currentSocketChat = null;
   let hasOnboardingAutoFocused = false;
   let bootstrapVersion = 0;
-
-  // Временный рендер контактов (пока UI для friends/blocked не реализован).
-  // Оставляем функцию пустой, чтобы не было ошибок при вызовах.
-  function renderContacts() {
-    // no-op
-  }
 
   function closeChatMenu() {
     if (openChatMenu) {
@@ -484,13 +774,148 @@ function createApp() {
     }
   }
 
+  function getPeerFromDmChatId(chatId) {
+    if (!chatId || !String(chatId).includes("|") || !currentUser) return null;
+    const [a, b] = chatId.split("|");
+    return a === currentUser.username ? b : a;
+  }
+
+  function getChatNotifyTitle(chatId) {
+    if (!chatId) return "Атон";
+    if (chatId.startsWith("group:") || chatId.startsWith("channel:")) {
+      let c = allChats.find((x) => x.id === chatId);
+      if (!c) c = discoverChats.find((x) => x.id === chatId);
+      return c?.title || "Чат";
+    }
+    const peer = getPeerFromDmChatId(chatId);
+    if (!peer) return "Новое сообщение";
+    const u = allUsers.find((x) => x.username === peer);
+    return u?.displayName || peer;
+  }
+
+  function formatNotifyBody(msg) {
+    if (!msg) return "";
+    if (msg.type === "audio") return "Голосовое сообщение";
+    if (msg.type === "image") return "Фото";
+    const t = (msg.text || "").trim();
+    if (t.length > 120) return `${t.slice(0, 117)}…`;
+    return t || "Новое сообщение";
+  }
+
+  function openChatFromNotification(chatId) {
+    if (!chatId || !currentUser) return;
+    currentChatId = chatId;
+    switchSocketChat(currentChatId);
+    setLastChatId(currentUser.username, currentChatId);
+    const reads = getChatReads(currentUser.username);
+    setChatReads(currentUser.username, { ...reads, [chatId]: new Date().toISOString() });
+    renderChatList();
+    renderMessages();
+    updateTopbarTitle();
+  }
+
+  function ensureToastStack() {
+    let el = document.getElementById("aton-toast-stack");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "aton-toast-stack";
+      el.className = "aton-toast-stack";
+      el.setAttribute("aria-live", "polite");
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
+  function pushMessageToast(msg) {
+    const stack = ensureToastStack();
+    const title = getChatNotifyTitle(msg.chatId);
+    const body = formatNotifyBody(msg);
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "aton-toast-card";
+    card.innerHTML = `
+      <div class="aton-toast-card-kicker">Новое сообщение</div>
+      <div class="aton-toast-card-title">${escHtml(title)}</div>
+      <div class="aton-toast-card-body">${escHtml(body)}</div>
+    `;
+    card.addEventListener("click", () => {
+      openChatFromNotification(msg.chatId);
+      card.classList.add("aton-toast-card--out");
+      setTimeout(() => card.remove(), 280);
+    });
+    stack.appendChild(card);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => card.classList.add("aton-toast-card--in"));
+    });
+    while (stack.children.length > 5) {
+      const first = stack.firstChild;
+      if (first) first.remove();
+    }
+    const t = setTimeout(() => {
+      card.classList.add("aton-toast-card--out");
+      setTimeout(() => {
+        if (card.parentNode === stack) card.remove();
+      }, 280);
+    }, 6200);
+    card.addEventListener(
+      "mouseenter",
+      () => {
+        clearTimeout(t);
+      },
+      { once: true }
+    );
+  }
+
+  function showBackgroundMessageAlert(msg) {
+    if (!msg || !msg.chatId) return;
+    const title = getChatNotifyTitle(msg.chatId);
+    const body = `${msg.from}: ${formatNotifyBody(msg)}`;
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      try {
+        const n = new Notification(title, {
+          body,
+          tag: `aton-${msg.id}`,
+          requireInteraction: false,
+        });
+        n.onclick = () => {
+          try {
+            n.close();
+          } catch (_) {}
+          window.focus();
+          openChatFromNotification(msg.chatId);
+        };
+      } catch (_) {
+        pushMessageToast(msg);
+      }
+    } else {
+      pushMessageToast(msg);
+    }
+  }
+
+  function updateNotifyPermissionButton() {
+    const btn = document.getElementById("aton-notify-permission");
+    if (!btn) return;
+    const show =
+      currentUser &&
+      currentUser.verified &&
+      typeof Notification !== "undefined" &&
+      Notification.permission === "default";
+    btn.style.display = show ? "inline-flex" : "none";
+  }
+
   // Realtime обновление сообщений по WebSocket
   socket.on("message:new", (msg) => {
     if (!msg) return;
     // Если сообщение уже есть в истории, не дублируем
     if (allMessages.some((m) => m.id === msg.id)) return;
     if (currentUser && msg.from !== currentUser.username) {
-      playIncomingMessageSound();
+      const muted = isChatNotifyMuted(currentUser.username, msg.chatId);
+      if (!muted) {
+        playIncomingMessageSound();
+        if (document.visibilityState === "hidden") {
+          showBackgroundMessageAlert(msg);
+        }
+      }
     }
     allMessages.push(msg);
     // Держим сообщения в хронологическом порядке
@@ -557,6 +982,13 @@ function createApp() {
     inputMessage.style.width = w || "";
   }
   const micButton = document.getElementById("aton-mic");
+  const composeRecordHint = document.getElementById("aton-compose-record-hint");
+  const composeRecordTimer = document.getElementById("aton-compose-record-timer");
+  const voicePreviewEl = document.getElementById("aton-voice-preview");
+  const voicePreviewTimeEl = document.getElementById("aton-voice-preview-time");
+  const voicePreviewPlayBtn = document.getElementById("aton-voice-preview-play");
+  const voicePreviewCancelBtn = document.getElementById("aton-voice-preview-cancel");
+  const voicePreviewSendBtn = document.getElementById("aton-voice-preview-send");
   const attachButton = document.getElementById("aton-attach");
   const attachInput = document.getElementById("aton-attach-input");
   const chatListEl = document.getElementById("aton-chat-list");
@@ -575,6 +1007,9 @@ function createApp() {
   const filterPrivateBadge = document.getElementById("aton-filter-private-badge");
   const filterGroupBadge = document.getElementById("aton-filter-group-badge");
   const themeToggle = document.getElementById("aton-theme-toggle");
+  const friendsBtn = document.getElementById("aton-friends-btn");
+  const friendsBadge = document.getElementById("aton-friends-badge");
+  const notifyPermissionBtn = document.getElementById("aton-notify-permission");
 
   // Индикатор «печатает…»
   const typingIndicator = document.createElement("div");
@@ -583,15 +1018,191 @@ function createApp() {
   typingIndicator.style.display = "none";
   compose.insertBefore(typingIndicator, compose.firstChild);
 
+  const ATON_MIC_ICON_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>`;
+  const ATON_MIC_STOP_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>`;
+  const ATON_PREVIEW_PLAY_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>`;
+  const ATON_PREVIEW_PAUSE_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6V5zm8 0h4v14h-4V5z"/></svg>`;
+
+  function setMicButtonIdle() {
+    micButton.innerHTML = ATON_MIC_ICON_SVG;
+    micButton.classList.remove("recording");
+    micButton.title = "Голосовое сообщение";
+  }
+
+  function setMicButtonRecordingUi() {
+    micButton.innerHTML = ATON_MIC_STOP_SVG;
+    micButton.classList.add("recording");
+    micButton.title = "Остановить запись";
+  }
+
+  function stopRecordingTimerUi() {
+    if (recordingTimerId) {
+      clearInterval(recordingTimerId);
+      recordingTimerId = null;
+    }
+  }
+
+  function startRecordingTimerUi() {
+    stopRecordingTimerUi();
+    recordingStartedAt = Date.now();
+    if (composeRecordTimer) composeRecordTimer.textContent = "0:00";
+    recordingTimerId = setInterval(() => {
+      const sec = (Date.now() - recordingStartedAt) / 1000;
+      if (composeRecordTimer) composeRecordTimer.textContent = formatVoiceDuration(sec);
+    }, 200);
+  }
+
+  function clearVoicePreview() {
+    voiceSessionChatId = null;
+    pendingVoiceBlob = null;
+    if (pendingVoiceObjectUrl) {
+      try {
+        URL.revokeObjectURL(pendingVoiceObjectUrl);
+      } catch (_) {}
+      pendingVoiceObjectUrl = null;
+    }
+    if (previewAudioEl) {
+      previewAudioEl.pause();
+      previewAudioEl.removeAttribute("src");
+      try {
+        previewAudioEl.load();
+      } catch (_) {}
+    }
+    if (voicePreviewEl) voicePreviewEl.hidden = true;
+    if (voicePreviewPlayBtn) {
+      voicePreviewPlayBtn.innerHTML = ATON_PREVIEW_PLAY_SVG;
+      voicePreviewPlayBtn.classList.remove("aton-voice-preview-play--playing");
+    }
+    if (inputMessage && !inputMessage.disabled) {
+      micButton.disabled = false;
+    }
+  }
+
+  function showVoicePreview(blob) {
+    if (!voicePreviewEl || !voicePreviewTimeEl) return;
+    pendingVoiceBlob = blob;
+    voiceSessionChatId = currentChatId;
+    if (pendingVoiceObjectUrl) {
+      try {
+        URL.revokeObjectURL(pendingVoiceObjectUrl);
+      } catch (_) {}
+    }
+    pendingVoiceObjectUrl = URL.createObjectURL(blob);
+    if (!previewAudioEl) previewAudioEl = new Audio();
+    previewAudioEl.src = pendingVoiceObjectUrl;
+    previewAudioEl.preload = "metadata";
+    voicePreviewTimeEl.textContent = "…";
+    previewAudioEl.onloadedmetadata = () => {
+      if (voicePreviewTimeEl && Number.isFinite(previewAudioEl.duration)) {
+        voicePreviewTimeEl.textContent = formatVoiceDuration(previewAudioEl.duration);
+      }
+    };
+    voicePreviewEl.hidden = false;
+    micButton.disabled = true;
+    if (voicePreviewPlayBtn) {
+      voicePreviewPlayBtn.innerHTML = ATON_PREVIEW_PLAY_SVG;
+      voicePreviewPlayBtn.classList.remove("aton-voice-preview-play--playing");
+    }
+    previewAudioEl.onended = () => {
+      if (voicePreviewPlayBtn) {
+        voicePreviewPlayBtn.innerHTML = ATON_PREVIEW_PLAY_SVG;
+        voicePreviewPlayBtn.classList.remove("aton-voice-preview-play--playing");
+      }
+    };
+  }
+
+  function abortVoiceUi() {
+    stopRecordingTimerUi();
+    if (composeRecordHint) composeRecordHint.hidden = true;
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      discardVoiceOnNextStop = true;
+      try {
+        mediaRecorder.stop();
+      } catch (_) {}
+      return;
+    }
+    discardVoiceOnNextStop = false;
+    if (activeMicStream) {
+      activeMicStream.getTracks().forEach((t) => t.stop());
+      activeMicStream = null;
+    }
+    mediaRecorder = null;
+    recordedChunks = [];
+    clearVoicePreview();
+    setMicButtonIdle();
+  }
+
   function setComposeEnabled(enabled) {
     inputMessage.disabled = !enabled;
     sendButton.disabled = !enabled;
     micButton.disabled = !enabled;
     attachButton.disabled = !enabled;
+    if (!enabled) {
+      abortVoiceUi();
+    }
     if (enabled) {
       requestAnimationFrame(() => adjustComposeInputHeight());
     }
   }
+
+  if (voicePreviewPlayBtn) {
+    voicePreviewPlayBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!previewAudioEl || !pendingVoiceObjectUrl) return;
+      if (previewAudioEl.paused) {
+        previewAudioEl.play().catch(() => {});
+        voicePreviewPlayBtn.innerHTML = ATON_PREVIEW_PAUSE_SVG;
+        voicePreviewPlayBtn.classList.add("aton-voice-preview-play--playing");
+      } else {
+        previewAudioEl.pause();
+        voicePreviewPlayBtn.innerHTML = ATON_PREVIEW_PLAY_SVG;
+        voicePreviewPlayBtn.classList.remove("aton-voice-preview-play--playing");
+      }
+    });
+  }
+  if (voicePreviewCancelBtn) {
+    voicePreviewCancelBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      clearVoicePreview();
+      setMicButtonIdle();
+    });
+  }
+  if (voicePreviewSendBtn) {
+    voicePreviewSendBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (!pendingVoiceBlob || !currentChatId) return;
+      const blob = pendingVoiceBlob;
+      clearVoicePreview();
+      setMicButtonIdle();
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const audioDataUrl = reader.result;
+        try {
+          const to = currentChatId.startsWith("group:") ? null : currentChatPeer();
+          const chatId = currentChatId;
+          const msg = await api("/api/messages", {
+            method: "POST",
+            body: JSON.stringify({ chatId, type: "audio", audioDataUrl, to }),
+          });
+          allMessages.push(msg);
+          renderMessages();
+          renderChatList();
+        } catch (err) {
+          alert(err.message);
+        }
+      };
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (voicePreviewEl && !voicePreviewEl.hidden) {
+      e.preventDefault();
+      clearVoicePreview();
+      setMicButtonIdle();
+    }
+  });
 
   function showToast(message) {
     const prev = document.querySelector(".aton-toast");
@@ -666,7 +1277,7 @@ function createApp() {
       allChats = [];
       discoverChats = [];
       allMessages = [];
-      contacts = { friends: [], blocked: [] };
+      contacts = { friends: [], blocked: [], requestsIn: [], requestsOut: [] };
       currentChatId = null;
       return;
     }
@@ -690,7 +1301,12 @@ function createApp() {
         api("/api/users"),
         api("/api/chats"),
         api("/api/messages/all"),
-        api("/api/contacts").catch(() => ({ friends: [], blocked: [] })),
+        api("/api/contacts").catch(() => ({
+          friends: [],
+          blocked: [],
+          requestsIn: [],
+          requestsOut: [],
+        })),
         api("/api/chats/discover").catch(() => []),
       ]);
 
@@ -701,6 +1317,8 @@ function createApp() {
       discoverChats = Array.isArray(nextDiscover) ? nextDiscover : [];
       allMessages = nextAllMessages;
       contacts = nextContacts;
+      if (!contacts.requestsIn) contacts.requestsIn = [];
+      if (!contacts.requestsOut) contacts.requestsOut = [];
 
       // Важно: при загрузке НЕ выбираем чат автоматически.
       // currentChatId остаётся null, пока пользователь явно не кликнет по чату.
@@ -723,7 +1341,7 @@ function createApp() {
           allChats = [];
           discoverChats = [];
           allMessages = [];
-          contacts = { friends: [], blocked: [] };
+          contacts = { friends: [], blocked: [], requestsIn: [], requestsOut: [] };
           currentChatId = null;
         }
       }
@@ -753,6 +1371,9 @@ function createApp() {
       chatsRoot.style.display = "none";
       compose.style.display = "none";
       if (contactsEl) contactsEl.innerHTML = "";
+      if (friendsBtn) friendsBtn.style.display = "none";
+      if (notifyPermissionBtn) notifyPermissionBtn.style.display = "none";
+      if (friendsOverlay) friendsOverlay.hidden = true;
     } else {
       hasOnboardingAutoFocused = false;
       authLoginBlock.style.display = "none";
@@ -808,6 +1429,7 @@ function createApp() {
       userPill.style.display = "inline-flex";
       if (filterPrivateBtn) filterPrivateBtn.style.display = "inline-flex";
       if (filterGroupBtn) filterGroupBtn.style.display = "inline-flex";
+      if (friendsBtn) friendsBtn.style.display = user.verified ? "inline-flex" : "none";
       if (moderationButton) {
         moderationButton.style.display = currentUser?.isSuperAdmin ? "inline-flex" : "none";
       }
@@ -838,6 +1460,7 @@ function createApp() {
       chatsRoot.style.display = "flex";
       // Показываем низ только если уже выбран чат
       compose.style.display = currentChatId ? "flex" : "none";
+      updateNotifyPermissionButton();
     }
     shell.classList.toggle("aton-shell--guest-landing", !currentUser);
     shell.classList.toggle("aton-shell--no-chat", !currentChatId);
@@ -947,6 +1570,252 @@ function createApp() {
     return a === current.username ? b : a;
   }
 
+  function peerContactStatus(username) {
+    if (!username) return "none";
+    if (contacts.blocked.some((b) => b.username === username)) return "blocked";
+    if (contacts.friends.some((f) => f.username === username)) return "friend";
+    if ((contacts.requestsIn || []).some((u) => u.username === username)) return "in";
+    if ((contacts.requestsOut || []).some((u) => u.username === username)) return "out";
+    return "none";
+  }
+
+  function updateFriendsBadge() {
+    const n = (contacts.requestsIn || []).length;
+    if (!friendsBadge) return;
+    if (n > 0) {
+      friendsBadge.textContent = String(n);
+      friendsBadge.style.display = "";
+    } else {
+      friendsBadge.textContent = "";
+      friendsBadge.style.display = "none";
+    }
+  }
+
+  function renderFriendsPanel() {
+    if (!friendsOverlay) return;
+    const incEl = friendsOverlay.querySelector("#aton-friends-incoming");
+    const outEl = friendsOverlay.querySelector("#aton-friends-outgoing");
+    const listEl = friendsOverlay.querySelector("#aton-friends-list");
+    const blockedEl = friendsOverlay.querySelector("#aton-friends-blocked");
+    const inCount = friendsOverlay.querySelector("#aton-friends-in-count");
+    const inWrap = friendsOverlay.querySelector("#aton-friends-incoming-wrap");
+    const outWrap = friendsOverlay.querySelector("#aton-friends-outgoing-wrap");
+    if (!incEl || !outEl || !listEl || !blockedEl) return;
+
+    const ri = contacts.requestsIn || [];
+    const ro = contacts.requestsOut || [];
+    if (inCount) inCount.textContent = ri.length ? `(${ri.length})` : "";
+    if (inWrap) inWrap.style.display = ri.length ? "" : "none";
+    if (outWrap) outWrap.style.display = ro.length ? "" : "none";
+
+    function rowHtml(u, actionsHtml) {
+      const name = escHtml(u.displayName || u.username);
+      const pid = escHtml(u.publicId || u.username);
+      return `<div class="aton-friends-row">
+        <div class="aton-friends-row-main">
+          <span class="aton-friends-row-name">${name}</span>
+          <span class="aton-friends-row-handle">@${pid}</span>
+        </div>
+        <div class="aton-friends-row-actions">${actionsHtml}</div>
+      </div>`;
+    }
+
+    incEl.innerHTML = ri
+      .map((u) =>
+        rowHtml(
+          u,
+          `<button type="button" class="aton-friends-btn aton-friends-accept" data-action="accept" data-u="${escHtml(u.username)}">Принять</button>
+           <button type="button" class="aton-friends-btn aton-friends-decline" data-action="decline" data-u="${escHtml(u.username)}">Отклонить</button>`
+        )
+      )
+      .join("");
+
+    outEl.innerHTML = ro
+      .map((u) =>
+        rowHtml(
+          u,
+          `<button type="button" class="aton-friends-btn aton-friends-cancel" data-action="cancel" data-u="${escHtml(u.username)}">Отменить заявку</button>`
+        )
+      )
+      .join("");
+
+    const fr = contacts.friends || [];
+    listEl.innerHTML = fr.length
+      ? fr
+          .map((u) =>
+            rowHtml(u, `<span class="aton-friends-muted">в друзьях</span>`)
+          )
+          .join("")
+      : `<div class="aton-friends-empty">Пока никого нет. Отправьте заявку из поиска или из открытого чата.</div>`;
+
+    const bl = contacts.blocked || [];
+    blockedEl.innerHTML = bl.length
+      ? bl
+          .map((u) =>
+            rowHtml(
+              u,
+              `<button type="button" class="aton-friends-btn aton-friends-unblock" data-action="unblock" data-u="${escHtml(u.username)}">Разблокировать</button>`
+            )
+          )
+          .join("")
+      : `<div class="aton-friends-empty">Нет заблокированных</div>`;
+  }
+
+  function updatePeerActionBar() {
+    const inner = document.getElementById("aton-peer-action-bar-inner");
+    const wrap = document.getElementById("aton-peer-action-bar");
+    if (!inner || !wrap) return;
+    const peer = currentChatPeer();
+    if (
+      !currentUser ||
+      !currentChatId ||
+      !peer ||
+      currentChatId.startsWith("group:") ||
+      currentChatId.startsWith("channel:")
+    ) {
+      wrap.hidden = true;
+      inner.innerHTML = "";
+      return;
+    }
+    wrap.hidden = false;
+    const st = peerContactStatus(peer);
+    const isBlocked = st === "blocked";
+    const peerUser = allUsers.find((u) => u.username === peer);
+    const name = peerUser?.displayName || peer;
+    let html = `<div class="aton-peer-action-inner">
+      <span class="aton-peer-action-label">${escHtml(name)}</span>
+      <div class="aton-peer-action-btns">`;
+    if (isBlocked) {
+      html += `<button type="button" class="aton-peer-btn aton-peer-unblock" data-peer="${escHtml(peer)}">Разблокировать</button>`;
+    } else {
+      html += `<button type="button" class="aton-peer-btn aton-peer-block" data-peer="${escHtml(peer)}">Заблокировать</button>`;
+    }
+    if (st === "friend") {
+      html += `<span class="aton-peer-muted">в друзьях</span>`;
+    } else if (st === "in") {
+      html += `<button type="button" class="aton-peer-btn aton-peer-accept" data-peer="${escHtml(peer)}">Принять заявку</button>`;
+      html += `<button type="button" class="aton-peer-btn aton-peer-decline" data-peer="${escHtml(peer)}">Отклонить</button>`;
+    } else if (st === "out") {
+      html += `<span class="aton-peer-muted">заявка отправлена</span>`;
+      html += `<button type="button" class="aton-peer-btn aton-peer-cancel" data-peer="${escHtml(peer)}">Отменить заявку</button>`;
+    } else if (!isBlocked) {
+      html += `<button type="button" class="aton-peer-btn aton-peer-add" data-peer="${escHtml(peer)}">Добавить в друзья</button>`;
+    }
+    const mutedN =
+      currentUser && currentChatId ? isChatNotifyMuted(currentUser.username, currentChatId) : false;
+    html += `<button type="button" class="aton-peer-btn aton-peer-notify-toggle ${
+      mutedN ? "aton-peer-notify-toggle--muted" : ""
+    }" data-chat-id="${escHtml(currentChatId)}" title="${
+      mutedN
+        ? "Включить звук и уведомления для этого чата"
+        : "Отключить звук и всплывающие уведомления"
+    }" aria-label="Уведомления">${
+      mutedN
+        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 11A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14.07"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>'
+    }</button>`;
+    html += `</div></div>`;
+    inner.innerHTML = html;
+  }
+
+  function renderContacts() {
+    renderFriendsPanel();
+    updateFriendsBadge();
+    updatePeerActionBar();
+  }
+
+  (function bindContactsChrome() {
+    if (!friendsOverlay || !peerActionBar) return;
+    if (bindContactsChrome.done) return;
+    bindContactsChrome.done = true;
+
+    async function pullContacts() {
+      contacts = await api("/api/contacts");
+      if (!contacts.requestsIn) contacts.requestsIn = [];
+      if (!contacts.requestsOut) contacts.requestsOut = [];
+      renderContacts();
+      renderChatList();
+      if (searchInput.value.trim()) handleUserSearch();
+      updateTopbarTitle();
+    }
+
+    if (friendsBtn) {
+      friendsBtn.addEventListener("click", () => {
+        renderFriendsPanel();
+        friendsOverlay.hidden = !friendsOverlay.hidden;
+      });
+    }
+
+    friendsOverlay.addEventListener("click", async (e) => {
+      if (e.target.classList.contains("aton-friends-overlay-backdrop")) {
+        friendsOverlay.hidden = true;
+        return;
+      }
+      if (e.target.closest("#aton-friends-close")) {
+        friendsOverlay.hidden = true;
+        return;
+      }
+      const btn = e.target.closest("[data-action]");
+      if (!btn || !btn.getAttribute("data-u")) return;
+      const un = btn.getAttribute("data-u");
+      const act = btn.getAttribute("data-action");
+      try {
+        if (act === "accept") {
+          await api("/api/contacts/accept", { method: "POST", body: JSON.stringify({ username: un }) });
+        } else if (act === "decline") {
+          await api("/api/contacts/decline", { method: "POST", body: JSON.stringify({ username: un }) });
+        } else if (act === "cancel") {
+          await api("/api/contacts/cancel", { method: "POST", body: JSON.stringify({ username: un }) });
+        } else if (act === "unblock") {
+          await api("/api/contacts/unblock", { method: "POST", body: JSON.stringify({ username: un }) });
+        } else return;
+        await pullContacts();
+      } catch (err) {
+        alert(err.message || "Ошибка");
+      }
+    });
+
+    peerActionBar.addEventListener("click", async (e) => {
+      const notifyBtn = e.target.closest(".aton-peer-notify-toggle");
+      if (notifyBtn && peerActionBar.contains(notifyBtn)) {
+        e.preventDefault();
+        const cid = notifyBtn.getAttribute("data-chat-id");
+        if (!cid || !currentUser) return;
+        const nextMuted = !isChatNotifyMuted(currentUser.username, cid);
+        setChatNotifyMuted(currentUser.username, cid, nextMuted);
+        updatePeerActionBar();
+        renderChatList();
+        showToast(nextMuted ? "Для этого чата выключены звук и уведомления" : "Звук и уведомления снова включены");
+        return;
+      }
+      const btn = e.target.closest("[data-peer]");
+      if (!btn || !peerActionBar.contains(btn)) return;
+      const peer = btn.getAttribute("data-peer");
+      if (!peer) return;
+      try {
+        if (btn.classList.contains("aton-peer-block")) {
+          await api("/api/contacts/block", { method: "POST", body: JSON.stringify({ username: peer }) });
+        } else if (btn.classList.contains("aton-peer-unblock")) {
+          await api("/api/contacts/unblock", { method: "POST", body: JSON.stringify({ username: peer }) });
+        } else if (btn.classList.contains("aton-peer-add")) {
+          const r = await api("/api/contacts/add", { method: "POST", body: JSON.stringify({ username: peer }) });
+          if (r.status === "requested") showToast("Заявка отправлена");
+          if (r.status === "accepted") showToast("Вы в друзьях");
+        } else if (btn.classList.contains("aton-peer-accept")) {
+          await api("/api/contacts/accept", { method: "POST", body: JSON.stringify({ username: peer }) });
+          showToast("Заявка принята");
+        } else if (btn.classList.contains("aton-peer-decline")) {
+          await api("/api/contacts/decline", { method: "POST", body: JSON.stringify({ username: peer }) });
+        } else if (btn.classList.contains("aton-peer-cancel")) {
+          await api("/api/contacts/cancel", { method: "POST", body: JSON.stringify({ username: peer }) });
+        } else return;
+        await pullContacts();
+      } catch (err) {
+        alert(err.message || "Ошибка");
+      }
+    });
+  })();
+
   function renderChatList() {
     if (openChatMenu) {
       openChatMenu.remove();
@@ -989,6 +1858,9 @@ function createApp() {
       const bPinned = pins.has(b.id);
       if (aPinned && !bPinned) return -1;
       if (!aPinned && bPinned) return 1;
+      const ta = lastActivityAtForGroupChatId(a.id, allMessages);
+      const tb = lastActivityAtForGroupChatId(b.id, allMessages);
+      if (tb !== ta) return tb - ta;
       return (a.title || "").localeCompare(b.title || "");
     });
 
@@ -1023,8 +1895,11 @@ function createApp() {
       };
 
       const item = document.createElement("button");
+      const gMuted = isChatNotifyMuted(current.username, chatMeta.id);
       item.className =
-        "aton-chat-item" + (currentChatId === chatMeta.id ? " active" : "");
+        "aton-chat-item" +
+        (currentChatId === chatMeta.id ? " active" : "") +
+        (gMuted ? " aton-chat-item--notify-muted" : "");
 
       const avatar = document.createElement("div");
       avatar.className = "aton-chat-avatar";
@@ -1054,6 +1929,14 @@ function createApp() {
         pinEl.className = "aton-chat-pin";
         pinEl.textContent = "★";
         titleEl.appendChild(pinEl);
+      }
+      if (gMuted) {
+        const offEl = document.createElement("span");
+        offEl.className = "aton-chat-notify-off";
+        offEl.title = "Уведомления отключены";
+        offEl.setAttribute("aria-label", "Уведомления отключены");
+        offEl.textContent = "🔕";
+        titleEl.appendChild(offEl);
       }
       const subtitleEl = document.createElement("div");
       subtitleEl.className = "aton-chat-item-subtitle";
@@ -1148,6 +2031,22 @@ function createApp() {
           createMenuItem({
             label: "Открыть",
             onClick: () => openThisChat(),
+          })
+        );
+
+        const groupNotifyMuted = isChatNotifyMuted(current.username, chatMeta.id);
+        dropdown.appendChild(
+          createMenuItem({
+            label: groupNotifyMuted ? "Включить уведомления" : "Без звука и уведомлений",
+            onClick: () => {
+              setChatNotifyMuted(current.username, chatMeta.id, !groupNotifyMuted);
+              renderChatList();
+              showToast(
+                groupNotifyMuted
+                  ? "Звук и уведомления снова включены для этого чата"
+                  : "Для этого чата выключены звук и всплывающие уведомления"
+              );
+            },
           })
         );
 
@@ -1533,8 +2432,13 @@ function createApp() {
       return;
     }
 
-    // Приватные
-    const privateIdsSorted = Array.from(privateChatIds).sort();
+    // Приватные: сначала те, с кем недавнее общение
+    const privateIdsSorted = Array.from(privateChatIds).sort((a, b) => {
+      const ta = lastActivityAtForDmChatId(a, allMessages);
+      const tb = lastActivityAtForDmChatId(b, allMessages);
+      if (tb !== ta) return tb - ta;
+      return a.localeCompare(b);
+    });
     let privateUnreadTotal = 0;
     privateIdsSorted.forEach((id) => {
       const [a, b] = id.split("|");
@@ -1542,7 +2446,7 @@ function createApp() {
       const peerUser = users.find((u) => u.username === peer);
       const title = peerUser?.displayName || peer;
       const chatMessages = allMessages
-        .filter((m) => m.chatId === id)
+        .filter((m) => messageBelongsToDmId(m, id))
         .sort((a, b) => new Date(a.time) - new Date(b.time));
       const lastMsg = chatMessages[chatMessages.length - 1];
       const subtitle = "приватный чат";
@@ -1561,8 +2465,12 @@ function createApp() {
         return;
       }
 
+      const pMuted = isChatNotifyMuted(current.username, id);
       const item = document.createElement("button");
-      item.className = "aton-chat-item" + (currentChatId === id ? " active" : "");
+      item.className =
+        "aton-chat-item" +
+        (currentChatId === id ? " active" : "") +
+        (pMuted ? " aton-chat-item--notify-muted" : "");
 
       const avatar = document.createElement("div");
       avatar.className = "aton-chat-avatar";
@@ -1584,6 +2492,14 @@ function createApp() {
         pinSpan.className = "aton-chat-pin";
         pinSpan.textContent = "★";
         titleEl.appendChild(pinSpan);
+      }
+      if (pMuted) {
+        const offEl = document.createElement("span");
+        offEl.className = "aton-chat-notify-off";
+        offEl.title = "Уведомления отключены";
+        offEl.setAttribute("aria-label", "Уведомления отключены");
+        offEl.textContent = "🔕";
+        titleEl.appendChild(offEl);
       }
       const subtitleEl = document.createElement("div");
       subtitleEl.className = "aton-chat-item-subtitle";
@@ -1900,6 +2816,10 @@ function createApp() {
       }
     }
 
+    if (voiceSessionChatId != null && voiceSessionChatId !== currentChatId) {
+      abortVoiceUi();
+    }
+
     const user = currentUser;
     const filtered = allMessages.filter((msg) => {
       if (!user) return false;
@@ -1924,9 +2844,10 @@ function createApp() {
     }
 
     filtered.forEach((msg) => {
+      const isSelf = current && current.username === msg.from;
+
       const row = document.createElement("div");
-      row.className =
-        "aton-message-row" + (current && current.username === msg.from ? " self" : "");
+      row.className = "aton-message-row" + (isSelf ? " self" : "");
 
       const inner = document.createElement("div");
       inner.className = "aton-message-inner";
@@ -1944,18 +2865,12 @@ function createApp() {
 
       const bubble = document.createElement("div");
       bubble.className =
-        "aton-message-bubble aton-message-bubble-enter" +
-        (current && current.username === msg.from ? " self" : "");
+        "aton-message-bubble aton-message-bubble-enter" + (isSelf ? " self" : "");
       const text = document.createElement("div");
       text.className = "aton-message-text";
       if (msg.type === "audio" && msg.audioDataUrl) {
         text.classList.add("aton-message-text--media");
-        const audio = document.createElement("audio");
-        audio.className = "aton-message-audio";
-        audio.controls = true;
-        audio.preload = "metadata";
-        audio.src = msg.audioDataUrl;
-        text.appendChild(audio);
+        text.appendChild(createVoicePlayer(msg.audioDataUrl, isSelf));
       } else if (msg.type === "image" && msg.imageDataUrl) {
         text.classList.add("aton-message-text--media");
         const img = document.createElement("img");
@@ -1968,6 +2883,7 @@ function createApp() {
       }
       if (msg.text) {
         const textNode = document.createElement("div");
+        textNode.className = "aton-message-text-body";
         textNode.textContent = msg.text;
         text.appendChild(textNode);
       }
@@ -1982,7 +2898,6 @@ function createApp() {
           bubble.appendChild(replyPreview);
         }
       }
-      const isSelf = current && current.username === msg.from;
       const canAdmin = current && current.isSuperAdmin === true;
       const authorIsVerified = Boolean(author && author.isVerified);
       const timeLabel = formatTimeLabel(msg.time);
@@ -2340,70 +3255,172 @@ function createApp() {
 
     if (users.length) {
       const usersTitle = document.createElement("div");
-      usersTitle.className = "aton-search-item";
-      usersTitle.style.fontSize = "10px";
-      usersTitle.style.opacity = "0.75";
-      usersTitle.style.cursor = "default";
+      usersTitle.className = "aton-search-section-title";
       usersTitle.textContent = "Пользователи";
       searchResultsEl.appendChild(usersTitle);
     }
 
+    function openDmWithUserFromSearch(u) {
+      if (!current) return;
+      currentChatId = chatIdForUsers(current.username, u.username);
+      switchSocketChat(currentChatId);
+      if (current.username) setLastChatId(current.username, currentChatId);
+      searchInput.value = "";
+      searchResultsEl.innerHTML = "";
+      renderChatList();
+      renderMessages();
+      updateTopbarTitle();
+    }
+
     users.forEach((u) => {
       const item = document.createElement("div");
-      item.className = "aton-search-item";
+      item.className = "aton-search-item aton-search-item--user";
       const isFriend = contacts.friends.some((f) => f.username === u.username);
       const isBlocked = contacts.blocked.some((b) => b.username === u.username);
+      const hasIn = (contacts.requestsIn || []).some((r) => r.username === u.username);
+      const hasOut = (contacts.requestsOut || []).some((r) => r.username === u.username);
+      let friendButtonsHtml = "";
+      if (isFriend) {
+        friendButtonsHtml = `<button type="button" class="aton-search-action aton-search-add" disabled>В друзьях</button>`;
+      } else if (hasIn) {
+        friendButtonsHtml = `<button type="button" class="aton-search-action aton-search-accept">Принять</button>
+            <button type="button" class="aton-search-action aton-search-decline">Отклонить</button>`;
+      } else if (hasOut) {
+        friendButtonsHtml = `<button type="button" class="aton-search-action" disabled>Заявка отправлена</button>
+            <button type="button" class="aton-search-action aton-search-cancel-req">Отменить заявку</button>`;
+      } else if (isBlocked) {
+        friendButtonsHtml = `<button type="button" class="aton-search-action aton-search-add" disabled>В друзья</button>`;
+      } else {
+        friendButtonsHtml = `<button type="button" class="aton-search-action aton-search-add">Отправить заявку</button>`;
+      }
       const nameStr = u.displayName || u.username;
-      const verifiedBadge = u.isVerified ? ' <span style="color:#38bdf8;font-size:12px;">✔</span>' : "";
+      const verifiedBadge = u.isVerified
+        ? ' <span class="aton-search-verified" title="Верифицировано">✔</span>'
+        : "";
       item.innerHTML = `
-        <div class="aton-search-main">
-          <div class="aton-search-user-info">
-            <span class="aton-search-name">${escHtml(nameStr)}${verifiedBadge}</span>
-            <span class="aton-search-handle">@${escHtml(u.publicId || u.username)}</span>
+        <div class="aton-search-user-card">
+          <div class="aton-search-user-main">
+            <div class="aton-search-avatar"></div>
+            <div class="aton-search-user-info">
+              <span class="aton-search-name">${escHtml(nameStr)}${verifiedBadge}</span>
+              <span class="aton-search-handle">@${escHtml(u.publicId || u.username)}</span>
+            </div>
+          </div>
+          <div class="aton-search-actions">
+            <button type="button" class="aton-search-action aton-search-write" ${isBlocked ? "disabled" : ""}>Написать</button>
+            ${friendButtonsHtml}
+            <button type="button" class="aton-search-action aton-search-block">${
+              isBlocked ? "Разблокировать" : "Заблокировать"
+            }</button>
           </div>
         </div>
-        <div class="aton-search-actions">
-          <button type="button" class="aton-search-action aton-search-add">${
-            isFriend ? "В друзьях" : "В друзья"
-          }</button>
-          <button type="button" class="aton-search-action aton-search-block">${
-            isBlocked ? "Разблок." : "Блок"
-          }</button>
-        </div>
       `;
-      const main = item.querySelector(".aton-search-main");
-      const addBtn = item.querySelector(".aton-search-add");
+      const avEl = item.querySelector(".aton-search-avatar");
+      if (avEl) {
+        if (u.avatarDataUrl) {
+          const im = document.createElement("img");
+          im.src = u.avatarDataUrl;
+          im.alt = "";
+          avEl.appendChild(im);
+        } else {
+          avEl.classList.add("aton-search-avatar--letter");
+          avEl.textContent = (nameStr[0] || "?").toUpperCase();
+        }
+      }
+      const writeBtn = item.querySelector(".aton-search-write");
+      const addBtn = item.querySelector(".aton-search-add:not([disabled])");
+      const acceptBtn = item.querySelector(".aton-search-accept");
+      const declineBtn = item.querySelector(".aton-search-decline");
+      const cancelReqBtn = item.querySelector(".aton-search-cancel-req");
       const blockBtn = item.querySelector(".aton-search-block");
 
-      main.addEventListener("click", () => {
-        currentChatId = chatIdForUsers(current.username, u.username);
-        switchSocketChat(currentChatId);
-        if (current.username) setLastChatId(current.username, currentChatId);
-        searchInput.value = "";
-        searchResultsEl.innerHTML = "";
-        renderChatList();
-        renderMessages();
-        updateTopbarTitle();
-      });
+      const userMain = item.querySelector(".aton-search-user-main");
+      if (userMain) {
+        userMain.addEventListener("click", (e) => {
+          if (isBlocked) return;
+          e.stopPropagation();
+          openDmWithUserFromSearch(u);
+        });
+      }
 
-      addBtn.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        if (contacts.friends.some((f) => f.username === u.username)) return;
-        try {
-          await api("/api/contacts/add", {
-            method: "POST",
-            body: JSON.stringify({ username: u.username }),
-          });
-          contacts = await api("/api/contacts");
-          renderContacts();
-          renderChatList();
-          handleUserSearch();
-        } catch (err) {
-          alert(err.message);
-        }
-        // Обновляем header, чтобы badge от verified появился сразу
+      if (writeBtn) {
+        writeBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (isBlocked) return;
+          openDmWithUserFromSearch(u);
+        });
+      }
+
+      async function syncContactsAfterAction() {
+        contacts = await api("/api/contacts");
+        if (!contacts.requestsIn) contacts.requestsIn = [];
+        if (!contacts.requestsOut) contacts.requestsOut = [];
+        renderContacts();
+        renderChatList();
+        if (searchInput.value.trim()) handleUserSearch();
         updateTopbarTitle();
-      });
+      }
+
+      if (addBtn) {
+        addBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          if (contacts.friends.some((f) => f.username === u.username)) return;
+          try {
+            const r = await api("/api/contacts/add", {
+              method: "POST",
+              body: JSON.stringify({ username: u.username }),
+            });
+            if (r.status === "requested") showToast("Заявка отправлена");
+            if (r.status === "accepted") showToast("Вы в друзьях");
+            await syncContactsAfterAction();
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      }
+      if (acceptBtn) {
+        acceptBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          try {
+            await api("/api/contacts/accept", {
+              method: "POST",
+              body: JSON.stringify({ username: u.username }),
+            });
+            showToast("Заявка принята");
+            await syncContactsAfterAction();
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      }
+      if (declineBtn) {
+        declineBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          try {
+            await api("/api/contacts/decline", {
+              method: "POST",
+              body: JSON.stringify({ username: u.username }),
+            });
+            await syncContactsAfterAction();
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      }
+      if (cancelReqBtn) {
+        cancelReqBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          try {
+            await api("/api/contacts/cancel", {
+              method: "POST",
+              body: JSON.stringify({ username: u.username }),
+            });
+            await syncContactsAfterAction();
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      }
 
       blockBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
@@ -2414,10 +3431,7 @@ function createApp() {
             method: "POST",
             body: JSON.stringify({ username: u.username }),
           });
-          contacts = await api("/api/contacts");
-          renderContacts();
-          renderChatList();
-          handleUserSearch();
+          await syncContactsAfterAction();
         } catch (err) {
           alert(err.message);
         }
@@ -2435,10 +3449,7 @@ function createApp() {
 
     if (myChatsFound.length) {
       const myChatsTitle = document.createElement("div");
-      myChatsTitle.className = "aton-search-item";
-      myChatsTitle.style.fontSize = "10px";
-      myChatsTitle.style.opacity = "0.75";
-      myChatsTitle.style.cursor = "default";
+      myChatsTitle.className = "aton-search-section-title";
       myChatsTitle.style.marginTop = users.length ? "6px" : "0";
       myChatsTitle.textContent = "Мои чаты";
       searchResultsEl.appendChild(myChatsTitle);
@@ -2483,11 +3494,8 @@ function createApp() {
 
     if (foundChats.length) {
       const chatsTitle = document.createElement("div");
-      chatsTitle.className = "aton-search-item";
-      chatsTitle.style.fontSize = "10px";
-      chatsTitle.style.opacity = "0.75";
-      chatsTitle.style.cursor = "default";
-      chatsTitle.style.marginTop = (users.length || myChatsFound.length) ? "6px" : "0";
+      chatsTitle.className = "aton-search-section-title";
+      chatsTitle.style.marginTop = users.length || myChatsFound.length ? "6px" : "0";
       chatsTitle.textContent = "Рекомендуемые чаты";
       searchResultsEl.appendChild(chatsTitle);
     }
@@ -2790,6 +3798,22 @@ function createApp() {
       applyTheme(current === "dark" ? "light" : "dark");
     });
   }
+  if (notifyPermissionBtn) {
+    notifyPermissionBtn.addEventListener("click", async () => {
+      if (typeof Notification === "undefined") {
+        showToast("Уведомления не поддерживаются в этом браузере");
+        return;
+      }
+      try {
+        const p = await Notification.requestPermission();
+        updateNotifyPermissionButton();
+        if (p === "granted") showToast("Когда вкладка в фоне, вы будете видеть уведомления о сообщениях");
+        else if (p === "denied") showToast("Разрешите уведомления в настройках сайта в браузере");
+      } catch (_) {
+        showToast("Не удалось запросить разрешение");
+      }
+    });
+  }
 
   async function openModerationModal() {
     if (!currentUser || !currentUser.isSuperAdmin) return;
@@ -2949,7 +3973,7 @@ function createApp() {
     });
   }
 
-  // Голосовые сообщения
+  // Голосовые сообщения: запись → превью → отправить (как в Telegram)
   micButton.addEventListener("click", async () => {
     unlockNotificationAudio();
     const user = currentUser;
@@ -2962,7 +3986,9 @@ function createApp() {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      activeMicStream = stream;
       recordedChunks = [];
+      voiceSessionChatId = currentChatId;
       mediaRecorder = new MediaRecorder(stream);
 
       mediaRecorder.addEventListener("dataavailable", (e) => {
@@ -2970,37 +3996,47 @@ function createApp() {
       });
 
       mediaRecorder.addEventListener("stop", () => {
-        const blob = new Blob(recordedChunks, { type: "audio/webm" });
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const audioDataUrl = reader.result;
-          try {
-            const to = currentChatId.startsWith("group:") ? null : currentChatPeer();
-            const chatId = currentChatId;
-            const msg = await api("/api/messages", {
-              method: "POST",
-              body: JSON.stringify({ chatId, type: "audio", audioDataUrl, to }),
-            });
-            allMessages.push(msg);
-            renderMessages();
-            renderChatList();
-          } catch (err) {
-            alert(err.message);
-          }
-        };
-        reader.readAsDataURL(blob);
+        stopRecordingTimerUi();
+        if (composeRecordHint) composeRecordHint.hidden = true;
+        setMicButtonIdle();
 
-        stream.getTracks().forEach((t) => t.stop());
-        micButton.classList.remove("recording");
-        micButton.textContent = "🎙";
+        if (activeMicStream) {
+          activeMicStream.getTracks().forEach((t) => t.stop());
+          activeMicStream = null;
+        }
+
+        if (discardVoiceOnNextStop) {
+          discardVoiceOnNextStop = false;
+          recordedChunks = [];
+          mediaRecorder = null;
+          voiceSessionChatId = null;
+          clearVoicePreview();
+          return;
+        }
+
+        const blob = new Blob(recordedChunks, { type: "audio/webm" });
+        recordedChunks = [];
+        mediaRecorder = null;
+
+        const durSec = (Date.now() - recordingStartedAt) / 1000;
+        if (blob.size < 80 || durSec < 0.45) {
+          showToast("Слишком короткое сообщение");
+          voiceSessionChatId = null;
+          return;
+        }
+
+        showVoicePreview(blob);
       });
 
       mediaRecorder.start();
-      micButton.classList.add("recording");
-      micButton.textContent = "■";
+      if (composeRecordHint) composeRecordHint.hidden = false;
+      setMicButtonRecordingUi();
+      startRecordingTimerUi();
     } catch (err) {
       alert("Не удалось получить доступ к микрофону.");
       console.error(err);
+      activeMicStream = null;
+      voiceSessionChatId = null;
     }
   });
 
@@ -3026,47 +4062,50 @@ function createApp() {
       topbarTitleEl.appendChild(inner);
     }
 
-    const current = currentUser;
-    if (!current) {
-      setTitle("Добро пожаловать", false);
-      return;
-    }
-    if (!currentChatId) {
-      setTitle("Выберите чат или пользователя слева", false);
-      return;
-    }
-    if (currentChatId.startsWith("group:") || currentChatId.startsWith("channel:")) {
-      const chatMeta = allChats.find((c) => c.id === currentChatId);
-      if (chatMeta) {
-        const verified = Boolean(chatMeta.verified);
-        setTitle(chatMeta.title, verified);
+    try {
+      const current = currentUser;
+      if (!current) {
+        setTitle("Добро пожаловать", false);
         return;
       }
-      // Discover-чат — пользователь не участник, показываем название из превью
-      const preview = discoverChats.find((c) => c.id === currentChatId);
-      if (preview) {
-        setTitle(preview.title + " (не участник)", Boolean(preview.verified));
-      } else {
-        setTitle("Предпросмотр чата", false);
+      if (!currentChatId) {
+        setTitle("Выберите чат или пользователя слева", false);
+        return;
       }
-      return;
-    }
-    const peer = currentChatPeer();
-    if (!peer) {
-      setTitle("Личный диалог", false);
-      return;
-    }
-    const peerUser = allUsers.find((u) => u.username === peer);
-    const name = peerUser?.displayName || peer;
-    const verified = Boolean(peerUser && peerUser.isVerified);
-    setTitle(name, verified);
+      if (currentChatId.startsWith("group:") || currentChatId.startsWith("channel:")) {
+        const chatMeta = allChats.find((c) => c.id === currentChatId);
+        if (chatMeta) {
+          const verified = Boolean(chatMeta.verified);
+          setTitle(chatMeta.title, verified);
+          return;
+        }
+        const preview = discoverChats.find((c) => c.id === currentChatId);
+        if (preview) {
+          setTitle(preview.title + " (не участник)", Boolean(preview.verified));
+        } else {
+          setTitle("Предпросмотр чата", false);
+        }
+        return;
+      }
+      const peer = currentChatPeer();
+      if (!peer) {
+        setTitle("Личный диалог", false);
+        return;
+      }
+      const peerUser = allUsers.find((u) => u.username === peer);
+      const name = peerUser?.displayName || peer;
+      const verified = Boolean(peerUser && peerUser.isVerified);
+      setTitle(name, verified);
 
-    let peerOnline = false;
-    if (peerUser?.lastSeen) {
-      const diff = Date.now() - new Date(peerUser.lastSeen).getTime();
-      peerOnline = diff < 60 * 1000;
+      let peerOnline = false;
+      if (peerUser?.lastSeen) {
+        const diff = Date.now() - new Date(peerUser.lastSeen).getTime();
+        peerOnline = diff < 60 * 1000;
+      }
+      statusEl.textContent = peerOnline ? "в сети" : "приватный чат";
+    } finally {
+      updatePeerActionBar();
     }
-    statusEl.textContent = peerOnline ? "в сети" : "приватный чат";
   }
 
   // Инициализация
@@ -3214,6 +4253,7 @@ function createApp() {
     }
 
     applyCurrentUserUI();
+    renderContacts();
     renderChatList();
     renderMessages();
     updateTopbarTitle();

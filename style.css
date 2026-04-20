@@ -532,6 +532,523 @@ body {
   cursor: not-allowed;
 }
 
+.aton-search-section-title {
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--aton-text-muted);
+  padding: 8px 8px 4px;
+  margin: 0;
+}
+
+.aton-search-item--user {
+  cursor: default;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  border: 1px solid rgba(31, 41, 55, 0.85);
+  overflow: hidden;
+}
+
+.aton-search-item--user:hover {
+  background: rgba(30, 58, 138, 0.55);
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.aton-search-user-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (min-width: 480px) {
+  .aton-search-user-card {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+}
+
+.aton-search-user-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  transition: background 0.15s;
+}
+
+.aton-search-user-main:hover {
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.aton-search-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: linear-gradient(145deg, #1d4ed8, #0f172a);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.2);
+}
+
+.aton-search-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.aton-search-avatar--letter {
+  color: #f8fafc;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.aton-search-item--user .aton-search-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: 0;
+  width: 100%;
+  justify-content: flex-start;
+}
+
+@media (min-width: 480px) {
+  .aton-search-item--user .aton-search-actions {
+    width: auto;
+    margin-left: auto;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    flex-shrink: 0;
+  }
+}
+
+.aton-search-write {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff !important;
+  border-color: rgba(37, 99, 235, 0.75);
+  font-weight: 600;
+}
+
+.aton-search-write:hover:not(:disabled) {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #ffffff !important;
+}
+
+.aton-search-write:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.2);
+}
+
+.aton-search-add {
+  border-color: rgba(56, 189, 248, 0.5);
+  color: #7dd3fc;
+}
+
+.aton-search-add:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.12);
+  color: #e0f2fe;
+}
+
+.aton-search-add:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  color: #64748b;
+  border-color: rgba(71, 85, 105, 0.55);
+}
+
+.aton-search-block {
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fca5a5;
+}
+
+.aton-search-block:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.18);
+  color: #fecaca;
+}
+
+.aton-search-verified {
+  color: #38bdf8;
+  font-size: 0.9em;
+  vertical-align: middle;
+}
+
+.aton-search-accept {
+  border-color: rgba(34, 197, 94, 0.55);
+  color: #86efac;
+  font-weight: 600;
+}
+
+.aton-search-accept:hover:not(:disabled) {
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.aton-search-decline {
+  border-color: rgba(148, 163, 184, 0.45);
+  color: #94a3b8;
+}
+
+.aton-search-cancel-req {
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #7dd3fc;
+}
+
+.aton-peer-action-bar {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  background: rgba(15, 23, 42, 0.92);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.aton-peer-action-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.aton-peer-action-label {
+  font-size: 11px;
+  color: var(--aton-text-muted);
+  min-width: 0;
+}
+
+.aton-peer-action-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.aton-peer-btn {
+  font-size: 11px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(55, 65, 81, 0.85);
+  background: rgba(15, 23, 42, 0.75);
+  color: #e5e7eb;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.aton-peer-btn:hover {
+  background: rgba(37, 99, 235, 0.25);
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.aton-peer-block {
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+
+.aton-peer-muted {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.aton-peer-notify-toggle {
+  min-width: 40px;
+  padding-inline: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.aton-peer-notify-toggle--muted {
+  border-color: rgba(148, 163, 184, 0.45);
+  color: #94a3b8;
+}
+
+.aton-friends-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 360;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+@media (min-width: 640px) {
+  .aton-friends-overlay {
+    align-items: center;
+  }
+}
+
+.aton-friends-overlay-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(10px);
+}
+
+.aton-friends-panel {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 440px;
+  max-height: min(90vh, 640px);
+  margin: 12px;
+  padding: 0 0 16px;
+  border-radius: 16px 16px 0 0;
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@media (min-width: 640px) {
+  .aton-friends-panel {
+    border-radius: 16px;
+    margin: 20px;
+  }
+}
+
+.aton-friends-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.aton-friends-panel-title {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.aton-friends-panel-close {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+
+.aton-friends-panel-close:hover {
+  background: rgba(148, 163, 184, 0.12);
+  color: #e5e7eb;
+}
+
+.aton-friends-hint {
+  margin: 0 16px 12px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--aton-text-muted);
+}
+
+.aton-friends-section {
+  padding: 0 16px 12px;
+  overflow-y: auto;
+}
+
+.aton-friends-section-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--aton-text-muted);
+  margin-bottom: 8px;
+}
+
+.aton-friends-count {
+  font-weight: 600;
+  color: #38bdf8;
+}
+
+.aton-friends-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(55, 65, 81, 0.5);
+}
+
+.aton-friends-row-main {
+  min-width: 0;
+}
+
+.aton-friends-row-name {
+  font-size: 13px;
+  font-weight: 600;
+  display: block;
+}
+
+.aton-friends-row-handle {
+  font-size: 11px;
+  color: var(--aton-text-muted);
+}
+
+.aton-friends-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.aton-friends-btn {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(55, 65, 81, 0.8);
+  background: rgba(15, 23, 42, 0.7);
+  color: #e5e7eb;
+  cursor: pointer;
+}
+
+.aton-friends-accept {
+  border-color: rgba(34, 197, 94, 0.5);
+  color: #86efac;
+}
+
+.aton-friends-decline {
+  border-color: rgba(148, 163, 184, 0.45);
+  color: #94a3b8;
+}
+
+.aton-friends-muted {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.aton-friends-empty {
+  font-size: 12px;
+  color: var(--aton-text-muted);
+  padding: 8px 0;
+}
+
+/* Стек всплывающих карточек (fallback, если нет разрешения на системные уведомления) */
+.aton-toast-stack {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  z-index: 400;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 10px;
+  align-items: flex-end;
+  pointer-events: none;
+  max-width: min(380px, calc(100vw - 32px));
+}
+
+.aton-toast-card {
+  pointer-events: auto;
+  text-align: left;
+  width: 100%;
+  max-width: 380px;
+  padding: 14px 16px 14px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.97), rgba(30, 41, 59, 0.92));
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(56, 189, 248, 0.12) inset;
+  backdrop-filter: blur(16px);
+  cursor: pointer;
+  transform: translateX(120%);
+  opacity: 0;
+  transition:
+    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.35s ease;
+}
+
+.aton-toast-card--in {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.aton-toast-card--out {
+  transform: translateX(110%) scale(0.96);
+  opacity: 0;
+}
+
+.aton-toast-card-kicker {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #38bdf8;
+  margin-bottom: 6px;
+}
+
+.aton-toast-card-title {
+  font-size: 15px;
+  font-weight: 650;
+  color: #f8fafc;
+  line-height: 1.25;
+  margin-bottom: 4px;
+}
+
+.aton-toast-card-body {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #cbd5e1;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.aton-chat-notify-off {
+  display: inline-flex;
+  margin-left: 6px;
+  font-size: 12px;
+  opacity: 0.85;
+  vertical-align: middle;
+}
+
+.aton-chat-item--notify-muted .aton-chat-item-title {
+  opacity: 0.92;
+}
+
+.aton-notify-permission-btn {
+  color: #38bdf8 !important;
+}
+
+[data-theme="light"] .aton-toast-card {
+  background: linear-gradient(145deg, #ffffff, #f8fafc);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 16px 48px rgba(15, 23, 42, 0.12),
+    0 0 0 1px rgba(37, 99, 235, 0.08) inset;
+}
+
+[data-theme="light"] .aton-toast-card-title {
+  color: #0f172a;
+}
+
+[data-theme="light"] .aton-toast-card-body {
+  color: #475569;
+}
+
+[data-theme="light"] .aton-notify-permission-btn {
+  color: #2563eb !important;
+}
+
 .aton-chat-list {
   margin-top: 4px;
   padding: 2px 0;
@@ -1121,19 +1638,23 @@ body {
 .aton-message-bubble {
   flex: 0 0 auto;
   flex-shrink: 0;
+  /* inline-flex даёт ширину по max-content дочерних блоков; flex + fit-content давали узкую колонку и переносы */
+  display: inline-flex;
+  flex-direction: column;
+  align-items: stretch;
+  vertical-align: bottom;
+  max-width: min(92%, 680px);
   min-width: 0;
-  width: fit-content;
-  max-width: min(70%, 520px);
-  padding: 8px 12px 6px;
-  border-radius: 12px 12px 12px 4px;
+  padding: 10px 16px 8px;
+  border-radius: 16px 16px 16px 6px;
   font-size: 14px;
-  line-height: 1.45;
+  line-height: 1.5;
   overflow-wrap: break-word;
   word-break: normal;
   background: #2b3039;
   border: none;
   color: #e5e7eb;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
   position: relative;
   overflow: hidden;
   box-sizing: border-box;
@@ -1143,23 +1664,164 @@ body {
   text-align: left;
   overflow-wrap: break-word;
   word-break: normal;
-  min-width: 0;
   max-width: 100%;
+}
+
+/* Строка текста не растягивается на всю «ошибочно» узкую ширину родителя */
+.aton-message-text-body {
+  display: inline-block;
+  width: max-content;
+  max-width: 100%;
+  vertical-align: top;
 }
 
 .aton-message-text--media {
-  width: min(260px, 100%);
-  max-width: min(260px, calc(100vw - 80px));
+  min-width: 0;
+  width: min(360px, 100%);
+  max-width: min(360px, calc(100vw - 56px));
 }
 
-.aton-message-text audio,
-.aton-message-audio {
-  display: block;
+/* Скрытый audio (управление из кастомного UI) */
+.aton-voice-audio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.aton-voice-player {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  height: 36px;
+  min-height: 42px;
+  margin-top: 4px;
   box-sizing: border-box;
+}
+
+.aton-voice-player--self {
+  flex-direction: row-reverse;
+}
+
+.aton-voice-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.aton-voice-player--self .aton-voice-main {
+  align-items: flex-end;
+}
+
+.aton-voice-play {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.85);
+  color: #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.12s ease, background 0.2s ease;
+}
+
+.aton-voice-play:hover {
+  background: rgba(15, 23, 42, 0.95);
+  transform: scale(1.04);
+}
+
+.aton-voice-play:active {
+  transform: scale(0.98);
+}
+
+.aton-voice-player--playing .aton-voice-play {
+  background: rgba(56, 189, 248, 0.35);
+  color: #f0f9ff;
+}
+
+.aton-voice-icon {
+  display: block;
+}
+
+.aton-voice-player:not(.aton-voice-player--playing) .aton-voice-icon--pause {
+  display: none;
+}
+
+.aton-voice-player--playing .aton-voice-icon--play {
+  display: none;
+}
+
+.aton-voice-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.35);
+  cursor: pointer;
+  touch-action: none;
+  outline: none;
+}
+
+.aton-voice-track:focus-visible {
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.55);
+}
+
+.aton-voice-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #38bdf8, #22d3ee);
+  pointer-events: none;
+}
+
+.aton-message-bubble.self .aton-voice-progress-fill {
+  background: linear-gradient(90deg, #d97706, #f59e0b);
+}
+
+.aton-voice-time {
+  font-size: 11px;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.aton-message-bubble.self .aton-voice-time {
+  text-align: right;
+}
+
+.aton-message-bubble.self .aton-voice-play {
+  background: rgba(28, 25, 23, 0.18);
+  color: #1c1917;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.aton-message-bubble.self .aton-voice-play:hover {
+  background: rgba(28, 25, 23, 0.28);
+}
+
+.aton-message-bubble.self .aton-voice-player--playing .aton-voice-play {
+  background: rgba(180, 83, 9, 0.35);
+  color: #1c1917;
+}
+
+.aton-message-bubble:not(.self) .aton-voice-track {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.aton-message-text--media + .aton-message-meta {
+  margin-top: 0;
 }
 
 .aton-message-image {
@@ -1170,10 +1832,21 @@ body {
 }
 
 .aton-message-bubble.self {
-  background: linear-gradient(135deg, #fb923c, #facc15);
-  color: #111827;
+  background: linear-gradient(155deg, #f59e0b 0%, #fbbf24 45%, #fde68a 100%);
+  color: #1c1917;
   border-color: transparent;
-  border-radius: 12px 12px 4px 12px;
+  border-radius: 16px 16px 6px 16px;
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.35), 0 1px 0 rgba(255, 255, 255, 0.35) inset;
+}
+
+.aton-message-bubble.self .aton-message-text {
+  text-align: right;
+}
+
+.aton-message-bubble.self .aton-message-sender--self {
+  text-align: right;
+  width: 100%;
+  color: rgba(28, 25, 23, 0.65);
 }
 
 .aton-message-sender {
@@ -1331,9 +2004,167 @@ body {
   border-top: 1px solid rgba(148, 163, 184, 0.35);
   padding: 8px 10px;
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  align-items: stretch;
   gap: 6px;
   flex-shrink: 0;
+}
+
+.aton-compose-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.aton-compose-record-hint {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(185, 28, 28, 0.22);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+  font-size: 12px;
+  line-height: 1.35;
+  animation: aton-record-hint-pulse 1.2s ease-in-out infinite;
+}
+
+/* Иначе display:flex выше перебивает нативное [hidden] и плашка не скрывается */
+.aton-compose-record-hint[hidden] {
+  display: none !important;
+}
+
+@keyframes aton-record-hint-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.12);
+  }
+}
+
+.aton-compose-record-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #f87171;
+  flex-shrink: 0;
+  animation: aton-record-dot 1s ease-in-out infinite;
+}
+
+@keyframes aton-record-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.75;
+    transform: scale(0.92);
+  }
+}
+
+.aton-compose-record-timer {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  min-width: 2.5em;
+}
+
+.aton-compose-record-text {
+  flex: 1;
+  min-width: 12em;
+  opacity: 0.95;
+}
+
+.aton-voice-preview {
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.aton-voice-preview[hidden] {
+  display: none !important;
+}
+
+.aton-voice-preview-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.aton-voice-preview-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #38bdf8;
+  flex-shrink: 0;
+}
+
+.aton-voice-preview-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+.aton-voice-preview-time {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+  margin-right: auto;
+}
+
+.aton-voice-preview-play {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.aton-voice-preview-play:hover {
+  filter: brightness(1.08);
+}
+
+.aton-voice-preview-cancel {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  background: rgba(148, 163, 184, 0.25);
+  color: #e5e7eb;
+}
+
+.aton-voice-preview-cancel:hover {
+  background: rgba(248, 113, 113, 0.35);
+}
+
+.aton-voice-preview-send {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+  color: #020617;
+}
+
+.aton-voice-preview-send:hover {
+  filter: brightness(1.06);
 }
 
 .aton-compose-actions {
@@ -1791,6 +2622,41 @@ body {
   color: rgba(17, 24, 39, 0.55);
 }
 
+[data-theme="light"] .aton-message-bubble:not(.self) .aton-voice-play {
+  background: rgba(255, 255, 255, 0.95);
+  color: #2563eb;
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .aton-message-bubble:not(.self) .aton-voice-play:hover {
+  background: #fff;
+}
+
+[data-theme="light"] .aton-message-bubble:not(.self) .aton-voice-player--playing .aton-voice-play {
+  background: rgba(37, 99, 235, 0.15);
+  border-color: rgba(37, 99, 235, 0.35);
+}
+
+[data-theme="light"] .aton-message-bubble:not(.self) .aton-voice-track {
+  background: rgba(15, 23, 42, 0.12);
+}
+
+[data-theme="light"] .aton-message-bubble.self .aton-voice-play {
+  background: rgba(255, 255, 255, 0.95);
+  color: #15803d;
+  border: 1px solid rgba(21, 128, 61, 0.25);
+}
+
+[data-theme="light"] .aton-message-bubble.self .aton-voice-play:hover {
+  background: #fff;
+}
+
+[data-theme="light"] .aton-message-bubble.self .aton-voice-player--playing .aton-voice-play {
+  background: rgba(21, 128, 61, 0.2);
+  border-color: rgba(21, 128, 61, 0.4);
+}
+
 [data-theme="light"] .aton-messages,
 [data-theme="light"] .aton-chat-list,
 [data-theme="light"] .aton-search-results {
@@ -1866,6 +2732,45 @@ body {
   border-color: rgba(0, 0, 0, 0.08);
 }
 
+[data-theme="light"] .aton-compose-record-hint {
+  background: rgba(254, 226, 226, 0.96);
+  border-color: rgba(248, 113, 113, 0.4);
+  color: #991b1b;
+}
+
+[data-theme="light"] .aton-compose-record-text {
+  color: #7f1d1d;
+}
+
+[data-theme="light"] .aton-voice-preview {
+  background: rgba(219, 234, 254, 0.95);
+  border-color: rgba(37, 99, 235, 0.28);
+}
+
+[data-theme="light"] .aton-voice-preview-label {
+  color: #1a1a2e;
+}
+
+[data-theme="light"] .aton-voice-preview-time {
+  color: #4b5563;
+}
+
+[data-theme="light"] .aton-voice-preview-play {
+  background: #ffffff;
+  color: #2563eb;
+  border: 1px solid rgba(37, 99, 235, 0.22);
+}
+
+[data-theme="light"] .aton-voice-preview-cancel {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+[data-theme="light"] .aton-voice-preview-send {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+}
+
 [data-theme="light"] .aton-input {
   background: #ffffff !important;
   color: #1a1a2e !important;
@@ -1934,9 +2839,106 @@ body {
   background: #e8ecf4;
 }
 
+[data-theme="light"] .aton-search-section-title {
+  color: #64748b;
+}
+
+[data-theme="light"] .aton-search-item--user {
+  background: #f8fafc;
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .aton-search-item--user:hover {
+  background: #eef2ff;
+  border-color: rgba(37, 99, 235, 0.25);
+}
+
+[data-theme="light"] .aton-search-user-main:hover {
+  background: rgba(37, 99, 235, 0.06);
+}
+
+[data-theme="light"] .aton-search-avatar {
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
 [data-theme="light"] .aton-search-action {
-  background: #2563eb;
-  color: #ffffff;
+  background: #f4f6f8;
+  color: #374151;
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .aton-search-action:hover:not(:disabled) {
+  background: #e8ecf4;
+  color: #1a1a2e;
+}
+
+[data-theme="light"] .aton-search-write {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff !important;
+  border-color: rgba(37, 99, 235, 0.45);
+}
+
+[data-theme="light"] .aton-search-write:hover:not(:disabled) {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .aton-search-add {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: rgba(37, 99, 235, 0.28);
+}
+
+[data-theme="light"] .aton-search-add:hover:not(:disabled) {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+[data-theme="light"] .aton-search-block {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: rgba(220, 38, 38, 0.35);
+}
+
+[data-theme="light"] .aton-search-block:hover:not(:disabled) {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+[data-theme="light"] .aton-search-join {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: rgba(37, 99, 235, 0.28);
+}
+
+[data-theme="light"] .aton-search-join:hover:not(:disabled) {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+[data-theme="light"] .aton-peer-action-bar {
+  background: #f8fafc;
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .aton-peer-btn {
+  background: #f4f6f8;
+  color: #374151;
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .aton-friends-panel {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .aton-friends-row {
+  background: #f4f6f8;
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .aton-friends-hint {
+  color: #6b7280;
 }
 
 [data-theme="light"] .aton-chat-verify-menu {
@@ -2370,6 +3372,25 @@ body {
     border-radius: 12px;
   }
 
+  .aton-search-item--user {
+    min-height: 0;
+    padding: 0;
+  }
+
+  .aton-search-user-card {
+    padding: 12px 14px;
+    gap: 12px;
+  }
+
+  .aton-search-avatar {
+    width: 44px;
+    height: 44px;
+  }
+
+  .aton-search-item--user .aton-search-actions {
+    gap: 10px;
+  }
+
   .aton-search-action {
     font-size: 11px;
     padding: 5px 12px;
@@ -2593,22 +3614,23 @@ body {
 
   .aton-message-bubble {
     flex-shrink: 0;
-    min-width: min(100%, 120px);
-    width: fit-content;
-    max-width: min(82%, 520px);
-    padding: 8px 12px 6px;
-    border-radius: 14px 14px 14px 4px;
+    display: inline-flex;
+    vertical-align: bottom;
+    max-width: min(92%, 680px);
+    min-width: 0;
+    padding: 10px 14px 8px;
+    border-radius: 16px 16px 16px 6px;
     font-size: 15px;
     line-height: 1.45;
   }
 
   .aton-message-bubble.self {
-    border-radius: 14px 14px 4px 14px;
+    border-radius: 16px 16px 6px 16px;
   }
 
   .aton-message-text--media {
-    width: min(240px, calc(100vw - 96px));
-    max-width: min(240px, 85vw);
+    width: min(320px, calc(100vw - 72px));
+    max-width: min(320px, 90vw);
   }
 
   .aton-message-time {

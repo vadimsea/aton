@@ -29,8 +29,10 @@ model User {
   resetToken    String?
   resetTokenExp DateTime?
 
-  friends Json @default("[]")
-  blocked Json @default("[]")
+  friends           Json @default("[]")
+  blocked           Json @default("[]")
+  friendRequestsIn  Json @default("[]")
+  friendRequestsOut Json @default("[]")
 
   @@map("users")
 }

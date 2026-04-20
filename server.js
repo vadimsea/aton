@@ -395,6 +395,8 @@ app.post("/api/register", registerLimiter, async (req, res) => {
         resetTokenExp: null,
         friends: [],
         blocked: [],
+        friendRequestsIn: [],
+        friendRequestsOut: [],
       },
     });
 
@@ -573,7 +575,24 @@ app.get("/api/me", authMiddleware, async (req, res) => {
   }
 });
 
-// Контакты (друзья и заблокированные)
+function clearPendingBetweenUsers(me, target) {
+  const ta = target.username;
+  const my = me.username;
+  me.friendRequestsIn = (me.friendRequestsIn || []).filter((u) => u !== ta);
+  me.friendRequestsOut = (me.friendRequestsOut || []).filter((u) => u !== ta);
+  target.friendRequestsIn = (target.friendRequestsIn || []).filter((u) => u !== my);
+  target.friendRequestsOut = (target.friendRequestsOut || []).filter((u) => u !== my);
+}
+
+function mutualAddFriendsUsers(me, target) {
+  ensureLists(me);
+  ensureLists(target);
+  if (!me.friends.includes(target.username)) me.friends.push(target.username);
+  if (!target.friends.includes(me.username)) target.friends.push(me.username);
+  clearPendingBetweenUsers(me, target);
+}
+
+// Контакты: друзья, заявки, заблокированные
 app.get("/api/contacts", authMiddleware, requireVerified, async (req, res) => {
   try {
     const meRow = await prisma.user.findUnique({ where: { id: req.user.id } });
@@ -581,7 +600,14 @@ app.get("/api/contacts", authMiddleware, requireVerified, async (req, res) => {
     const me = userFromPrismaRow(meRow);
     ensureLists(me);
 
-    const names = [...new Set([...(me.friends || []), ...(me.blocked || [])])];
+    const names = [
+      ...new Set([
+        ...(me.friends || []),
+        ...(me.blocked || []),
+        ...(me.friendRequestsIn || []),
+        ...(me.friendRequestsOut || []),
+      ]),
+    ].filter(Boolean);
     const others =
       names.length > 0
         ? await prisma.user.findMany({ where: { username: { in: names } } })
@@ -599,8 +625,10 @@ app.get("/api/contacts", authMiddleware, requireVerified, async (req, res) => {
 
     const friends = (me.friends || []).map((n) => byName[n]).filter(Boolean).map(toSummary);
     const blocked = (me.blocked || []).map((n) => byName[n]).filter(Boolean).map(toSummary);
+    const requestsIn = (me.friendRequestsIn || []).map((n) => byName[n]).filter(Boolean).map(toSummary);
+    const requestsOut = (me.friendRequestsOut || []).map((n) => byName[n]).filter(Boolean).map(toSummary);
 
-    res.json({ friends, blocked });
+    res.json({ friends, blocked, requestsIn, requestsOut });
   } catch (err) {
     console.error("GET /api/contacts:", err);
     res.status(500).json({ error: "Ошибка сервера" });
@@ -665,11 +693,11 @@ app.post("/api/profile", authMiddleware, requireVerified, async (req, res) => {
   }
 });
 
-// Добавить в друзья
+// Заявка в друзья (или принятие, если заявка уже была)
 app.post("/api/contacts/add", authMiddleware, requireVerified, async (req, res) => {
   const { username, publicId } = req.body || {};
   try {
-    await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const meRow = await tx.user.findUnique({ where: { id: req.user.id } });
       if (!meRow) {
         const e = new Error("notfound");
@@ -702,23 +730,245 @@ app.post("/api/contacts/add", authMiddleware, requireVerified, async (req, res) 
         throw e;
       }
 
-      if (!me.friends.includes(target.username)) me.friends.push(target.username);
-      if (!target.friends.includes(me.username)) target.friends.push(me.username);
+      if (me.friends.includes(target.username)) {
+        return { status: "friends" };
+      }
 
-      await tx.user.update({ where: { id: me.id }, data: { friends: me.friends } });
-      await tx.user.update({ where: { id: target.id }, data: { friends: target.friends } });
+      // У вас уже есть входящая заявка от этого человека — принимаем в друзья
+      if (me.friendRequestsIn.includes(target.username)) {
+        mutualAddFriendsUsers(me, target);
+        await tx.user.update({
+          where: { id: me.id },
+          data: {
+            friends: me.friends,
+            friendRequestsIn: me.friendRequestsIn,
+            friendRequestsOut: me.friendRequestsOut,
+          },
+        });
+        await tx.user.update({
+          where: { id: target.id },
+          data: {
+            friends: target.friends,
+            friendRequestsIn: target.friendRequestsIn,
+            friendRequestsOut: target.friendRequestsOut,
+          },
+        });
+        return { status: "accepted" };
+      }
+
+      // Они раньше отправили вам заявку (симметрия по out/in)
+      if (target.friendRequestsOut.includes(me.username)) {
+        mutualAddFriendsUsers(me, target);
+        await tx.user.update({
+          where: { id: me.id },
+          data: {
+            friends: me.friends,
+            friendRequestsIn: me.friendRequestsIn,
+            friendRequestsOut: me.friendRequestsOut,
+          },
+        });
+        await tx.user.update({
+          where: { id: target.id },
+          data: {
+            friends: target.friends,
+            friendRequestsIn: target.friendRequestsIn,
+            friendRequestsOut: target.friendRequestsOut,
+          },
+        });
+        return { status: "accepted" };
+      }
+
+      if (me.friendRequestsOut.includes(target.username)) {
+        const e = new Error("pending");
+        e.code = "PENDING";
+        throw e;
+      }
+
+      if (!target.friendRequestsIn.includes(me.username)) target.friendRequestsIn.push(me.username);
+      if (!me.friendRequestsOut.includes(target.username)) me.friendRequestsOut.push(target.username);
+
+      await tx.user.update({
+        where: { id: me.id },
+        data: { friendRequestsIn: me.friendRequestsIn, friendRequestsOut: me.friendRequestsOut },
+      });
+      await tx.user.update({
+        where: { id: target.id },
+        data: { friendRequestsIn: target.friendRequestsIn, friendRequestsOut: target.friendRequestsOut },
+      });
+      return { status: "requested" };
     });
-    res.json({ ok: true });
+    res.json({ ok: true, ...result });
   } catch (err) {
     if (err.code === "NOTFOUND") return res.status(404).json({ error: "Пользователь не найден" });
     if (err.code === "NOTARGET") return res.status(404).json({ error: "Пользователь не найден" });
     if (err.code === "SELF") return res.status(400).json({ error: "Нельзя добавить себя в друзья" });
+    if (err.code === "PENDING") {
+      return res.status(400).json({ error: "Заявка уже отправлена. Дождитесь ответа или отмените её." });
+    }
     if (err.code === "BLOCKED") {
       return res
         .status(400)
         .json({ error: "Нельзя добавить в друзья пользователя с ограниченным доступом." });
     }
     console.error("POST /api/contacts/add:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+app.post("/api/contacts/accept", authMiddleware, requireVerified, async (req, res) => {
+  const { username, publicId } = req.body || {};
+  try {
+    await prisma.$transaction(async (tx) => {
+      const meRow = await tx.user.findUnique({ where: { id: req.user.id } });
+      if (!meRow) {
+        const e = new Error("notfound");
+        e.code = "NOTFOUND";
+        throw e;
+      }
+      const me = userFromPrismaRow(meRow);
+      ensureLists(me);
+
+      let targetRow = null;
+      if (username) targetRow = await tx.user.findUnique({ where: { username } });
+      if (!targetRow && publicId) targetRow = await tx.user.findUnique({ where: { publicId } });
+      if (!targetRow) {
+        const e = new Error("notarget");
+        e.code = "NOTARGET";
+        throw e;
+      }
+      const target = userFromPrismaRow(targetRow);
+      ensureLists(target);
+
+      if (!me.friendRequestsIn.includes(target.username)) {
+        const e = new Error("noin");
+        e.code = "NOIN";
+        throw e;
+      }
+
+      mutualAddFriendsUsers(me, target);
+      await tx.user.update({
+        where: { id: me.id },
+        data: {
+          friends: me.friends,
+          friendRequestsIn: me.friendRequestsIn,
+          friendRequestsOut: me.friendRequestsOut,
+        },
+      });
+      await tx.user.update({
+        where: { id: target.id },
+        data: {
+          friends: target.friends,
+          friendRequestsIn: target.friendRequestsIn,
+          friendRequestsOut: target.friendRequestsOut,
+        },
+      });
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    if (err.code === "NOTFOUND") return res.status(404).json({ error: "Пользователь не найден" });
+    if (err.code === "NOTARGET") return res.status(404).json({ error: "Пользователь не найден" });
+    if (err.code === "NOIN") return res.status(400).json({ error: "Нет входящей заявки от этого пользователя." });
+    console.error("POST /api/contacts/accept:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+app.post("/api/contacts/decline", authMiddleware, requireVerified, async (req, res) => {
+  const { username, publicId } = req.body || {};
+  try {
+    await prisma.$transaction(async (tx) => {
+      const meRow = await tx.user.findUnique({ where: { id: req.user.id } });
+      if (!meRow) {
+        const e = new Error("notfound");
+        e.code = "NOTFOUND";
+        throw e;
+      }
+      const me = userFromPrismaRow(meRow);
+      ensureLists(me);
+
+      let targetRow = null;
+      if (username) targetRow = await tx.user.findUnique({ where: { username } });
+      if (!targetRow && publicId) targetRow = await tx.user.findUnique({ where: { publicId } });
+      if (!targetRow) {
+        const e = new Error("notarget");
+        e.code = "NOTARGET";
+        throw e;
+      }
+      const target = userFromPrismaRow(targetRow);
+      ensureLists(target);
+
+      if (!me.friendRequestsIn.includes(target.username)) {
+        const e = new Error("noin");
+        e.code = "NOIN";
+        throw e;
+      }
+
+      clearPendingBetweenUsers(me, target);
+      await tx.user.update({
+        where: { id: me.id },
+        data: { friendRequestsIn: me.friendRequestsIn, friendRequestsOut: me.friendRequestsOut },
+      });
+      await tx.user.update({
+        where: { id: target.id },
+        data: { friendRequestsIn: target.friendRequestsIn, friendRequestsOut: target.friendRequestsOut },
+      });
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    if (err.code === "NOTFOUND") return res.status(404).json({ error: "Пользователь не найден" });
+    if (err.code === "NOTARGET") return res.status(404).json({ error: "Пользователь не найден" });
+    if (err.code === "NOIN") return res.status(400).json({ error: "Нет входящей заявки." });
+    console.error("POST /api/contacts/decline:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+app.post("/api/contacts/cancel", authMiddleware, requireVerified, async (req, res) => {
+  const { username, publicId } = req.body || {};
+  try {
+    await prisma.$transaction(async (tx) => {
+      const meRow = await tx.user.findUnique({ where: { id: req.user.id } });
+      if (!meRow) {
+        const e = new Error("notfound");
+        e.code = "NOTFOUND";
+        throw e;
+      }
+      const me = userFromPrismaRow(meRow);
+      ensureLists(me);
+
+      let targetRow = null;
+      if (username) targetRow = await tx.user.findUnique({ where: { username } });
+      if (!targetRow && publicId) targetRow = await tx.user.findUnique({ where: { publicId } });
+      if (!targetRow) {
+        const e = new Error("notarget");
+        e.code = "NOTARGET";
+        throw e;
+      }
+      const target = userFromPrismaRow(targetRow);
+      ensureLists(target);
+
+      if (!me.friendRequestsOut.includes(target.username)) {
+        const e = new Error("noout");
+        e.code = "NOOUT";
+        throw e;
+      }
+
+      clearPendingBetweenUsers(me, target);
+      await tx.user.update({
+        where: { id: me.id },
+        data: { friendRequestsIn: me.friendRequestsIn, friendRequestsOut: me.friendRequestsOut },
+      });
+      await tx.user.update({
+        where: { id: target.id },
+        data: { friendRequestsIn: target.friendRequestsIn, friendRequestsOut: target.friendRequestsOut },
+      });
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    if (err.code === "NOTFOUND") return res.status(404).json({ error: "Пользователь не найден" });
+    if (err.code === "NOTARGET") return res.status(404).json({ error: "Пользователь не найден" });
+    if (err.code === "NOOUT") return res.status(400).json({ error: "Нет исходящей заявки этому пользователю." });
+    console.error("POST /api/contacts/cancel:", err);
     res.status(500).json({ error: "Ошибка сервера" });
   }
 });
@@ -754,10 +1004,29 @@ app.post("/api/contacts/block", authMiddleware, requireVerified, async (req, res
         throw e;
       }
 
-      if (!me.blocked.includes(target.username)) me.blocked.push(target.username);
+      clearPendingBetweenUsers(me, target);
       me.friends = me.friends.filter((u) => u !== target.username);
+      target.friends = target.friends.filter((u) => u !== me.username);
 
-      await tx.user.update({ where: { id: me.id }, data: { friends: me.friends, blocked: me.blocked } });
+      if (!me.blocked.includes(target.username)) me.blocked.push(target.username);
+
+      await tx.user.update({
+        where: { id: me.id },
+        data: {
+          friends: me.friends,
+          blocked: me.blocked,
+          friendRequestsIn: me.friendRequestsIn,
+          friendRequestsOut: me.friendRequestsOut,
+        },
+      });
+      await tx.user.update({
+        where: { id: target.id },
+        data: {
+          friends: target.friends,
+          friendRequestsIn: target.friendRequestsIn,
+          friendRequestsOut: target.friendRequestsOut,
+        },
+      });
     });
     res.json({ ok: true });
   } catch (err) {
