@@ -68,6 +68,11 @@ app.use((req, res, next) => {
 });
 app.use(express.static(__dirname));
 
+/** Лёгкая проверка для мониторинга и CI (без БД-логики в ответе). */
+app.get("/api/health", (req, res) => {
+  res.json({ ok: true, service: "aton-api", ts: new Date().toISOString() });
+});
+
 // SPA: ссылка приглашения /join/:token → index.html
 app.get("/join/:token", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));

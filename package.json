@@ -11,6 +11,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:smoke": "node scripts/pg-smoke.js",
+    "qa:prod": "node scripts/qa-prod-smoke.js",
     "dev:embedded": "node scripts/embedded-dev.mjs",
     "postinstall": "prisma generate"
   },
