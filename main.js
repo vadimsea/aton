@@ -138,7 +138,7 @@ function formatPeerPresence(peerUser) {
   const diff = Date.now() - t;
   const ONLINE_MS = 60 * 1000;
   if (diff < ONLINE_MS) {
-    return { text: "в сети", online: true, title: "Сейчас в сети" };
+    return { text: "онлайн", online: true, title: "Сейчас онлайн" };
   }
   const d = new Date(iso);
   const now = new Date();
@@ -548,6 +548,15 @@ function createApp() {
         <div class="aton-title">АТОН</div>
         <div class="aton-subtitle">мессенджер под светом диска</div>
       </div>
+    </div>
+    <div class="aton-sidebar-toolbar" id="aton-sidebar-toolbar" hidden>
+      <button type="button" class="aton-topbar-icon" id="aton-sidebar-friends-btn" title="Друзья, заявки и блокировки" style="display:none;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span class="aton-topbar-icon-badge" id="aton-sidebar-friends-badge"></span>
+      </button>
+      <button type="button" class="aton-topbar-icon" id="aton-sidebar-theme-btn" title="Сменить тему">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
     </div>
   `;
 
@@ -1064,6 +1073,10 @@ function createApp() {
   const themeToggle = document.getElementById("aton-theme-toggle");
   const friendsBtn = document.getElementById("aton-friends-btn");
   const friendsBadge = document.getElementById("aton-friends-badge");
+  const sidebarToolbar = document.getElementById("aton-sidebar-toolbar");
+  const sidebarFriendsBtn = document.getElementById("aton-sidebar-friends-btn");
+  const sidebarThemeBtn = document.getElementById("aton-sidebar-theme-btn");
+  const friendsSidebarBadge = document.getElementById("aton-sidebar-friends-badge");
   const notifyPermissionBtn = document.getElementById("aton-notify-permission");
 
   // Индикатор «печатает…»
@@ -1427,6 +1440,8 @@ function createApp() {
       compose.style.display = "none";
       if (contactsEl) contactsEl.innerHTML = "";
       if (friendsBtn) friendsBtn.style.display = "none";
+      if (sidebarToolbar) sidebarToolbar.hidden = true;
+      if (sidebarFriendsBtn) sidebarFriendsBtn.style.display = "none";
       if (notifyPermissionBtn) notifyPermissionBtn.style.display = "none";
       if (friendsOverlay) friendsOverlay.hidden = true;
     } else {
@@ -1485,6 +1500,10 @@ function createApp() {
       if (filterPrivateBtn) filterPrivateBtn.style.display = "inline-flex";
       if (filterGroupBtn) filterGroupBtn.style.display = "inline-flex";
       if (friendsBtn) friendsBtn.style.display = user.verified ? "inline-flex" : "none";
+      if (sidebarToolbar) sidebarToolbar.hidden = false;
+      if (sidebarFriendsBtn) {
+        sidebarFriendsBtn.style.display = user.verified ? "inline-flex" : "none";
+      }
       if (moderationButton) {
         moderationButton.style.display = currentUser?.isSuperAdmin ? "inline-flex" : "none";
       }
@@ -1636,14 +1655,18 @@ function createApp() {
 
   function updateFriendsBadge() {
     const n = (contacts.requestsIn || []).length;
-    if (!friendsBadge) return;
-    if (n > 0) {
-      friendsBadge.textContent = String(n);
-      friendsBadge.style.display = "";
-    } else {
-      friendsBadge.textContent = "";
-      friendsBadge.style.display = "none";
-    }
+    const setBadge = (el) => {
+      if (!el) return;
+      if (n > 0) {
+        el.textContent = String(n);
+        el.style.display = "";
+      } else {
+        el.textContent = "";
+        el.style.display = "none";
+      }
+    };
+    setBadge(friendsBadge);
+    setBadge(friendsSidebarBadge);
   }
 
   function renderFriendsPanel() {
@@ -1796,6 +1819,12 @@ function createApp() {
 
     if (friendsBtn) {
       friendsBtn.addEventListener("click", () => {
+        renderFriendsPanel();
+        friendsOverlay.hidden = !friendsOverlay.hidden;
+      });
+    }
+    if (sidebarFriendsBtn) {
+      sidebarFriendsBtn.addEventListener("click", () => {
         renderFriendsPanel();
         friendsOverlay.hidden = !friendsOverlay.hidden;
       });
@@ -3844,16 +3873,23 @@ function createApp() {
   function applyTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem(THEME_KEY, theme);
+    const moonOrSun = theme === "light"
+      ? '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'
+      : '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
     const icon = themeToggle?.querySelector("svg");
-    if (icon) {
-      icon.innerHTML = theme === "light"
-        ? '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'
-        : '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
-    }
+    if (icon) icon.innerHTML = moonOrSun;
+    const iconSb = sidebarThemeBtn?.querySelector("svg");
+    if (iconSb) iconSb.innerHTML = moonOrSun;
   }
   applyTheme(localStorage.getItem(THEME_KEY) || "dark");
   if (themeToggle) {
     themeToggle.addEventListener("click", () => {
+      const current = document.documentElement.getAttribute("data-theme") || "dark";
+      applyTheme(current === "dark" ? "light" : "dark");
+    });
+  }
+  if (sidebarThemeBtn) {
+    sidebarThemeBtn.addEventListener("click", () => {
       const current = document.documentElement.getAttribute("data-theme") || "dark";
       applyTheme(current === "dark" ? "light" : "dark");
     });
