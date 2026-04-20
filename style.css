@@ -3216,7 +3216,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 6px;
+    gap: 8px;
     padding: 4px 12px 10px;
     padding-left: max(12px, env(safe-area-inset-left));
     padding-right: max(12px, env(safe-area-inset-right));
@@ -3815,6 +3815,32 @@ body {
     font-size: 14px;
     border-radius: 12px;
     min-height: 44px;
+  }
+
+  /* После общих правил .aton-topbar-icon: одинаковые круги для друзей/темы на главной */
+  .aton-sidebar-toolbar .aton-topbar-icon {
+    appearance: none;
+    -webkit-appearance: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0 !important;
+    margin: 0;
+    box-sizing: border-box;
+    line-height: 0;
+    font-size: 0;
+  }
+
+  .aton-sidebar-toolbar .aton-topbar-icon svg {
+    display: block;
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    flex-shrink: 0;
   }
 }
 
