@@ -109,6 +109,61 @@ function formatTimeLabel(iso) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+/** Статус «был в сети» для шапки и списка личных чатов. При blockedMe не показываем реальный lastSeen. */
+function formatPeerPresence(peerUser) {
+  const blockedMe = Boolean(peerUser && peerUser.blockedMe);
+  if (blockedMe) {
+    return {
+      text: "давно не был(а) в сети",
+      online: false,
+      title: "Статус скрыт",
+    };
+  }
+  const iso = peerUser && peerUser.lastSeen;
+  if (!iso) {
+    return {
+      text: "нет данных о последнем визите",
+      online: false,
+      title: "",
+    };
+  }
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) {
+    return {
+      text: "нет данных о последнем визите",
+      online: false,
+      title: "",
+    };
+  }
+  const diff = Date.now() - t;
+  const ONLINE_MS = 60 * 1000;
+  if (diff < ONLINE_MS) {
+    return { text: "в сети", online: true, title: "Сейчас в сети" };
+  }
+  const d = new Date(iso);
+  const now = new Date();
+  const startOfDay = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+  const dayDiff = Math.round(
+    (startOfDay(now) - startOfDay(d)) / 86400000
+  );
+  let detail;
+  if (diff < 60 * 60 * 1000) {
+    const m = Math.max(1, Math.floor(diff / 60000));
+    detail = `был(а) в сети ${m} мин назад`;
+  } else if (dayDiff === 0) {
+    detail = `был(а) в сети сегодня в ${d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
+  } else if (dayDiff === 1) {
+    detail = `был(а) в сети вчера в ${d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
+  } else if (dayDiff < 7) {
+    detail = `был(а) в сети ${d.toLocaleDateString("ru-RU", { weekday: "short", day: "numeric", month: "short" })}, ${d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
+  } else if (d.getFullYear() === now.getFullYear()) {
+    detail = `был(а) в сети ${d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}`;
+  } else {
+    detail = `был(а) в сети ${d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}`;
+  }
+  return { text: detail, online: false, title: detail };
+}
+
 function formatVoiceDuration(sec) {
   if (!Number.isFinite(sec) || sec < 0) return "0:00";
   const m = Math.floor(sec / 60);
@@ -2455,16 +2510,12 @@ function createApp() {
         .filter((m) => messageBelongsToDmId(m, id))
         .sort((a, b) => new Date(a.time) - new Date(b.time));
       const lastMsg = chatMessages[chatMessages.length - 1];
-      const subtitle = "приватный чат";
       const unread = chatMessages.filter(
         (m) => !reads[id] || m.time > reads[id]
       ).length;
       const pinned = pins.has(id);
-      let peerOnline = false;
-      if (peerUser && peerUser.lastSeen) {
-        const diff = Date.now() - new Date(peerUser.lastSeen).getTime();
-        peerOnline = diff < 60 * 1000;
-      }
+      const presence = formatPeerPresence(peerUser);
+      const peerOnline = presence.online;
       privateUnreadTotal += unread;
       if (chatFilter === "group") {
         // В режиме «группы» личные чаты скрываем
@@ -2512,7 +2563,10 @@ function createApp() {
       const onlineDot = document.createElement("span");
       onlineDot.className = `aton-chat-online-dot ${peerOnline ? "online" : "offline"}`;
       subtitleEl.appendChild(onlineDot);
-      subtitleEl.appendChild(document.createTextNode(`@${peer} • ${subtitle}`));
+      subtitleEl.appendChild(
+        document.createTextNode(`@${peer} · ${presence.text}`)
+      );
+      subtitleEl.title = presence.title || presence.text;
       const previewEl = document.createElement("div");
       previewEl.className = "aton-chat-item-subtitle";
       if (lastMsg) {
@@ -4070,6 +4124,7 @@ function createApp() {
 
     try {
       const current = currentUser;
+      statusEl.classList.remove("aton-topbar-status--online");
       if (!current) {
         setTitle("Добро пожаловать", false);
         return;
@@ -4083,6 +4138,8 @@ function createApp() {
         if (chatMeta) {
           const verified = Boolean(chatMeta.verified);
           setTitle(chatMeta.title, verified);
+          statusEl.textContent = "групповой чат";
+          statusEl.removeAttribute("title");
           return;
         }
         const preview = discoverChats.find((c) => c.id === currentChatId);
@@ -4091,11 +4148,15 @@ function createApp() {
         } else {
           setTitle("Предпросмотр чата", false);
         }
+        statusEl.textContent = "групповой чат";
+        statusEl.removeAttribute("title");
         return;
       }
       const peer = currentChatPeer();
       if (!peer) {
         setTitle("Личный диалог", false);
+        statusEl.textContent = "";
+        statusEl.removeAttribute("title");
         return;
       }
       const peerUser = allUsers.find((u) => u.username === peer);
@@ -4103,16 +4164,25 @@ function createApp() {
       const verified = Boolean(peerUser && peerUser.isVerified);
       setTitle(name, verified);
 
-      let peerOnline = false;
-      if (peerUser?.lastSeen) {
-        const diff = Date.now() - new Date(peerUser.lastSeen).getTime();
-        peerOnline = diff < 60 * 1000;
-      }
-      statusEl.textContent = peerOnline ? "в сети" : "приватный чат";
+      const presence = formatPeerPresence(peerUser);
+      statusEl.textContent = presence.text;
+      statusEl.title = presence.title || presence.text;
+      statusEl.classList.toggle("aton-topbar-status--online", presence.online);
     } finally {
       updatePeerActionBar();
     }
   }
+
+  setInterval(() => {
+    if (!currentUser) return;
+    if (
+      currentChatId &&
+      !currentChatId.startsWith("group:") &&
+      !currentChatId.startsWith("channel:")
+    ) {
+      updateTopbarTitle();
+    }
+  }, 60000);
 
   // Инициализация
   switchMode("login");

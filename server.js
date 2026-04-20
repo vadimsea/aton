@@ -1171,6 +1171,7 @@ app.get("/api/users", authMiddleware, requireVerified, async (req, res) => {
     if (current) ensureLists(current);
     const friendsSet = new Set((current && current.friends) || []);
     const blockedSet = new Set((current && current.blocked) || []);
+    const myUsername = current && current.username;
 
     const raw = await prisma.user.findMany();
     for (const row of raw) {
@@ -1194,6 +1195,8 @@ app.get("/api/users", authMiddleware, requireVerified, async (req, res) => {
         lastSeen: u.lastSeen || null,
         isFriend: friendsSet.has(u.username),
         isBlocked: blockedSet.has(u.username),
+        /** Собеседник добавил меня в свой список блокировок (для скрытия реального lastSeen в UI). */
+        blockedMe: myUsername ? (u.blocked || []).includes(myUsername) : false,
         isVerified: Boolean(u.isVerified),
         isSuperAdmin: Boolean(u.isSuperAdmin),
       };
