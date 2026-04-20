@@ -786,6 +786,12 @@ body {
   justify-content: center;
 }
 
+/* Иначе display:flex перебивает нативное [hidden] — оверлей виден при загрузке и не закрывается */
+.aton-friends-overlay[hidden] {
+  display: none !important;
+  pointer-events: none;
+}
+
 @media (min-width: 640px) {
   .aton-friends-overlay {
     align-items: center;

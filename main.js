@@ -1747,7 +1747,7 @@ function createApp() {
     }
 
     friendsOverlay.addEventListener("click", async (e) => {
-      if (e.target.classList.contains("aton-friends-overlay-backdrop")) {
+      if (e.target.closest(".aton-friends-overlay-backdrop")) {
         friendsOverlay.hidden = true;
         return;
       }
@@ -1813,6 +1813,12 @@ function createApp() {
       } catch (err) {
         alert(err.message || "Ошибка");
       }
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (!friendsOverlay || friendsOverlay.hidden) return;
+      friendsOverlay.hidden = true;
     });
   })();
 
