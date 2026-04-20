@@ -431,6 +431,15 @@ function setChatReads(username, reads) {
   localStorage.setItem(LOCAL_READS_KEY, JSON.stringify(obj));
 }
 
+/** Непрочитанные в списке чатов: только сообщения от собеседников; свои не считаются (в т.ч. отправка с другого устройства). */
+function countUnreadInbound(messages, readIso, me) {
+  if (!me) return 0;
+  return messages.filter((m) => {
+    if (m.from === me) return false;
+    return !readIso || m.time > readIso;
+  }).length;
+}
+
 function getLastChatId(username) {
   if (!username) return null;
   return localStorage.getItem(`${LAST_CHAT_KEY_PREFIX}${username}`) || null;
@@ -614,7 +623,10 @@ function createApp() {
         <div class="aton-auth-logged-user" id="aton-logged-user"></div>
         <div class="aton-auth-logged-status" id="aton-logged-status">В сети</div>
       </div>
-      <button type="button" class="aton-logout-button" id="aton-logout" title="Выйти">⏻</button>
+      <div class="aton-auth-logged-actions">
+        <button type="button" class="aton-profile-mobile-btn" id="aton-profile-mobile-btn">Профиль</button>
+        <button type="button" class="aton-logout-button" id="aton-logout" title="Выйти">⏻</button>
+      </div>
     </div>
   `;
 
@@ -1965,9 +1977,11 @@ function createApp() {
         .filter((m) => m.chatId === chatMeta.id)
         .sort((a, b) => new Date(a.time) - new Date(b.time));
       const lastMsg = chatMessages[chatMessages.length - 1];
-      const unread = chatMessages.filter(
-        (m) => !reads[chatMeta.id] || m.time > reads[chatMeta.id]
-      ).length;
+      const unread = countUnreadInbound(
+        chatMessages,
+        reads[chatMeta.id],
+        current.username
+      );
       const pinned = pins.has(chatMeta.id);
       groupUnreadTotal += unread;
       if (chatFilter === "private") {
@@ -2541,9 +2555,7 @@ function createApp() {
         .filter((m) => messageBelongsToDmId(m, id))
         .sort((a, b) => new Date(a.time) - new Date(b.time));
       const lastMsg = chatMessages[chatMessages.length - 1];
-      const unread = chatMessages.filter(
-        (m) => !reads[id] || m.time > reads[id]
-      ).length;
+      const unread = countUnreadInbound(chatMessages, reads[id], current.username);
       const pinned = pins.has(id);
       const presence = formatPeerPresence(peerUser);
       const peerOnline = presence.online;
@@ -3868,6 +3880,10 @@ function createApp() {
     loggedAvatarEl.style.cursor = "pointer";
     loggedAvatarEl.title = "Открыть профиль";
     loggedAvatarEl.addEventListener("click", openProfileModal);
+  }
+  const profileMobileBtn = document.getElementById("aton-profile-mobile-btn");
+  if (profileMobileBtn) {
+    profileMobileBtn.addEventListener("click", openProfileModal);
   }
 
   // Theme toggle
