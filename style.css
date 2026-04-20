@@ -116,7 +116,15 @@ body {
   gap: 10px;
 }
 
-/* Дублирует тему и друзей с топбара: видна только на мобиле (список чатов без топбара) */
+.aton-sidebar-header-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+/* Дублирует тему и друзей с топбара: в шапке сайдбара, на мобиле — в одной строке с логотипом */
 .aton-sidebar-toolbar {
   display: none;
 }
@@ -3216,12 +3224,12 @@ body {
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 8px;
-    padding: 4px 12px 10px;
-    padding-left: max(12px, env(safe-area-inset-left));
-    padding-right: max(12px, env(safe-area-inset-right));
+    gap: 6px;
+    padding: 0;
+    margin: 0;
     flex-shrink: 0;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+    border: none;
+    align-self: center;
   }
 
   .aton-main {
@@ -3285,10 +3293,15 @@ body {
     overflow: hidden;
   }
 
-  /* ===== HEADER (компактный) ===== */
+  /* ===== HEADER (компактный): логотип + кнопки в одной строке ===== */
   .aton-sidebar-header {
-    padding: 12px 16px 6px;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px 10px;
     padding-top: max(12px, env(safe-area-inset-top));
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
   }
 
   .aton-logo {

@@ -543,20 +543,22 @@ function createApp() {
 
   sidebar.innerHTML = `
     <div class="aton-sidebar-header">
-      <div class="aton-logo"><div class="aton-logo-inner"></div></div>
-      <div class="aton-product-name">
-        <div class="aton-title">АТОН</div>
-        <div class="aton-subtitle">мессенджер под светом диска</div>
+      <div class="aton-sidebar-header-main">
+        <div class="aton-logo"><div class="aton-logo-inner"></div></div>
+        <div class="aton-product-name">
+          <div class="aton-title">АТОН</div>
+          <div class="aton-subtitle">мессенджер под светом диска</div>
+        </div>
       </div>
-    </div>
-    <div class="aton-sidebar-toolbar" id="aton-sidebar-toolbar" hidden>
-      <button type="button" class="aton-topbar-icon" id="aton-sidebar-friends-btn" title="Друзья, заявки и блокировки" style="display:none;">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        <span class="aton-topbar-icon-badge" id="aton-sidebar-friends-badge"></span>
-      </button>
-      <button type="button" class="aton-topbar-icon" id="aton-sidebar-theme-btn" title="Сменить тему">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-      </button>
+      <div class="aton-sidebar-toolbar" id="aton-sidebar-toolbar" hidden>
+        <button type="button" class="aton-topbar-icon" id="aton-sidebar-friends-btn" title="Друзья, заявки и блокировки" style="display:none;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span class="aton-topbar-icon-badge" id="aton-sidebar-friends-badge"></span>
+        </button>
+        <button type="button" class="aton-topbar-icon" id="aton-sidebar-theme-btn" title="Сменить тему">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+      </div>
     </div>
   `;
 
