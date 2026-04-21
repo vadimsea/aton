@@ -1876,9 +1876,14 @@ function createApp() {
     const peerUser = userByUsername(peer);
     const name = displayNameForPeer(currentUser.username, peer, peerUser);
     let html = `<div class="aton-peer-action-inner">
-      <span class="aton-peer-action-label">${escHtml(name)}</span>
+      <div class="aton-peer-action-row aton-peer-action-row--head">
+        <span class="aton-peer-action-label">${escHtml(name)}</span>
+        <button type="button" class="aton-peer-rename-local" data-peer="${escHtml(peer)}" title="Только на этом устройстве, для других не меняется">
+          <svg class="aton-peer-rename-local-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          <span class="aton-peer-rename-local-text">Изменить имя собеседника</span>
+        </button>
+      </div>
       <div class="aton-peer-action-btns">`;
-    html += `<button type="button" class="aton-peer-btn aton-peer-rename-local" data-peer="${escHtml(peer)}" title="Как показывать этого человека только вам (этот браузер)">Имя…</button>`;
     if (isBlocked) {
       html += `<button type="button" class="aton-peer-btn aton-peer-unblock" data-peer="${escHtml(peer)}">Разблокировать</button>`;
     } else {
@@ -1910,6 +1915,61 @@ function createApp() {
     }</button>`;
     html += `</div></div>`;
     inner.innerHTML = html;
+  }
+
+  function openPeerAliasModal(peer) {
+    if (!peer || !currentUser) return;
+    const peerUser = userByUsername(peer);
+    const cur = getPeerAliasesMap(currentUser.username)[peer] || "";
+    const defaultDisplay = peerUser?.displayName || peer;
+
+    const overlay = document.createElement("div");
+    overlay.className = "aton-peer-alias-overlay";
+    overlay.innerHTML = `
+      <div class="aton-peer-alias-backdrop" aria-label="Закрыть" role="presentation"></div>
+      <div class="aton-peer-alias-modal" role="dialog" aria-modal="true" aria-labelledby="aton-peer-alias-title">
+        <h2 class="aton-peer-alias-heading" id="aton-peer-alias-title">Изменить имя собеседника</h2>
+        <p class="aton-peer-alias-lead">Имя видите только вы в этом браузере. Остальные пользователи по-прежнему видят профиль в Атоне.</p>
+        <label class="aton-input-label" for="aton-peer-alias-input">Как показывать в чатах</label>
+        <input type="text" id="aton-peer-alias-input" class="aton-input aton-peer-alias-input" autocomplete="off" />
+        <p class="aton-peer-alias-footnote">Оставьте поле пустым и сохраните — вернётся имя из профиля.</p>
+        <div class="aton-peer-alias-actions">
+          <button type="button" class="aton-new-chat-button" id="aton-peer-alias-cancel">Отмена</button>
+          <button type="button" class="aton-primary-button" id="aton-peer-alias-save">Сохранить</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const input = overlay.querySelector("#aton-peer-alias-input");
+    input.value = cur || defaultDisplay;
+
+    const close = () => {
+      overlay.remove();
+      document.removeEventListener("keydown", onEsc);
+    };
+    const onEsc = (e) => {
+      if (e.key === "Escape") close();
+    };
+    document.addEventListener("keydown", onEsc);
+
+    overlay.querySelector(".aton-peer-alias-backdrop").addEventListener("click", close);
+    overlay.querySelector("#aton-peer-alias-cancel").addEventListener("click", close);
+    overlay.querySelector("#aton-peer-alias-save").addEventListener("click", () => {
+      const next = input.value.trim();
+      setPeerAlias(currentUser.username, peer, next);
+      renderChatList();
+      renderMessages();
+      updateTopbarTitle();
+      updatePeerActionBar();
+      showToast("Сохранено");
+      close();
+    });
+
+    requestAnimationFrame(() => {
+      input.focus();
+      input.select();
+    });
   }
 
   function renderContacts() {
@@ -1993,20 +2053,7 @@ function createApp() {
         e.preventDefault();
         const peer = renameBtn.getAttribute("data-peer");
         if (!peer || !currentUser) return;
-        const peerUser = userByUsername(peer);
-        const cur = getPeerAliasesMap(currentUser.username)[peer] || "";
-        const hint = peerUser?.displayName || peer;
-        const next = prompt(
-          "Как показывать этого человека у вас в чатах (только на этом устройстве).\nПусто — сбросить и снова показывать имя из профиля.",
-          cur || hint
-        );
-        if (next === null) return;
-        setPeerAlias(currentUser.username, peer, next);
-        renderChatList();
-        renderMessages();
-        updateTopbarTitle();
-        updatePeerActionBar();
-        showToast("Имя для вас обновлено");
+        openPeerAliasModal(peer);
         return;
       }
       const btn = e.target.closest("[data-peer]");
