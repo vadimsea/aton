@@ -55,6 +55,38 @@ function selfDisplayNameForUi(user, full) {
   return base.displayName || base.username || "";
 }
 
+/** Локальные имена собеседников: JSON в localStorage, только на этом устройстве. */
+const LOCAL_PEER_ALIASES_PREFIX = "aton_peer_aliases_";
+
+function getPeerAliasesMap(myUsername) {
+  if (!myUsername) return {};
+  try {
+    const raw = localStorage.getItem(LOCAL_PEER_ALIASES_PREFIX + myUsername);
+    const o = raw ? JSON.parse(raw) : {};
+    return o && typeof o === "object" ? o : {};
+  } catch {
+    return {};
+  }
+}
+
+function setPeerAlias(myUsername, peerUsername, alias) {
+  if (!myUsername || !peerUsername) return;
+  const map = getPeerAliasesMap(myUsername);
+  const t = String(alias || "").trim();
+  if (t) map[peerUsername] = t;
+  else delete map[peerUsername];
+  localStorage.setItem(LOCAL_PEER_ALIASES_PREFIX + myUsername, JSON.stringify(map));
+}
+
+/** Как показывать собеседника вам: локальный псевдоним или профиль / username. */
+function displayNameForPeer(myUsername, peerUsername, peerUser) {
+  if (!peerUsername) return peerUser?.displayName || "";
+  if (!myUsername) return peerUser?.displayName || peerUsername;
+  const map = getPeerAliasesMap(myUsername);
+  if (map[peerUsername]) return map[peerUsername];
+  return peerUser?.displayName || peerUsername;
+}
+
 function getNotifyMutedMap(username) {
   if (!username) return {};
   const raw = localStorage.getItem(LOCAL_NOTIFY_MUTED_KEY);
@@ -920,7 +952,7 @@ function createApp() {
     const peer = getPeerFromDmChatId(chatId);
     if (!peer) return "Новое сообщение";
     const u = userByUsername(peer);
-    return u?.displayName || peer;
+    return displayNameForPeer(currentUser.username, peer, u);
   }
 
   function formatNotifyBody(msg) {
@@ -1842,10 +1874,11 @@ function createApp() {
     const st = peerContactStatus(peer);
     const isBlocked = st === "blocked";
     const peerUser = userByUsername(peer);
-    const name = peerUser?.displayName || peer;
+    const name = displayNameForPeer(currentUser.username, peer, peerUser);
     let html = `<div class="aton-peer-action-inner">
       <span class="aton-peer-action-label">${escHtml(name)}</span>
       <div class="aton-peer-action-btns">`;
+    html += `<button type="button" class="aton-peer-btn aton-peer-rename-local" data-peer="${escHtml(peer)}" title="Как показывать этого человека только вам (этот браузер)">Имя…</button>`;
     if (isBlocked) {
       html += `<button type="button" class="aton-peer-btn aton-peer-unblock" data-peer="${escHtml(peer)}">Разблокировать</button>`;
     } else {
@@ -1953,6 +1986,27 @@ function createApp() {
         updatePeerActionBar();
         renderChatList();
         showToast(nextMuted ? "Для этого чата выключены звук и уведомления" : "Звук и уведомления снова включены");
+        return;
+      }
+      const renameBtn = e.target.closest(".aton-peer-rename-local");
+      if (renameBtn && peerActionBar.contains(renameBtn)) {
+        e.preventDefault();
+        const peer = renameBtn.getAttribute("data-peer");
+        if (!peer || !currentUser) return;
+        const peerUser = userByUsername(peer);
+        const cur = getPeerAliasesMap(currentUser.username)[peer] || "";
+        const hint = peerUser?.displayName || peer;
+        const next = prompt(
+          "Как показывать этого человека у вас в чатах (только на этом устройстве).\nПусто — сбросить и снова показывать имя из профиля.",
+          cur || hint
+        );
+        if (next === null) return;
+        setPeerAlias(currentUser.username, peer, next);
+        renderChatList();
+        renderMessages();
+        updateTopbarTitle();
+        updatePeerActionBar();
+        showToast("Имя для вас обновлено");
         return;
       }
       const btn = e.target.closest("[data-peer]");
@@ -2617,7 +2671,7 @@ function createApp() {
       const [a, b] = id.split("|");
       const peer = a === current.username ? b : a;
       const peerUser = userByUsername(peer);
-      const title = peerUser?.displayName || peer;
+      const title = displayNameForPeer(current.username, peer, peerUser);
       const chatMessages = allMessages
         .filter((m) => messageBelongsToDmId(m, id))
         .sort((a, b) => new Date(a.time) - new Date(b.time));
@@ -3060,7 +3114,12 @@ function createApp() {
         if (replied) {
           const replyPreview = document.createElement("div");
           replyPreview.className = "aton-message-reply-preview";
-          replyPreview.textContent = `${replied.from}: ${replied.text.slice(0, 60)}${
+          const replyWho = displayNameForPeer(
+            current.username,
+            replied.from,
+            userByUsername(replied.from)
+          );
+          replyPreview.textContent = `${replyWho}: ${replied.text.slice(0, 60)}${
             replied.text.length > 60 ? "…" : ""
           }`;
           bubble.appendChild(replyPreview);
@@ -3075,7 +3134,7 @@ function createApp() {
       if (!isSelf) {
         const senderEl = document.createElement("div");
         senderEl.className = "aton-message-sender";
-        const nameText = author?.displayName || msg.from;
+        const nameText = displayNameForPeer(current.username, msg.from, author);
         senderEl.textContent = nameText;
         if (authorIsVerified) {
           const badge = document.createElement("span");
@@ -4288,7 +4347,7 @@ function createApp() {
         return;
       }
       const peerUser = userByUsername(peer);
-      const name = peerUser?.displayName || peer;
+      const name = displayNameForPeer(current.username, peer, peerUser);
       const verified = Boolean(peerUser && peerUser.isVerified);
       setTitle(name, verified);
 
