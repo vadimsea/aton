@@ -25,6 +25,35 @@ const LOCAL_READS_KEY = "aton_chat_reads";
 const LAST_CHAT_KEY_PREFIX = "aton_last_chat_";
 /** Локально: для каких chatId отключены звук и всплывающие уведомления */
 const LOCAL_NOTIFY_MUTED_KEY = "aton_notify_muted_chats";
+/** Локально: как показывать себе своё имя в интерфейсе (не уходит на сервер). Ключ: aton_local_self_label_<username> */
+const LOCAL_SELF_LABEL_PREFIX = "aton_local_self_label_";
+
+function getLocalSelfDisplayName(username) {
+  if (!username) return "";
+  try {
+    const v = localStorage.getItem(LOCAL_SELF_LABEL_PREFIX + username);
+    return v ? String(v).trim() : "";
+  } catch {
+    return "";
+  }
+}
+
+function setLocalSelfDisplayName(username, label) {
+  if (!username) return;
+  const key = LOCAL_SELF_LABEL_PREFIX + username;
+  const t = String(label || "").trim();
+  if (t) localStorage.setItem(key, t);
+  else localStorage.removeItem(key);
+}
+
+/** Имя текущего пользователя в UI: локальная подмена или данные профиля. */
+function selfDisplayNameForUi(user, full) {
+  if (!user) return "";
+  const local = getLocalSelfDisplayName(user.username);
+  if (local) return local;
+  const base = full || user;
+  return base.displayName || base.username || "";
+}
 
 function getNotifyMutedMap(username) {
   if (!username) return {};
@@ -1504,7 +1533,7 @@ function createApp() {
       const tb = document.getElementById("aton-topbar");
       if (tb) tb.classList.remove("aton-topbar--guest");
       const full = userByUsername(user.username) || user;
-      const displayName = full.displayName || full.username;
+      const displayName = selfDisplayNameForUi(user, full);
       const publicId = full.publicId || full.username;
       loggedUserLabel.innerHTML = "";
       const nameSpan = document.createElement("span");
@@ -3080,7 +3109,8 @@ function createApp() {
       } else if (current) {
         const senderEl = document.createElement("div");
         senderEl.className = "aton-message-sender aton-message-sender--self";
-        const selfName = current.displayName || current.username || "";
+        const selfName =
+          getLocalSelfDisplayName(current.username) || current.displayName || current.username || "";
         senderEl.textContent = selfName;
         if (current.isVerified) {
           const badge = document.createElement("span");
@@ -3834,6 +3864,9 @@ function createApp() {
       </div>
       <label class="aton-input-label">Отображаемое имя</label>
       <input type="text" id="aton-profile-name" class="aton-input" style="margin-bottom:6px;" />
+      <label class="aton-input-label" style="margin-top:4px;">Как видеть себя в чатах (только у вас)</label>
+      <input type="text" id="aton-profile-local-name" class="aton-input" style="margin-bottom:4px;" placeholder="Только в этом браузере, для других не меняется" />
+      <div style="font-size:10px;color:#6b7280;margin-bottom:8px;line-height:1.35;">Не отправляется на сервер. Пустое поле — показывается имя из профиля выше.</div>
       <label class="aton-input-label">Статус</label>
       <input type="text" id="aton-profile-bio" class="aton-input" placeholder="Например: «Пишу при свете Атена»" />
       <label class="aton-input-label" style="margin-top:6px;">ID профиля</label>
@@ -3849,12 +3882,14 @@ function createApp() {
   document.body.appendChild(overlay);
 
   const nameInput = modal.querySelector("#aton-profile-name");
+  const localNameInput = modal.querySelector("#aton-profile-local-name");
   const bioInput = modal.querySelector("#aton-profile-bio");
   const publicIdInput = modal.querySelector("#aton-profile-public-id");
   const avatarInput = modal.querySelector("#aton-profile-avatar");
   const avatarPreview = modal.querySelector("#aton-profile-avatar-preview");
 
   nameInput.value = user.displayName || user.username;
+  if (localNameInput) localNameInput.value = getLocalSelfDisplayName(user.username);
   bioInput.value = user.bio || "";
   publicIdInput.value = user.publicId || user.username;
 
@@ -3878,6 +3913,9 @@ function createApp() {
 
   modal.querySelector("#aton-profile-save").addEventListener("click", async () => {
     try {
+      if (localNameInput) {
+        setLocalSelfDisplayName(currentUser.username, localNameInput.value);
+      }
       const displayName = nameInput.value.trim() || user.username;
       const bio = bioInput.value.trim();
       const publicId = publicIdInput.value.trim();
