@@ -56,6 +56,27 @@ export async function uploadOutDir(localOutDir) {
   try {
     await client.access({ host, user, password: pass, port, secure: false });
     const files = await walkLocalFiles(path.resolve(localOutDir));
+    /** Уникальные префиксы `remoteRoot/.../папка` — Pure-FTPd иногда даёт 553, если вложенный STOR без явных катаалогов. */
+    const parentDirs = new Set();
+    for (const { relPosix } of files) {
+      const remote = path.posix.join(remoteRoot, relPosix);
+      let p = path.posix.dirname(remote);
+      while (p && p !== "." && p !== "/") {
+        parentDirs.add(p);
+        p = path.posix.dirname(p);
+        if (p === remoteRoot) break;
+      }
+    }
+    const byDepth = Array.from(parentDirs).sort(
+      (a, b) => a.split("/").length - b.split("/").length
+    );
+    for (const d of byDepth) {
+      try {
+        await client.ensureDir(d);
+      } catch (e) {
+        console.warn("FTP ensureDir", d, e.message || e);
+      }
+    }
     for (const { localPath, relPosix } of files) {
       const remote = path.posix.join(remoteRoot, relPosix);
       await client.uploadFrom(localPath, remote);

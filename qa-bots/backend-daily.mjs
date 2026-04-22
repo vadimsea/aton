@@ -74,8 +74,8 @@ function runSmoke() {
 }
 
 async function main() {
-  if (!process.env.GROG_API_KEY) {
-    console.error("Нужен GROG_API_KEY");
+  if (!process.env.GROQ_API_KEY) {
+    console.error("Нужен GROQ_API_KEY");
     process.exit(1);
   }
   await mkdir(OUT, { recursive: true });
