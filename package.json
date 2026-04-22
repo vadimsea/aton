@@ -13,6 +13,8 @@
     "db:smoke": "node scripts/pg-smoke.js",
     "qa:prod": "node scripts/qa-prod-smoke.js",
     "qa:monitor": "node scripts/qa-monitor-dm.mjs",
+    "qa:bot:fe": "node qa-bots/frontend-daily.mjs",
+    "qa:bot:be": "node qa-bots/backend-daily.mjs",
     "dev:embedded": "node scripts/embedded-dev.mjs",
     "postinstall": "prisma generate"
   },
@@ -26,6 +28,7 @@
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
+    "basic-ftp": "^5.2.1",
     "embedded-postgres": "^18.3.0-beta.16",
     "playwright": "^1.49.1",
     "prisma": "^6.19.0",
