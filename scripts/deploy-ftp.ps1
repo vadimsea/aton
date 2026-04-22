@@ -14,13 +14,13 @@ Get-Content $envFile | ForEach-Object {
   if ($_ -match '^\s*#' -or $_ -notmatch '=') { return }
   $k, $v = $_ -split '=', 2
   $k = $k.Trim()
-  $v = $v.Trim().Trim('"').Trim("'")
+  if ($null -eq $v) { $v = "" } else { $v = $v.Trim().Trim('"').Trim("'") }
   if ($k) { Set-Item -Path "env:$k" -Value $v }
 }
 
-$required = @("FTP_HOST", "FTP_USER", "FTP_PASS", "FTP_REMOTE_DIR")
+$required = @("FTP_HOST", "FTP_USER", "FTP_PASS")
 foreach ($r in $required) {
-  if (-not [Environment]::GetEnvironmentVariable($r, "Process")) {
+  if ([string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($r, "Process"))) {
     Write-Error "Missing env: $r"
   }
 }
@@ -32,8 +32,7 @@ $ftpHost = [Environment]::GetEnvironmentVariable("FTP_HOST", "Process")
 $ftpUser = [Environment]::GetEnvironmentVariable("FTP_USER", "Process")
 $ftpPass = [Environment]::GetEnvironmentVariable("FTP_PASS", "Process")
 $remoteDir = [Environment]::GetEnvironmentVariable("FTP_REMOTE_DIR", "Process")
-if ($remoteDir -notmatch '^/') { $remoteDir = "/$remoteDir" }
-$remoteDir = $remoteDir.TrimEnd('/')
+$remoteDir = $remoteDir.Trim().TrimStart('/').TrimEnd('/')
 
 $staging = Join-Path $root ".deploy-staging"
 if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
@@ -65,17 +64,12 @@ foreach ($f in $files) {
   if ($f.patch) { Patch-Meta -src $from -dst $to } else { Copy-Item $from $to -Force }
 }
 
-$wc = New-Object System.Net.WebClient
-$wc.Credentials = New-Object System.Net.NetworkCredential($ftpUser, $ftpPass)
-
-Write-Host "Uploading to ftp://${ftpHost}${remoteDir}/ ..."
-Get-ChildItem $staging -File | ForEach-Object {
-  $name = $_.Name
-  $uri = "ftp://${ftpHost}${remoteDir}/${name}"
-  Write-Host "  -> $name"
-  $wc.UploadFile($uri, $_.FullName)
-}
-
-$wc.Dispose()
+$remLabel = if ($remoteDir -eq ".") { "web root (PWD)" } else { $remoteDir }
+Write-Host "Uploading via basic-ftp to $ftpHost ($remLabel) ..."
+$node = Get-Command node -ErrorAction SilentlyContinue
+if (-not $node) { Write-Error "Need Node.js in PATH" }
+$upload = Join-Path $root "scripts/ftp-upload-deploy.mjs"
+& $node.Source $upload $staging
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Remove-Item $staging -Recurse -Force
 Write-Host "Done. aton-api-base is set to: [$apiBase]"

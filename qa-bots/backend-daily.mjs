@@ -5,6 +5,7 @@
  * Env: GROQ_API_KEY, QA_BASE, FTP_*, optional GROQ_TEXT_MODEL
  */
 
+import { loadQaBotsEnv } from "./lib/load-env.mjs";
 import { spawnSync } from "child_process";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
@@ -12,6 +13,8 @@ import { fileURLToPath } from "url";
 import { groqText } from "./lib/groq.mjs";
 import { uploadOutDir } from "./lib/ftp-client.mjs";
 import { writeIndexHtml } from "./lib/report-index.mjs";
+
+loadQaBotsEnv();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");

@@ -2,16 +2,19 @@
  * Ежедневный бот: эмулирует пользователя (логин по токену), 3 вьюпорта (ПК / планшет / мобилка),
  * скрины → Groq vision → отчёты design/UX. Загрузка на FTP (FTP_QA_DIR).
  *
- * Env: GROG_API_KEY, QA_BOT_TOKEN, QA_FRONTEND_URL,
+ * Env: GROQ_API_KEY, QA_BOT_TOKEN, QA_FRONTEND_URL,
  *      FTP_HOST, FTP_USER, FTP_PASS, FTP_QA_DIR
  */
 
+import { loadQaBotsEnv } from "./lib/load-env.mjs";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { groqVision } from "./lib/groq.mjs";
 import { uploadOutDir } from "./lib/ftp-client.mjs";
 import { writeIndexHtml } from "./lib/report-index.mjs";
+
+loadQaBotsEnv();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
@@ -31,7 +34,7 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function runUserFlowAndShot(page, tag) {
+async function runUserFlowAndShot(page, tag, shotDir) {
   await page.goto(FRONT, { waitUntil: "domcontentloaded", timeout: 90_000 });
   await page.evaluate(
     ([k, v]) => {
@@ -64,7 +67,7 @@ async function runUserFlowAndShot(page, tag) {
       /* */
     }
   }
-  const outP = path.join(OUT, `fe-${tag}.png`);
+  const outP = path.join(shotDir, `fe-${tag}.png`);
   await page.screenshot({ path: outP, fullPage: false, type: "png" });
   return outP;
 }
@@ -80,6 +83,11 @@ async function main() {
   }
 
   await mkdir(OUT, { recursive: true });
+  const stamp = new Date();
+  const dateStr = stamp.toISOString().slice(0, 10);
+  const timeStr = stamp.toISOString();
+  const shotDir = path.join(OUT, "shots", dateStr);
+  await mkdir(shotDir, { recursive: true });
 
   const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: true });
@@ -93,7 +101,7 @@ async function main() {
         deviceScaleFactor: vp.name === "mobile" ? 2 : 1,
       });
       try {
-        const p = await runUserFlowAndShot(page, vp.name);
+        const p = await runUserFlowAndShot(page, vp.name, shotDir);
         shots.push(p);
         labels.push(vp.label);
       } finally {
@@ -104,14 +112,7 @@ async function main() {
     await browser.close();
   }
 
-  const { unlink } = await import("fs/promises");
-  for (const p of shots) {
-    await unlink(p).catch(() => {});
-  }
-
-  const stamp = new Date();
-  const dateStr = stamp.toISOString().slice(0, 10);
-  const timeStr = stamp.toISOString();
+  // Скриншоты оставляем в out/shots/ДАТА/ — Groq читает их ДО очистки (раньше PNG удаляли до vision — анализ шёл без картинок).
 
   const system = `Ты ведущий продуктовый дизайнер и UX-аудитор веб-мессенджера «Атон».
 Пиши структурированно на русском. Без воды.`;
@@ -148,7 +149,8 @@ async function main() {
 
 **Время (UTC):** ${timeStr}  
 **URL:** ${FRONT}  
-**Вьюпорты:** ${labels.join(", ")}
+**Вьюпорты:** ${labels.join(", ")}  
+**Скриншоты (PNG):** \`qa-bots/out/shots/${dateStr}/\` — \`fe-desktop.png\`, \`fe-tablet.png\`, \`fe-mobile.png\` (после заливки: \`/qa-bots/shots/${dateStr}/\` на хосте)
 
 ---
 
@@ -190,7 +192,7 @@ pre.content{white-space:pre-wrap;word-break:break-word;font-size:0.9rem;margin-t
   if (process.env.FTP_HOST && process.env.FTP_USER && process.env.FTP_PASS) {
     try {
       await uploadOutDir(OUT);
-      console.log("FTP: залито в", process.env.FTP_QA_DIR || "/public_html/qa-bots");
+      console.log("FTP: залито в", process.env.FTP_QA_DIR || "qa-bots", "(+ подпапки, напр. shots/… )");
     } catch (e) {
       console.error("FTP ошибка:", e.message || e);
       process.exit(1);
