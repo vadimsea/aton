@@ -34,7 +34,7 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function runUserFlowAndShot(page, tag, shotDir) {
+async function runUserFlowAndShot(page, tag, dateStr) {
   await page.goto(FRONT, { waitUntil: "domcontentloaded", timeout: 90_000 });
   await page.evaluate(
     ([k, v]) => {
@@ -67,7 +67,8 @@ async function runUserFlowAndShot(page, tag, shotDir) {
       /* */
     }
   }
-  const outP = path.join(shotDir, `fe-${tag}.png`);
+  // Плоские имена в out/ (без shots/дата/) — тот же уровень, что у бэкенд-отчётов, чтобы FTP (Pure-FTPd) заливал без 553
+  const outP = path.join(OUT, `fe-${dateStr}-${tag}.png`);
   await page.screenshot({ path: outP, fullPage: false, type: "png" });
   return outP;
 }
@@ -86,9 +87,6 @@ async function main() {
   const stamp = new Date();
   const dateStr = stamp.toISOString().slice(0, 10);
   const timeStr = stamp.toISOString();
-  const shotDir = path.join(OUT, "shots", dateStr);
-  await mkdir(shotDir, { recursive: true });
-
   const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: true });
   const shots = [];
@@ -101,7 +99,7 @@ async function main() {
         deviceScaleFactor: vp.name === "mobile" ? 2 : 1,
       });
       try {
-        const p = await runUserFlowAndShot(page, vp.name, shotDir);
+        const p = await runUserFlowAndShot(page, vp.name, dateStr);
         shots.push(p);
         labels.push(vp.label);
       } finally {
@@ -150,7 +148,7 @@ async function main() {
 **Время (UTC):** ${timeStr}  
 **URL:** ${FRONT}  
 **Вьюпорты:** ${labels.join(", ")}  
-**Скриншоты (PNG):** \`qa-bots/out/shots/${dateStr}/\` — \`fe-desktop.png\`, \`fe-tablet.png\`, \`fe-mobile.png\` (после заливки: \`/qa-bots/shots/${dateStr}/\` на хосте)
+**Скриншоты (PNG):** в \`out/\` плоские файлы \`fe-${dateStr}-desktop.png\` и т.д.; на FTP: \`/qa-bots/\` рядом с отчётами
 
 ---
 
