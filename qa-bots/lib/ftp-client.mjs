@@ -71,12 +71,17 @@ export async function uploadOutDir(localOutDir) {
       (a, b) => a.split("/").length - b.split("/").length
     );
     for (const d of byDepth) {
+      if (d === remoteRoot) continue;
       try {
         await client.ensureDir(d);
       } catch (e) {
         console.warn("FTP ensureDir", d, e.message || e);
       }
     }
+    files.sort(
+      (a, b) =>
+        a.relPosix.split("/").length - b.relPosix.split("/").length
+    );
     for (const { localPath, relPosix } of files) {
       const remote = path.posix.join(remoteRoot, relPosix);
       await client.uploadFrom(localPath, remote);
