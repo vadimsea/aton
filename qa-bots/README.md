@@ -47,6 +47,14 @@ Groq **vision** анализирует именно эти PNG, затем фа�
 
 `powershell -ExecutionPolicy Bypass -File scripts/finish-qa-bots.ps1`
 
+**Полуавтомат** (токен бота через `POST /api/login` по `QA_BOT_EMAIL`/`QA_BOT_PASSWORD` + GitHub без браузерного входа через `GITHUB_PAT` в `.env`):
+
+1. Создать [classic token](https://github.com/settings/tokens) (scope `repo`), в корневой `.env`: `GITHUB_PAT=ghp_...`  
+2. В `.env` указать `QA_BOT_EMAIL` и `QA_BOT_PASSWORD` **тест-бота** (подтверждённая почта).  
+3. Запустить: `powershell -ExecutionPolicy Bypass -File scripts/one-setup-qa.ps1`  
+
+Скрипт: `node scripts/fetch-qa-bot-token.mjs` → `gh auth login --with-token` → `push-qa-secrets-to-github.ps1`. Без `GITHUB_PAT` запросит обычный `gh auth login` вручную.
+
 Или вручную:
 
 1. Установите [GitHub CLI](https://cli.github.com/), выполните `gh auth login`.
