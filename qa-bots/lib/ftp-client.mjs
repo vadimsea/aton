@@ -78,6 +78,12 @@ export async function uploadOutDir(localOutDir) {
         console.warn("FTP ensureDir", d, e.message || e);
       }
     }
+    // ensureDir оставляет CWD внутри вложенной папки; пути "qa-bots/…" дальше читаются неверно → 553
+    try {
+      await client.cd("/");
+    } catch {
+      // ignore
+    }
     files.sort(
       (a, b) =>
         a.relPosix.split("/").length - b.relPosix.split("/").length
