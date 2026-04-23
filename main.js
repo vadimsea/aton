@@ -1,18 +1,30 @@
 // Атон — фронтенд мессенджера, работающий с Node.js backend (server.js)
 
 const TOKEN_KEY = "aton_token";
+/** Системный ассистент (сервер: тот же username). */
+const GOLOS_ATON_USERNAME = "golos_aton";
 
 // Базовый URL API и WebSocket (один и тот же хост, что и Socket.io на бэкенде).
-// 1) <meta name="aton-api-base" content="https://..."> — прод: фронт на хостинге, API на Render и т.п.
-// 2) Иначе: тот же origin на :3000 — относительные URL.
-// 3) Dev: фронт не на :3000 — подставляем :3000 на том же hostname.
+// 1) localhost / 127.0.0.1 сначала — локальный :3000 не перекрывается meta.
+// 2) <meta name="aton-api-base"> — прод-API (в index.html) или пусто.
+// 3) известные домены фронта — fallback на Render.
+// 4) иначе :3000 на том же host.
 function getApiBase() {
+  const host = window.location.hostname || "";
+  if (host === "localhost" || host === "127.0.0.1" || host === "[::1]") {
+    const origin = window.location.origin || "";
+    if (origin.endsWith(":3000")) return "";
+    return `${window.location.protocol}//${host}:3000`;
+  }
   const meta = document.querySelector('meta[name="aton-api-base"]')?.getAttribute("content")?.trim();
   if (meta) return meta.replace(/\/$/, "");
+  if (host === "aten.vadzim.by" || host === "www.aten.vadzim.by") {
+    return "https://aton-api.onrender.com";
+  }
   const origin = window.location.origin;
   if (!origin) return "";
   if (origin.endsWith(":3000")) return "";
-  return `${window.location.protocol}//${window.location.hostname}:3000`;
+  return `${window.location.protocol}//${host}:3000`;
 }
 
 const API_BASE = getApiBase();
@@ -84,6 +96,7 @@ function displayNameForPeer(myUsername, peerUsername, peerUser) {
   if (!myUsername) return peerUser?.displayName || peerUsername;
   const map = getPeerAliasesMap(myUsername);
   if (map[peerUsername]) return map[peerUsername];
+  if (peerUsername === GOLOS_ATON_USERNAME) return "Голос Атона";
   return peerUser?.displayName || peerUsername;
 }
 
@@ -1348,7 +1361,7 @@ function createApp() {
       reader.onloadend = async () => {
         const audioDataUrl = reader.result;
         try {
-          const to = currentChatId.startsWith("group:") ? null : currentChatPeer();
+          const to = dmToForApi();
           const chatId = currentChatId;
           const msg = await api("/api/messages", {
             method: "POST",
@@ -1767,6 +1780,16 @@ function createApp() {
     return a === current.username ? b : a;
   }
 
+  /** Для POST: JSON.stringify не сериализует undefined — иначе сервер не получает to и «Голос Атона» не отвечает. */
+  function dmToForApi() {
+    if (!currentChatId) return null;
+    if (currentChatId === "global" || currentChatId.startsWith("group:") || currentChatId.startsWith("channel:")) {
+      return null;
+    }
+    const p = currentChatPeer();
+    return p === undefined ? null : p;
+  }
+
   function peerContactStatus(username) {
     if (!username) return "none";
     if (contacts.blocked.some((b) => b.username === username)) return "blocked";
@@ -1874,6 +1897,11 @@ function createApp() {
       currentChatId.startsWith("group:") ||
       currentChatId.startsWith("channel:")
     ) {
+      wrap.hidden = true;
+      inner.innerHTML = "";
+      return;
+    }
+    if (peer === GOLOS_ATON_USERNAME) {
       wrap.hidden = true;
       inner.innerHTML = "";
       return;
@@ -2123,14 +2151,17 @@ function createApp() {
       (c) => c.type === "group" || c.type === "channel" || !c.type
     );
 
-    const privateChatIds = new Set();
+    const privateFromMessages = new Set();
     allMessages.forEach((m) => {
       if (!m.to) return;
       const id = chatIdForUsers(m.from, m.to);
       if (m.from === current.username || m.to === current.username) {
-        privateChatIds.add(id);
+        privateFromMessages.add(id);
       }
     });
+    const privateChatIds = new Set(privateFromMessages);
+    const golosDmId = chatIdForUsers(current.username, GOLOS_ATON_USERNAME);
+    privateChatIds.add(golosDmId);
 
     // Учитываем пин и непрочитанные для групп
     const sortedChats = [...chats].sort((a, b) => {
@@ -2144,10 +2175,127 @@ function createApp() {
       return (a.title || "").localeCompare(b.title || "");
     });
 
-    // Считаем непрочитанные для групп и приватных чатов для иконок в топбаре
     let groupUnreadTotal = 0;
+    let privateUnreadTotal = 0;
 
-    // Учитываем пин и непрочитанные для групп
+    function appendPrivateListRow(dmId) {
+      if (chatFilter === "group" && dmId !== golosDmId) return;
+      const [a, b] = dmId.split("|");
+      const peer = a === current.username ? b : a;
+      const isGolos = peer === GOLOS_ATON_USERNAME;
+      const peerUser = userByUsername(peer);
+      const title = displayNameForPeer(current.username, peer, peerUser);
+      const chatMessages = allMessages
+        .filter((m) => messageBelongsToDmId(m, dmId))
+        .sort((a, b) => new Date(a.time) - new Date(b.time));
+      const lastMsg = chatMessages[chatMessages.length - 1];
+      const unread = countUnreadInbound(chatMessages, reads[dmId], current.username);
+      privateUnreadTotal += unread;
+      const pinned = pins.has(dmId);
+      const presence = isGolos
+        ? { text: "Помощник", title: "Голос Атона", online: true }
+        : formatPeerPresence(peerUser);
+      const peerOnline = presence.online;
+      const pMuted = isChatNotifyMuted(current.username, dmId);
+      const item = document.createElement("button");
+      item.className =
+        "aton-chat-item" +
+        (currentChatId === dmId ? " active" : "") +
+        (pMuted ? " aton-chat-item--notify-muted" : "");
+
+      const avatar = document.createElement("div");
+      avatar.className = "aton-chat-avatar";
+      if (isGolos) {
+        avatar.textContent = "☀";
+      } else if (peerUser?.avatarDataUrl) {
+        const img = document.createElement("img");
+        img.src = peerUser.avatarDataUrl;
+        avatar.appendChild(img);
+      } else {
+        avatar.textContent = (title || peer).slice(0, 1).toUpperCase();
+      }
+
+      const main = document.createElement("div");
+      main.className = "aton-chat-item-main";
+      const titleEl = document.createElement("div");
+      titleEl.className = "aton-chat-item-title";
+      titleEl.textContent = title;
+      if (pinned && !isGolos) {
+        const pinSpan = document.createElement("span");
+        pinSpan.className = "aton-chat-pin";
+        pinSpan.textContent = "★";
+        titleEl.appendChild(pinSpan);
+      }
+      if (pMuted) {
+        const offEl = document.createElement("span");
+        offEl.className = "aton-chat-notify-off";
+        offEl.title = "Уведомления отключены";
+        offEl.setAttribute("aria-label", "Уведомления отключены");
+        offEl.textContent = "🔕";
+        titleEl.appendChild(offEl);
+      }
+      const subtitleEl = document.createElement("div");
+      subtitleEl.className = "aton-chat-item-subtitle";
+      if (isGolos) {
+        subtitleEl.textContent = "Помощник «Атона» · вопросы и подсказки";
+      } else {
+        const onlineDot = document.createElement("span");
+        onlineDot.className = `aton-chat-online-dot ${peerOnline ? "online" : "offline"}`;
+        subtitleEl.appendChild(onlineDot);
+        subtitleEl.appendChild(
+          document.createTextNode(`@${peer} · ${presence.text}`)
+        );
+        subtitleEl.title = presence.title || presence.text;
+      }
+      const previewEl = document.createElement("div");
+      previewEl.className = "aton-chat-item-subtitle";
+      if (lastMsg) {
+        let preview = "";
+        if (lastMsg.type === "image") preview = "📷 Фото";
+        else if (lastMsg.type === "audio") preview = "🎙 Голосовое сообщение";
+        if (lastMsg.text) {
+          preview = (preview ? preview + " · " : "") + lastMsg.text;
+        }
+        previewEl.textContent = preview || "Сообщение без текста";
+      } else {
+        previewEl.textContent = "Нет сообщений";
+      }
+      main.appendChild(titleEl);
+      main.appendChild(subtitleEl);
+      main.appendChild(previewEl);
+
+      const metaWrap = document.createElement("div");
+      metaWrap.className = "aton-chat-meta";
+      const timeEl = document.createElement("div");
+      timeEl.className = "aton-chat-time";
+      timeEl.textContent = lastMsg ? formatTimeLabel(lastMsg.time) : "";
+      metaWrap.appendChild(timeEl);
+      if (unread) {
+        const badge = document.createElement("div");
+        badge.className = "aton-chat-unread-badge";
+        badge.textContent = Math.min(unread, 99);
+        metaWrap.appendChild(badge);
+      }
+
+      item.appendChild(avatar);
+      item.appendChild(main);
+      item.appendChild(metaWrap);
+      item.addEventListener("click", () => {
+        currentChatId = dmId;
+        switchSocketChat(currentChatId);
+        if (current.username) setLastChatId(current.username, currentChatId);
+        const newReads = { ...reads, [dmId]: new Date().toISOString() };
+        setChatReads(current.username, newReads);
+        renderChatList();
+        renderMessages();
+        updateTopbarTitle();
+      });
+      chatListEl.appendChild(item);
+    }
+
+    appendPrivateListRow(golosDmId);
+
+    // Считаем непрочитанные для групп и приватных чатов для иконок в топбаре
     sortedChats.forEach((chatMeta) => {
       const chatMessages = allMessages
         .filter((m) => m.chatId === chatMeta.id)
@@ -2661,8 +2809,8 @@ function createApp() {
       chatListEl.appendChild(item);
     });
 
-    // Если нет ни одной группы и ни одного приватного диалога — показываем пустое состояние
-    if (sortedChats.length === 0 && privateChatIds.size === 0) {
+    // Нет групп и нет личных диалогов с людьми (чат с «Голосом Атона» уже показан выше)
+    if (sortedChats.length === 0 && privateFromMessages.size === 0) {
       const empty = document.createElement("div");
       empty.className = "aton-chat-onboarding";
       empty.innerHTML = `
@@ -2711,127 +2859,17 @@ function createApp() {
           if (!createGroupButton.disabled) createGroupButton.click();
         });
       }
-      return;
     }
 
-    // Приватные: сначала те, с кем недавнее общение
-    const privateIdsSorted = Array.from(privateChatIds).sort((a, b) => {
-      const ta = lastActivityAtForDmChatId(a, allMessages);
-      const tb = lastActivityAtForDmChatId(b, allMessages);
-      if (tb !== ta) return tb - ta;
-      return a.localeCompare(b);
-    });
-    let privateUnreadTotal = 0;
-    privateIdsSorted.forEach((id) => {
-      const [a, b] = id.split("|");
-      const peer = a === current.username ? b : a;
-      const peerUser = userByUsername(peer);
-      const title = displayNameForPeer(current.username, peer, peerUser);
-      const chatMessages = allMessages
-        .filter((m) => messageBelongsToDmId(m, id))
-        .sort((a, b) => new Date(a.time) - new Date(b.time));
-      const lastMsg = chatMessages[chatMessages.length - 1];
-      const unread = countUnreadInbound(chatMessages, reads[id], current.username);
-      const pinned = pins.has(id);
-      const presence = formatPeerPresence(peerUser);
-      const peerOnline = presence.online;
-      privateUnreadTotal += unread;
-      if (chatFilter === "group") {
-        // В режиме «группы» личные чаты скрываем
-        return;
-      }
-
-      const pMuted = isChatNotifyMuted(current.username, id);
-      const item = document.createElement("button");
-      item.className =
-        "aton-chat-item" +
-        (currentChatId === id ? " active" : "") +
-        (pMuted ? " aton-chat-item--notify-muted" : "");
-
-      const avatar = document.createElement("div");
-      avatar.className = "aton-chat-avatar";
-      if (peerUser?.avatarDataUrl) {
-        const img = document.createElement("img");
-        img.src = peerUser.avatarDataUrl;
-        avatar.appendChild(img);
-      } else {
-        avatar.textContent = (title || peer).slice(0, 1).toUpperCase();
-      }
-
-      const main = document.createElement("div");
-      main.className = "aton-chat-item-main";
-      const titleEl = document.createElement("div");
-      titleEl.className = "aton-chat-item-title";
-      titleEl.textContent = title;
-      if (pinned) {
-        const pinSpan = document.createElement("span");
-        pinSpan.className = "aton-chat-pin";
-        pinSpan.textContent = "★";
-        titleEl.appendChild(pinSpan);
-      }
-      if (pMuted) {
-        const offEl = document.createElement("span");
-        offEl.className = "aton-chat-notify-off";
-        offEl.title = "Уведомления отключены";
-        offEl.setAttribute("aria-label", "Уведомления отключены");
-        offEl.textContent = "🔕";
-        titleEl.appendChild(offEl);
-      }
-      const subtitleEl = document.createElement("div");
-      subtitleEl.className = "aton-chat-item-subtitle";
-      const onlineDot = document.createElement("span");
-      onlineDot.className = `aton-chat-online-dot ${peerOnline ? "online" : "offline"}`;
-      subtitleEl.appendChild(onlineDot);
-      subtitleEl.appendChild(
-        document.createTextNode(`@${peer} · ${presence.text}`)
-      );
-      subtitleEl.title = presence.title || presence.text;
-      const previewEl = document.createElement("div");
-      previewEl.className = "aton-chat-item-subtitle";
-      if (lastMsg) {
-        let preview = "";
-        if (lastMsg.type === "image") preview = "📷 Фото";
-        else if (lastMsg.type === "audio") preview = "🎙 Голосовое сообщение";
-        if (lastMsg.text) {
-          preview = (preview ? preview + " · " : "") + lastMsg.text;
-        }
-        previewEl.textContent =
-          preview || "Сообщение без текста";
-      } else {
-        previewEl.textContent = "Нет сообщений";
-      }
-      main.appendChild(titleEl);
-      main.appendChild(subtitleEl);
-      main.appendChild(previewEl);
-
-      const metaWrap = document.createElement("div");
-      metaWrap.className = "aton-chat-meta";
-      const timeEl = document.createElement("div");
-      timeEl.className = "aton-chat-time";
-      timeEl.textContent = lastMsg ? formatTimeLabel(lastMsg.time) : "";
-      metaWrap.appendChild(timeEl);
-      if (unread) {
-        const badge = document.createElement("div");
-        badge.className = "aton-chat-unread-badge";
-        badge.textContent = Math.min(unread, 99);
-        metaWrap.appendChild(badge);
-      }
-
-      item.appendChild(avatar);
-      item.appendChild(main);
-      item.appendChild(metaWrap);
-      item.addEventListener("click", () => {
-        currentChatId = id;
-        switchSocketChat(currentChatId);
-        if (current.username) setLastChatId(current.username, currentChatId);
-        const newReads = { ...reads, [id]: new Date().toISOString() };
-        setChatReads(current.username, newReads);
-        renderChatList();
-        renderMessages();
-        updateTopbarTitle();
+    const privateIdsSorted = Array.from(privateChatIds)
+      .filter((id) => id !== golosDmId)
+      .sort((a, b) => {
+        const ta = lastActivityAtForDmChatId(a, allMessages);
+        const tb = lastActivityAtForDmChatId(b, allMessages);
+        if (tb !== ta) return tb - ta;
+        return a.localeCompare(b);
       });
-      chatListEl.appendChild(item);
-    });
+    privateIdsSorted.forEach((id) => appendPrivateListRow(id));
 
     // Обновляем бейджи на иконках в топбаре
     if (filterPrivateBadge) {
@@ -3407,7 +3445,7 @@ function createApp() {
       return;
     }
 
-    const to = currentChatId.startsWith("group:") ? null : currentChatPeer();
+    const to = dmToForApi();
     const chatId = currentChatId;
     const replyToId = replyToMessage ? replyToMessage.id : null;
 
@@ -3500,7 +3538,7 @@ function createApp() {
     reader.onload = async () => {
       const imageDataUrl = reader.result;
       try {
-        const to = currentChatId.startsWith("group:") ? null : currentChatPeer();
+        const to = dmToForApi();
         const chatId = currentChatId;
         const msg = await api("/api/messages", {
           method: "POST",
@@ -4553,6 +4591,13 @@ function createApp() {
         setTitle("Личный диалог", false);
         statusEl.textContent = "";
         statusEl.removeAttribute("title");
+        return;
+      }
+      if (peer === GOLOS_ATON_USERNAME) {
+        setTitle("Голос Атона", true);
+        statusEl.textContent = "Помощник";
+        statusEl.setAttribute("title", "Помощник мессенджера «Атон»");
+        statusEl.classList.add("aton-topbar-status--online");
         return;
       }
       const peerUser = userByUsername(peer);

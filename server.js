@@ -17,8 +17,49 @@ const {
   messageFromPrismaRow,
   generateUniquePublicId,
 } = require("./lib/aton-mappers");
+const { fetchGolosReply } = require("./lib/golos-groq");
 
 const app = express();
+/** Системный ассистент: один DM с каждым пользователем, без входа в аккаунт. */
+const GOLOS_ATON_USERNAME = "golos_aton";
+const GOLOS_ATON_EMAIL = "golos_aton@system.internal";
+const GOLOS_RATE = new Map();
+const GOLOS_RATE_WINDOW_MS = 60 * 60 * 1000;
+const GOLOS_MAX_PER_WINDOW = 40;
+
+function golosRateAllow(username) {
+  if (!username) return true;
+  const now = Date.now();
+  const rec = GOLOS_RATE.get(username) || { count: 0, windowStart: now };
+  if (now - rec.windowStart > GOLOS_RATE_WINDOW_MS) {
+    rec.count = 0;
+    rec.windowStart = now;
+  }
+  rec.count += 1;
+  GOLOS_RATE.set(username, rec);
+  return rec.count <= GOLOS_MAX_PER_WINDOW;
+}
+
+function dmChatIdForUsernames(a, b) {
+  return [a, b].sort().join("|");
+}
+
+/** Собеседник в личке user|user, если в теле не пришло to (клиент мог опустить undefined в JSON). */
+function dmPeerFromChatId(chatId, myUsername) {
+  if (!myUsername || !chatId || typeof chatId !== "string" || !chatId.includes("|")) {
+    return null;
+  }
+  if (chatId === "global" || chatId.startsWith("group:") || chatId.startsWith("channel:")) {
+    return null;
+  }
+  const parts = chatId.split("|");
+  if (parts.length !== 2) return null;
+  const a = parts[0];
+  const b = parts[1];
+  if (a === myUsername) return b;
+  if (b === myUsername) return a;
+  return null;
+}
 const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
 
@@ -69,8 +110,21 @@ app.use((req, res, next) => {
 app.use(express.static(__dirname));
 
 /** Лёгкая проверка для мониторинга и CI (без БД-логики в ответе). */
-app.get("/api/health", (req, res) => {
-  res.json({ ok: true, service: "aton-api", ts: new Date().toISOString() });
+app.get("/api/health", async (req, res) => {
+  const out = { ok: true, service: "aton-api", ts: new Date().toISOString() };
+  try {
+    out.groqKeyConfigured = Boolean(String(process.env.GROQ_API_KEY || "").trim());
+    out.nodeFetch = typeof globalThis.fetch === "function";
+    out.nodeVersion = process.version;
+    const golos = await prisma.user.findUnique({
+      where: { username: GOLOS_ATON_USERNAME },
+      select: { id: true, username: true },
+    });
+    out.golosUserExists = Boolean(golos);
+  } catch (e) {
+    out.dbError = e instanceof Error ? e.message : String(e);
+  }
+  res.json(out);
 });
 
 // SPA: ссылка приглашения /join/:token → index.html
@@ -279,6 +333,7 @@ async function notifyNewMessage(msg, sender) {
   const recipientUsername = msg.recipientUsername || msg.to;
 
   if (recipientUsername) {
+    if (recipientUsername === GOLOS_ATON_USERNAME) return; // письмо на системного бота не отправляем
     // DM — notify recipient only
     if (isUserOnline(recipientUsername)) return;
     try {
@@ -286,11 +341,12 @@ async function notifyNewMessage(msg, sender) {
         where: { username: recipientUsername },
       });
       if (recipient?.email) {
+        const fromLabel = sender && (sender.displayName || sender.username);
         await sendMail(
           recipient.email,
-          `Новое сообщение от ${sender.username}`,
+          `Новое сообщение от ${fromLabel}`,
           [
-            `${sender.username} написал(а) вам:`,
+            `${fromLabel} написал(а) вам:`,
             ``,
             preview,
             ``,
@@ -335,6 +391,111 @@ async function notifyNewMessage(msg, sender) {
     }
   } catch (e) {
     console.error("notifyNewMessage group:", e);
+  }
+}
+
+async function postGolosAtonMessage({ text, toUsername, chatId }) {
+  const msgId = generateToken();
+  const now = new Date();
+  const row = await prisma.message.create({
+    data: {
+      id: msgId,
+      chatId,
+      senderUsername: GOLOS_ATON_USERNAME,
+      recipientUsername: toUsername,
+      type: "text",
+      text: text || "",
+      imageDataUrl: null,
+      audioDataUrl: null,
+      createdAt: now,
+      pinned: false,
+      reactions: [],
+    },
+  });
+  const msg = messageFromPrismaRow(row);
+  io.to(msg.chatId).emit("message:new", msg);
+  if (msg.to) {
+    io.to(`user:${msg.to}`).emit("message:new", msg);
+    io.to(`user:${msg.from}`).emit("message:new", msg);
+  }
+  notifyNewMessage(msg, { username: GOLOS_ATON_USERNAME, displayName: "Голос Атона" }).catch((e) =>
+    console.error("notifyNewMessage (golos):", e)
+  );
+}
+
+function userMessageToGolosAton(saved, authorUsername) {
+  if (saved && saved.to === GOLOS_ATON_USERNAME) return true;
+  if (!saved || !authorUsername) return false;
+  const p = dmPeerFromChatId(String(saved.chatId || ""), authorUsername);
+  return p === GOLOS_ATON_USERNAME;
+}
+
+async function processGolosAtonUserReply({ savedUserMsg, authorUsername, authorId }) {
+  if (!userMessageToGolosAton(savedUserMsg, authorUsername)) {
+    return;
+  }
+  if (savedUserMsg.type !== "text" || !String(savedUserMsg.text || "").trim()) return;
+  const chatId = savedUserMsg.chatId || dmChatIdForUsernames(authorUsername, GOLOS_ATON_USERNAME);
+  if (!golosRateAllow(authorUsername)) {
+    await postGolosAtonMessage({
+      text: "Вы достигли лимита сообщений к помощнику на этот час. Попробуйте позже.",
+      toUsername: authorUsername,
+      chatId,
+    });
+    return;
+  }
+  const authorRow = await prisma.user.findUnique({ where: { id: authorId } });
+  const u = authorRow ? userFromPrismaRow(authorRow) : { username: authorUsername, displayName: authorUsername };
+  let replyText;
+  try {
+    replyText = await fetchGolosReply(savedUserMsg.text, {
+      username: u.username,
+      displayName: u.displayName,
+    });
+  } catch (e) {
+    console.error("fetchGolosReply:", e);
+    replyText = "Произошла ошибка. Попробуйте позже.";
+  }
+  await postGolosAtonMessage({ text: replyText, toUsername: authorUsername, chatId });
+}
+
+async function ensureGolosAtonUser() {
+  try {
+    const existing = await prisma.user.findUnique({ where: { username: GOLOS_ATON_USERNAME } });
+    if (existing) return;
+    const id = generateToken();
+    const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10);
+    const publicId = await generateUniquePublicId(prisma, "golos");
+    const verifyToken = generateToken();
+    await prisma.user.create({
+      data: {
+        id,
+        email: GOLOS_ATON_EMAIL,
+        username: GOLOS_ATON_USERNAME,
+        displayName: "Голос Атона",
+        passwordHash,
+        publicId,
+        bio: "Помощник в мессенджере «Атон».",
+        avatarDataUrl: null,
+        sessionToken: null,
+        lastSeen: new Date(),
+        createdAt: new Date(),
+        verified: true,
+        isVerified: true,
+        isSuperAdmin: false,
+        verifyToken,
+        resetToken: null,
+        resetTokenExp: null,
+        friends: [],
+        blocked: [],
+        friendRequestsIn: [],
+        friendRequestsOut: [],
+      },
+    });
+    console.log(`Создан системный пользователь «Голос Атона» (${GOLOS_ATON_USERNAME}).`);
+  } catch (e) {
+    if (e.code === "P2002") return;
+    console.error("ensureGolosAtonUser:", e);
   }
 }
 
@@ -397,6 +558,9 @@ app.post("/api/register", registerLimiter, async (req, res) => {
   const { email, username, password } = req.body || {};
   if (!email || !username || !password) {
     return res.status(400).json({ error: "email, username и password обязательны" });
+  }
+  if (String(username).toLowerCase() === GOLOS_ATON_USERNAME) {
+    return res.status(400).json({ error: "Это имя зарезервировано" });
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
@@ -546,6 +710,9 @@ app.post("/api/login", loginLimiter, async (req, res) => {
   }
 
   if (!pgUser) return res.status(401).json({ error: "Неверное имя или пароль" });
+  if (pgUser.username === GOLOS_ATON_USERNAME) {
+    return res.status(403).json({ error: "Вход в этот аккаунт невозможен" });
+  }
   const ok = await bcrypt.compare(password, pgUser.passwordHash);
   if (!ok) return res.status(401).json({ error: "Неверное имя или пароль" });
 
@@ -1904,10 +2071,15 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
   } = req.body || {};
   if (!type) return res.status(400).json({ error: "type обязателен" });
 
+  const toTrimmed = to != null && String(to).trim() !== "" ? String(to).trim() : null;
+  const myUsername = req.user.username;
+  const peerFromChatId = dmPeerFromChatId(typeof chatId === "string" ? chatId : String(chatId), myUsername);
+  const recipientForDb = toTrimmed || peerFromChatId || null;
+
   // Проверка блокировок для личных сообщений
-  if (to) {
+  if (recipientForDb) {
     const senderRow = await prisma.user.findUnique({ where: { id: req.user.id } });
-    const receiverRow = await prisma.user.findUnique({ where: { username: to } });
+    const receiverRow = await prisma.user.findUnique({ where: { username: recipientForDb } });
     if (senderRow && receiverRow) {
       const sender = userFromPrismaRow(senderRow);
       const receiver = userFromPrismaRow(receiverRow);
@@ -1972,7 +2144,7 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
         id: msgId,
         chatId,
         senderUsername: req.user.username,
-        recipientUsername: to || null,
+        recipientUsername: recipientForDb,
         type,
         text: text || "",
         imageDataUrl: imageDataUrl || null,
@@ -1991,6 +2163,14 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
       io.to(`user:${msg.from}`).emit("message:new", msg);
     }
     res.json(msg);
+
+    if (userMessageToGolosAton(msg, req.user.username) && type === "text" && String(text || "").trim()) {
+      void processGolosAtonUserReply({
+        savedUserMsg: msg,
+        authorUsername: req.user.username,
+        authorId: req.user.id,
+      }).catch((e) => console.error("processGolosAtonUserReply:", e));
+    }
 
     // Async email notifications — don't block the response
     notifyNewMessage(msg, req.user).catch((e) =>
@@ -2117,7 +2297,16 @@ app.get("/api/test-db-user", async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`Атон backend запущен: http://localhost:${PORT}`);
-});
+ensureGolosAtonUser()
+  .then(() => {
+    server.listen(PORT, () => {
+      console.log(`Атон backend запущен: http://localhost:${PORT}`);
+    });
+  })
+  .catch((e) => {
+    console.error("ensureGolosAtonUser:", e);
+    server.listen(PORT, () => {
+      console.log(`Атон backend запущен: http://localhost:${PORT}`);
+    });
+  });
 
