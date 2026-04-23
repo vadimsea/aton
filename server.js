@@ -443,6 +443,43 @@ function userMessageToGolosAton(saved, authorUsername) {
   return p === GOLOS_ATON_USERNAME;
 }
 
+/** История в формате ChatGPT: user/assistant по сообщениям в личке с ботом. */
+async function buildGolosLlmHistory(chatId, userUsername, currentMsg, currentUserText) {
+  const maxN = (() => {
+    const n = parseInt(String(process.env.GOLOS_HISTORY_MAX_MESSAGES || "40"), 10);
+    return Number.isFinite(n) && n >= 2 ? Math.min(100, n) : 40;
+  })();
+  const rows = await prisma.message.findMany({
+    where: { chatId: String(chatId) },
+    orderBy: { createdAt: "desc" },
+    take: maxN,
+  });
+  rows.reverse();
+  const out = [];
+  for (const row of rows) {
+    if (row.senderUsername === userUsername) {
+      let c = (row.text || "").trim();
+      if (row.type === "image" && row.imageDataUrl) c = c || "«[изображение]»";
+      if (row.type === "audio" && !c) c = "«[голосовое сообщение]»";
+      if (row.id === currentMsg.id) c = (currentUserText || "").trim() || c;
+      if (!c) c = "…";
+      out.push({ role: "user", content: c });
+    } else if (row.senderUsername === GOLOS_ATON_USERNAME) {
+      let c = (row.text || "").trim();
+      if (row.type === "audio" && !c) c = "«[голосовой ответ]»";
+      if (!c) c = "…";
+      out.push({ role: "assistant", content: c });
+    }
+  }
+  if (!out.length) {
+    return [{ role: "user", content: (currentUserText || "").trim() || "…" }];
+  }
+  if (out[out.length - 1].role === "assistant") {
+    out.push({ role: "user", content: (currentUserText || "").trim() || "…" });
+  }
+  return out;
+}
+
 async function processGolosAtonUserReply({ savedUserMsg, authorUsername, authorId }) {
   if (!userMessageToGolosAton(savedUserMsg, authorUsername)) {
     return;
@@ -486,7 +523,9 @@ async function processGolosAtonUserReply({ savedUserMsg, authorUsername, authorI
 
   let replyText;
   try {
-    replyText = await fetchGolosReply(userText, {
+    const history = await buildGolosLlmHistory(chatId, authorUsername, savedUserMsg, userText);
+    replyText = await fetchGolosReply({
+      history,
       username: u.username,
       displayName: u.displayName,
       fromVoice: Boolean(isAudio),
