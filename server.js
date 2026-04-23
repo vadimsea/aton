@@ -1215,6 +1215,39 @@ app.get("/api/users", authMiddleware, requireVerified, async (req, res) => {
   }
 });
 
+// Полный список пользователей с email (только super admin) — для админ-страницы
+app.get("/api/admin/users", authMiddleware, requireVerified, async (req, res) => {
+  if (!req.user || !req.user.isSuperAdmin) {
+    return res.status(403).json({ error: "Недостаточно прав" });
+  }
+  try {
+    const raw = await prisma.user.findMany({ orderBy: { createdAt: "asc" } });
+    const out = raw.map((row) => {
+      const u = userFromPrismaRow(row);
+      ensureLists(u);
+      ensureVerificationFlags(u);
+      return {
+        id: u.id,
+        email: u.email,
+        username: u.username,
+        publicId: u.publicId,
+        displayName: u.displayName,
+        bio: typeof u.bio === "string" ? u.bio.slice(0, 500) : "",
+        avatarDataUrl: u.avatarDataUrl,
+        lastSeen: u.lastSeen || null,
+        createdAt: u.createdAt || null,
+        verified: Boolean(row.verified),
+        isVerified: Boolean(u.isVerified),
+        isSuperAdmin: Boolean(u.isSuperAdmin),
+      };
+    });
+    res.json(out);
+  } catch (err) {
+    console.error("GET /api/admin/users:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
 // Верификация пользователя (только super admin)
 app.post("/api/users/:id/verify", authMiddleware, requireVerified, async (req, res) => {
   const { id } = req.params;

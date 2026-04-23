@@ -54,8 +54,8 @@ export async function writeIndexHtml(outDir) {
   </style>
 </head>
 <body>
-  <h1>Отчёты QA-ботов (фронт / бэк)</h1>
-  <p>Формат: <strong>Markdown</strong> и <strong>HTML</strong> (текст), для фронта — скриншоты <strong>PNG</strong> в <code>shots/дата/</code> (для сравнения с отчётом и правок дизайна). Обновляется по CI.</p>
+  <h1>Отчёты QA-ботов (фронт / бэк / соц)</h1>
+  <p>Формат: <strong>Markdown</strong> и <strong>HTML</strong> (текст), для фронта — скриншоты <strong>PNG</strong> в <code>shots/дата/</code>; сценарий «два бота» — <code>social-*.md</code>. Обновляется по CI.</p>
   <ul>
 ${links || "<li>Пока нет файлов</li>"}
   </ul>

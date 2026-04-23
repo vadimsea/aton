@@ -1,20 +1,19 @@
-# Фронтенд-бот: 3 вьюпорта (ПК/планшет/моб), сценарий пользователя, Groq vision, отчёты + FTP.
+# Фронтенд-бот: 3 вьюпорта, длинная сессия (по умолч. ≥20 мин), Groq vision (UI/UX), FTP.
 #
 # Secrets: GROQ_API_KEY, QA_BOT_TOKEN, FTP_HOST, FTP_USER, FTP_PASS, FTP_QA_DIR
-# Опц.: GROQ_VISION_MODEL
-#
-# FTP_QA_DIR — каталог на хосте, например /public_html/qa-bots (создаётся при заливке)
+# Опц.: GROQ_VISION_MODEL, QA_MIN_TEST_MS, QA_BETWEEN_WAVES_MS
 
 name: QA bot — frontend daily (Groq)
 
 on:
   schedule:
-    - cron: "0 5 * * *"
+    - cron: "0 */2 * * *"
   workflow_dispatch:
 
 jobs:
   fe:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 

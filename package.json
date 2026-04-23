@@ -15,6 +15,8 @@
     "qa:monitor": "node scripts/qa-monitor-dm.mjs",
     "qa:bot:fe": "node qa-bots/frontend-daily.mjs",
     "qa:bot:be": "node qa-bots/backend-daily.mjs",
+    "qa:bot:social": "node qa-bots/social-daily.mjs",
+    "qa:print-token": "node qa-bots/print-aton-token.mjs",
     "dev:embedded": "node scripts/embedded-dev.mjs",
     "postinstall": "prisma generate"
   },

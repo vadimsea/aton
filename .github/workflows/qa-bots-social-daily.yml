@@ -1,9 +1,11 @@
-# Бэкенд-бот: смоук API, метрики, Groq text — отчёты + FTP.
+# Два QA-аккаунта: друзья + личка в обе стороны → отчёт + Groq + FTP
 #
-# Secrets: GROQ_API_KEY, FTP_HOST, FTP_USER, FTP_PASS, FTP_QA_DIR
-# Опц.: GROQ_TEXT_MODEL, QA_BASE
+# Секреты: GROQ_*, FTP_*, плюс для каждого бота **либо** токен, **либо** email+пароль:
+#   A: QA_BOT_TOKEN  ИЛИ  QA_EMAIL + QA_PASSWORD
+#   B: QA_BOT2_TOKEN  ИЛИ  QA_BOT2_EMAIL + QA_BOT2_PASSWORD
+# Опц.: QA_BASE
 
-name: QA bot — backend daily (Groq)
+name: QA bot — social E2E daily
 
 on:
   schedule:
@@ -11,7 +13,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  be:
+  social:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,10 +26,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run backend Groq bot + FTP
+      - name: Run social E2E + Groq + FTP
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           QA_BASE: https://aton-api.onrender.com
+          QA_BOT_TOKEN: ${{ secrets.QA_BOT_TOKEN }}
+          QA_EMAIL: ${{ secrets.QA_EMAIL }}
+          QA_PASSWORD: ${{ secrets.QA_PASSWORD }}
+          QA_BOT2_TOKEN: ${{ secrets.QA_BOT2_TOKEN }}
+          QA_BOT2_EMAIL: ${{ secrets.QA_BOT2_EMAIL }}
+          QA_BOT2_PASSWORD: ${{ secrets.QA_BOT2_PASSWORD }}
           FTP_HOST: ${{ secrets.FTP_HOST }}
           FTP_USER: ${{ secrets.FTP_USER }}
           FTP_PASS: ${{ secrets.FTP_PASS }}
@@ -41,4 +49,4 @@ jobs:
             echo "Need FTP_HOST, FTP_USER, FTP_PASS, FTP_QA_DIR for upload"
             exit 1
           fi
-          node qa-bots/backend-daily.mjs
+          node qa-bots/social-daily.mjs

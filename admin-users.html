@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Атон — все пользователи</title>
+  <meta name="aton-api-base" content="" />
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: rgba(30, 41, 59, 0.65);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #7dd3fc;
+      --bd: rgba(148, 163, 184, 0.25);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 1rem 1.25rem 2rem; }
+    h1 { font-size: 1.2rem; font-weight: 600; margin: 0 0 0.5rem; color: var(--accent); }
+    .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 1rem; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-bottom: 1rem; }
+    .toolbar a {
+      color: var(--accent);
+      font-size: 0.9rem;
+    }
+    #filter {
+      flex: 1 1 200px;
+      max-width: 360px;
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--bd);
+      background: rgba(15, 23, 42, 0.6);
+      color: var(--text);
+    }
+    .err {
+      background: rgba(127, 29, 29, 0.35);
+      border: 1px solid rgba(248, 113, 113, 0.4);
+      color: #fecaca;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      margin-bottom: 1rem;
+    }
+    .table-wrap { overflow: auto; border: 1px solid var(--bd); border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    th, td { padding: 0.5rem 0.6rem; text-align: left; border-bottom: 1px solid var(--bd); vertical-align: top; }
+    th { background: rgba(15, 23, 42, 0.9); color: var(--muted); font-weight: 600; position: sticky; top: 0; z-index: 1; }
+    tr:hover td { background: rgba(51, 65, 85, 0.25); }
+    .mono { font-family: ui-monospace, monospace; font-size: 0.75rem; word-break: break-all; }
+    .tag { display: inline-block; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.7rem; background: rgba(56, 189, 248, 0.15); color: #7dd3fc; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Все пользователи Атона</h1>
+    <p class="sub">Доступно только суперадмину. Данные с сервера: email не показывайте третьим лицам.</p>
+    <div class="toolbar">
+      <a href="./">← Вернуться в мессенджер</a>
+      <input type="search" id="filter" placeholder="Поиск: имя, @id, email…" autocomplete="off" disabled />
+    </div>
+    <div id="message"></div>
+    <div class="table-wrap" id="tableHost" hidden>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Имя / @</th>
+            <th>Email</th>
+            <th>Регистрация</th>
+            <th>Онлайн / last seen</th>
+            <th>Флаги</th>
+            <th>id</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+  <script>
+    (function () {
+      const TOKEN_KEY = "aton_token";
+      function getApiBase() {
+        const meta = document.querySelector('meta[name="aton-api-base"]')?.getAttribute("content")?.trim();
+        if (meta) return meta.replace(/\/$/, "");
+        const origin = window.location.origin;
+        if (!origin) return "";
+        if (origin.endsWith(":3000")) return "";
+        return location.protocol + "//" + location.hostname + ":3000";
+      }
+      const API_BASE = getApiBase();
+
+      function getToken() {
+        return localStorage.getItem(TOKEN_KEY) || "";
+      }
+
+      async function apiGet(path) {
+        const token = getToken();
+        const res = await fetch((API_BASE || "") + path, {
+          headers: { Authorization: token ? "Bearer " + token : "" },
+        });
+        const data = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+          const err = new Error(data.error || "Ошибка запроса");
+          err.status = res.status;
+          throw err;
+        }
+        return data;
+      }
+
+      function esc(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function formatDate(iso) {
+        if (!iso) return "—";
+        try {
+          return new Date(iso).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
+        } catch (e) {
+          return String(iso);
+        }
+      }
+
+      var allRows = [];
+
+      function renderTable(filter) {
+        var q = (filter || "").trim().toLowerCase();
+        var tb = document.getElementById("tbody");
+        tb.innerHTML = "";
+        var n = 0;
+        for (var i = 0; i < allRows.length; i++) {
+          var u = allRows[i];
+          if (q) {
+            var pack = [u.username, u.publicId, u.displayName, u.email, u.id].join(" ").toLowerCase();
+            if (pack.indexOf(q) === -1) continue;
+          }
+          n++;
+          var tr = document.createElement("tr");
+          var flags = [];
+          if (u.isSuperAdmin) flags.push('<span class="tag">super</span>');
+          if (u.verified || u.isVerified) flags.push('<span class="tag">ok</span>');
+          if (!flags.length) flags.push("—");
+          tr.innerHTML =
+            "<td>" +
+            n +
+            "</td><td><strong>" +
+            esc(u.displayName) +
+            "</strong><br><span class=mono>@" +
+            esc(u.publicId) +
+            "</span></td><td class=mono>" +
+            esc(u.email) +
+            "</td><td>" +
+            formatDate(u.createdAt) +
+            "</td><td>" +
+            formatDate(u.lastSeen) +
+            "</td><td>" +
+            flags.join(" ") +
+            "</td><td class=mono>" +
+            esc(u.id) +
+            "</td>";
+          tb.appendChild(tr);
+        }
+      }
+
+      var msgEl = document.getElementById("message");
+      var filterInput = document.getElementById("filter");
+
+      apiGet("/api/me")
+        .then(function (me) {
+          if (!me.isSuperAdmin) {
+            msgEl.className = "err";
+            msgEl.textContent = "Недостаточно прав: только суперадмин может просматривать эту страницу.";
+            return;
+          }
+          return apiGet("/api/admin/users");
+        })
+        .then(function (list) {
+          if (!list || !Array.isArray(list)) return;
+          allRows = list;
+          document.getElementById("tableHost").hidden = false;
+          filterInput.disabled = false;
+          renderTable("");
+          filterInput.addEventListener("input", function () {
+            renderTable(filterInput.value);
+          });
+        })
+        .catch(function (e) {
+          msgEl.className = "err";
+          msgEl.textContent = e.message || String(e);
+        });
+    })();
+  </script>
+</body>
+</html>

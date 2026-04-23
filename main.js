@@ -751,6 +751,9 @@ function createApp() {
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         <span class="aton-topbar-icon-badge" id="aton-filter-group-badge"></span>
       </button>
+      <button class="aton-topbar-icon" id="aton-admin-users" title="Все пользователи (новое окно)" style="display:none;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
+      </button>
       <button class="aton-topbar-icon" id="aton-moderation" title="Модерация" style="display:none;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       </button>
@@ -1165,6 +1168,7 @@ function createApp() {
   const contactsEl = document.getElementById("aton-contacts");
   const filterPrivateBtn = document.getElementById("aton-filter-private");
   const filterGroupBtn = document.getElementById("aton-filter-group");
+  const adminUsersButton = document.getElementById("aton-admin-users");
   const moderationButton = document.getElementById("aton-moderation");
   const filterPrivateBadge = document.getElementById("aton-filter-private-badge");
   const filterGroupBadge = document.getElementById("aton-filter-group-badge");
@@ -1542,6 +1546,7 @@ function createApp() {
       userPill.style.display = "none";
       if (filterPrivateBtn) filterPrivateBtn.style.display = "none";
       if (filterGroupBtn) filterGroupBtn.style.display = "none";
+      if (adminUsersButton) adminUsersButton.style.display = "none";
       if (moderationButton) moderationButton.style.display = "none";
       setComposeEnabled(false);
       createGroupButton.disabled = true;
@@ -1617,6 +1622,9 @@ function createApp() {
       if (sidebarToolbar) sidebarToolbar.hidden = false;
       if (sidebarFriendsBtn) {
         sidebarFriendsBtn.style.display = user.verified ? "inline-flex" : "none";
+      }
+      if (adminUsersButton) {
+        adminUsersButton.style.display = currentUser?.isSuperAdmin ? "inline-flex" : "none";
       }
       if (moderationButton) {
         moderationButton.style.display = currentUser?.isSuperAdmin ? "inline-flex" : "none";
@@ -4258,6 +4266,14 @@ function createApp() {
     closeBtn.addEventListener("click", () => overlay.remove());
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) overlay.remove();
+    });
+  }
+
+  if (adminUsersButton) {
+    adminUsersButton.addEventListener("click", () => {
+      if (!currentUser || !currentUser.isSuperAdmin) return;
+      const url = new URL("admin-users.html", window.location.href);
+      window.open(url.href, "_blank", "noopener,noreferrer");
     });
   }
 
