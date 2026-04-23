@@ -69,6 +69,19 @@ async function checkChatChromeInViewport(page) {
   return parts.length ? `ПРОБЛЕМА: ${parts.join("; ")}` : "ok: topbar+compose+поле ввода в пределах innerHeight";
 }
 
+/**
+ * Голосовое: ожидаем PTT (подсказка на #aton-mic про удержание).
+ * @param {import('playwright').Page} page
+ */
+async function checkVoicePttMicTitle(page) {
+  const mic = page.locator("#aton-mic");
+  const vis = await mic.isVisible().catch(() => false);
+  if (!vis) return null;
+  const title = (await mic.getAttribute("title")) || "";
+  if (/удерж/i.test(title)) return "PTT: #aton-mic title указывает на удержание (ok)";
+  return `ПРОБЛЕМА: PTT — ожидаем в title микрофона «удерж…», сейчас: ${title.slice(0, 100)}`;
+}
+
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -241,7 +254,11 @@ async function runUserFlowAndShot(page, tag, dateStr, wave = 1) {
       /* */
     }
   }
-  const layoutNote = await checkChatChromeInViewport(page);
+  let layoutNote = await checkChatChromeInViewport(page);
+  const pttNote = await checkVoicePttMicTitle(page);
+  if (pttNote) {
+    layoutNote = layoutNote ? `${layoutNote} | ${pttNote}` : pttNote;
+  }
   // Плоские имена в out/ (без shots/дата/) — тот же уровень, что у бэкенд-отчётов, чтобы FTP (Pure-FTPd) заливал без 553
   const outP = path.join(OUT, `fe-${dateStr}-${tag}.png`);
   await page.screenshot({ path: outP, fullPage: false, type: "png" });
@@ -316,6 +333,7 @@ async function main() {
 
   const system = `Ты senior product-дизайнер и UI-ревьюер. Продукт — веб-мессенджер «Атон». **Критерий качества** — довести визуал и UX **в духе сильных референсов**: **Telegram** и **WhatsApp** (чистая лента, читаемые пузыри, аккуратные аватары, предсказуемая панель ввода, нормальные эмодзи/стикер-панель в перспективе). Пиши по-русски, **конкретно по кадру**, без общих фраз.
 **Про мобилку (обязательно):** на кадре с **узким/низким** экраном проверяй, что **шапка чата (назад, заголовок)** и **вся панель ввода (поле + кнопки)** **полностью** попадают в кадр — половинчатая шапка или обрезанная строка ввода = **P1 / регрессия**. Сверяй с подсказками **автопроверки Playwright** ниже (если там «ПРОБЛЕМА», усиль приоритет).
+**Голос (ПТТ):** запись в чате — **удержанием** кнопки микрофона (и «Записать» в баннере Голоса Атона), не переключателем по клику. Если в **автопроверке** строка **«PTT: #aton-mic…»** или **«ПРОБЛЕМА: PTT»** — отрази в **п.4 панель ввода** и в дорожной карте; регрессия в подсказке title/UX = **P2+**.
 **Сессия и «долгий» вход (обязательно):** в блоке **автотеста сессии** ниже — **миллисекунды** до панели «вошли», повторный F5 и **networkidle**. Разлогин при обновлении, **>15–20с** до UI или **>30с** `networkidle` = **P1** (токен, /api/me, тяжёлый bootstrap, WebSocket, cold start). Обязан отдельный подпункт в дорожной карте с причинами, не «промолчи».`;
 
   const sessionBlock = `\n**Сессия и задержка (автотест Playwright, до скриншотов):**\n${sessionProbe.lines.map((l) => `- ${l}`).join("\n")}\n`;

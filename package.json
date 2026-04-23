@@ -22,6 +22,8 @@
     "qa:print-token": "node qa-bots/print-aton-token.mjs",
     "dev:embedded": "node scripts/embedded-dev.mjs",
     "deploy:site": "node scripts/ftp-upload-site.mjs",
+    "build": "prisma migrate deploy",
+    "ci": "node --check server.js && prisma validate",
     "postinstall": "prisma generate"
   },
   "dependencies": {

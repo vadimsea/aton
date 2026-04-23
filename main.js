@@ -961,7 +961,7 @@ function createApp() {
     <div class="aton-compose-record-hint" id="aton-compose-record-hint" hidden>
       <span class="aton-compose-record-dot" aria-hidden="true"></span>
       <span class="aton-compose-record-timer" id="aton-compose-record-timer">0:00</span>
-      <span class="aton-compose-record-text">Идёт запись. Нажмите кнопку ещё раз, чтобы остановить.</span>
+      <span class="aton-compose-record-text">Идёт запись. Отпустите кнопку микрофона, чтобы остановить.</span>
     </div>
     <div class="aton-compose-row">
       <textarea class="aton-compose-input" id="aton-input" rows="1" placeholder="Сообщение…" disabled></textarea>
@@ -969,7 +969,7 @@ function createApp() {
         <button class="aton-attach-button" id="aton-attach" title="Фото" disabled>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
         </button>
-        <button class="aton-mic-button" id="aton-mic" type="button" title="Голосовое сообщение" disabled>
+        <button class="aton-mic-button" id="aton-mic" type="button" title="Удерживайте, чтобы записать голос" disabled>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
         </button>
         <button class="aton-send-button" id="aton-send" disabled>
@@ -991,7 +991,17 @@ function createApp() {
     <input type="file" id="aton-attach-input" accept="image/*" style="display:none;" />
   `;
 
+  const golosVoiceBar = document.createElement("div");
+  golosVoiceBar.className = "aton-golos-voice-bar";
+  golosVoiceBar.id = "aton-golos-voice-bar";
+  golosVoiceBar.hidden = true;
+  golosVoiceBar.setAttribute("role", "presentation");
+  golosVoiceBar.setAttribute("aria-hidden", "true");
+  /* Раньше здесь был второй дублирующий блок «Записать»; ввод — только внизу (как в ChatGPT). */
+  golosVoiceBar.innerHTML = "";
+
   chat.appendChild(messagesEl);
+  chat.appendChild(golosVoiceBar);
   chat.appendChild(compose);
 
   const peerActionBar = document.createElement("div");
@@ -1067,8 +1077,14 @@ function createApp() {
   let recordingTimerId = null;
   let recordingStartedAt = 0;
   let previewAudioEl = null;
+  /** PTT: запись с удержанием кнопки */
+  let pttInFlight = false;
+  let pttUserReleasedBeforeRecord = false;
+  let pttDocEndHandler = null;
   let replyToMessage = null;
   let typingTimeoutId = null;
+  /** Ожидаем столько ответов от @golos_aton (после наших исходящих) — для строки «думает…». */
+  let golosPendingReplies = 0;
   let openReactionPicker = null;
   let openChatMenu = null;
   let currentSocketChat = null;
@@ -1282,6 +1298,9 @@ function createApp() {
     if (!msg) return;
     // Если сообщение уже есть в истории, не дублируем
     if (allMessages.some((m) => m.id === msg.id)) return;
+    if (msg.from === GOLOS_ATON_USERNAME && msg.chatId === currentChatId) {
+      golosPendingReplies = Math.max(0, golosPendingReplies - 1);
+    }
     if (currentUser && msg.from !== currentUser.username) {
       const muted = isChatNotifyMuted(currentUser.username, msg.chatId);
       if (!muted) {
@@ -1423,13 +1442,13 @@ function createApp() {
   function setMicButtonIdle() {
     micButton.innerHTML = ATON_MIC_ICON_SVG;
     micButton.classList.remove("recording");
-    micButton.title = "Голосовое сообщение";
+    micButton.title = "Удерживайте, чтобы записать голос";
   }
 
   function setMicButtonRecordingUi() {
     micButton.innerHTML = ATON_MIC_STOP_SVG;
     micButton.classList.add("recording");
-    micButton.title = "Остановить запись";
+    micButton.title = "Запись… отпустите, чтобы остановить";
   }
 
   function stopRecordingTimerUi() {
@@ -1508,6 +1527,40 @@ function createApp() {
     };
   }
 
+  function sendAudioBlobAsMessage(blob) {
+    if (!currentChatId || !currentUser) {
+      return Promise.reject(new Error("Нет чата"));
+    }
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        void (async () => {
+          const audioDataUrl = reader.result;
+          const to = dmToForApi();
+          const toGolosVoice = to === GOLOS_ATON_USERNAME;
+          if (toGolosVoice) golosPendingReplies += 1;
+          const chatId = currentChatId;
+          try {
+            const msg = await api("/api/messages", {
+              method: "POST",
+              body: JSON.stringify({ chatId, type: "audio", audioDataUrl, to }),
+            });
+            allMessages.push(msg);
+            renderMessages();
+            renderChatList();
+            resolve(msg);
+          } catch (e) {
+            if (toGolosVoice) golosPendingReplies = Math.max(0, golosPendingReplies - 1);
+            renderMessages();
+            reject(e);
+          }
+        })();
+      };
+      reader.onerror = () => reject(new Error("Не удалось прочитать запись"));
+      reader.readAsDataURL(blob);
+    });
+  }
+
   function abortVoiceUi() {
     stopRecordingTimerUi();
     if (composeRecordHint) composeRecordHint.hidden = true;
@@ -1518,6 +1571,9 @@ function createApp() {
       } catch (_) {}
       return;
     }
+    clearPttDocEndHandler();
+    pttInFlight = false;
+    pttUserReleasedBeforeRecord = false;
     discardVoiceOnNextStop = false;
     if (activeMicStream) {
       activeMicStream.getTracks().forEach((t) => t.stop());
@@ -1527,6 +1583,49 @@ function createApp() {
     recordedChunks = [];
     clearVoicePreview();
     setMicButtonIdle();
+  }
+
+  function isGolosAtonChat() {
+    if (!currentUser || !currentChatId) return false;
+    if (currentChatId === "global" || currentChatId.startsWith("group:") || currentChatId.startsWith("channel:")) {
+      return false;
+    }
+    if (!String(currentChatId).includes("|")) return false;
+    const [a, b] = currentChatId.split("|");
+    const peer = a === currentUser.username ? b : a;
+    return peer === GOLOS_ATON_USERNAME;
+  }
+
+  function updateGolosChatChrome() {
+    const bar = document.getElementById("aton-golos-voice-bar");
+    if (bar) {
+      bar.hidden = true;
+      bar.setAttribute("aria-hidden", "true");
+    }
+    const on =
+      isGolosAtonChat() && compose && compose.style.display !== "none" && currentUser;
+    if (main) main.classList.toggle("aton-main--golos", Boolean(on));
+    if (chat) chat.classList.toggle("aton-chat--golos", Boolean(on));
+    if (compose) compose.classList.toggle("aton-compose--golos", Boolean(on));
+    if (sendButton) {
+      if (on) {
+        sendButton.setAttribute("hidden", "");
+        sendButton.setAttribute("aria-hidden", "true");
+      } else {
+        sendButton.removeAttribute("hidden");
+        sendButton.removeAttribute("aria-hidden");
+      }
+    }
+    if (inputMessage) {
+      if (on) {
+        inputMessage.setAttribute(
+          "placeholder",
+          "Текст — Enter. Голос — удерживайте кнопку с микрофоном, отпустите для отправки"
+        );
+      } else {
+        inputMessage.setAttribute("placeholder", "Сообщение…");
+      }
+    }
   }
 
   function setComposeEnabled(enabled) {
@@ -1540,6 +1639,7 @@ function createApp() {
     if (enabled) {
       requestAnimationFrame(() => adjustComposeInputHeight());
     }
+    updateGolosChatChrome();
   }
 
   if (voicePreviewPlayBtn) {
@@ -1571,24 +1671,11 @@ function createApp() {
       const blob = pendingVoiceBlob;
       clearVoicePreview();
       setMicButtonIdle();
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const audioDataUrl = reader.result;
-        try {
-          const to = dmToForApi();
-          const chatId = currentChatId;
-          const msg = await api("/api/messages", {
-            method: "POST",
-            body: JSON.stringify({ chatId, type: "audio", audioDataUrl, to }),
-          });
-          allMessages.push(msg);
-          renderMessages();
-          renderChatList();
-        } catch (err) {
-          alert(err.message);
-        }
-      };
-      reader.readAsDataURL(blob);
+      try {
+        await sendAudioBlobAsMessage(blob);
+      } catch (err) {
+        alert(err.message);
+      }
     });
   }
 
@@ -2563,6 +2650,9 @@ function createApp() {
         (currentChatId === dmId ? " active" : "") +
         (pMuted ? " aton-chat-item--notify-muted" : "");
 
+      const presence = formatPeerPresence(peerUser);
+      const avatarWrap = document.createElement("div");
+      avatarWrap.className = "aton-chat-avatar-wrap";
       const avatar = document.createElement("div");
       avatar.className = "aton-chat-avatar";
       if (isGolos) {
@@ -2573,6 +2663,14 @@ function createApp() {
         avatar.appendChild(img);
       } else {
         avatar.textContent = (title || peer).slice(0, 1).toUpperCase();
+      }
+      avatarWrap.appendChild(avatar);
+      if (presence.online) {
+        const dot = document.createElement("span");
+        dot.className = "aton-chat-avatar-status-dot";
+        dot.setAttribute("aria-hidden", "true");
+        dot.title = presence.title || "В сети";
+        avatarWrap.appendChild(dot);
       }
 
       const main = document.createElement("div");
@@ -2621,7 +2719,7 @@ function createApp() {
         metaWrap.appendChild(badge);
       }
 
-      item.appendChild(avatar);
+      item.appendChild(avatarWrap);
       item.appendChild(main);
       item.appendChild(metaWrap);
       item.addEventListener("click", () => {
@@ -3245,7 +3343,56 @@ function createApp() {
     `;
   }
 
+  function makeGolosPendingEl() {
+    const wrap = document.createElement("div");
+    wrap.className = "aton-golos-pending";
+    const n = Math.max(1, golosPendingReplies);
+    const queueBadge = n > 1 ? `<span class="aton-golos-pending-badge">${n} в очереди</span>` : "";
+    wrap.innerHTML = `<div class="aton-golos-pending-card" role="status" aria-live="polite" aria-atomic="true">
+      <div class="aton-golos-typing-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+      <div class="aton-golos-pending-copy">
+        <p class="aton-golos-pending-title">Голос Атона думает${queueBadge}</p>
+        <p class="aton-golos-pending-hint">Обычно 5–25 с. Ответ появится в ленте ниже.</p>
+      </div>
+    </div>`;
+    return wrap;
+  }
+
   function renderEmptyChatState(container) {
+    if (isGolosAtonChat()) {
+      container.innerHTML = `
+        <div class="aton-empty-state aton-golos-empty aton-golos-empty--gpt">
+          <div class="aton-golos-empty-hero">
+            <div class="aton-empty-icon aton-golos-empty-icon" aria-hidden="true">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+              </svg>
+            </div>
+          </div>
+          <h2 class="aton-golos-empty-gpt-title">Голос Атона</h2>
+          <p class="aton-golos-empty-gpt-lead">Помощник. Введите запрос в поле внизу — или удерживайте круглую кнопку с микрофоном, чтобы диктовать.</p>
+          <p class="aton-golos-empty-tiny aton-golos-empty-tiny--gpt">Ответ приходит в эту ленту обычным сообщением, не «эфиром» в реальном времени.</p>
+          <div class="aton-golos-empty-actions">
+            <button type="button" class="aton-golos-empty-focus-btn" id="aton-golos-empty-focus-cta">Поле ввода</button>
+          </div>
+        </div>
+      `;
+      const focusCta = container.querySelector("#aton-golos-empty-focus-cta");
+      if (focusCta) {
+        focusCta.addEventListener("click", (e) => {
+          e.preventDefault();
+          try {
+            inputMessage && inputMessage.removeAttribute("disabled");
+            inputMessage && inputMessage.focus();
+            compose && compose.scrollIntoView({ block: "end", behavior: "smooth" });
+          } catch (_) {}
+        });
+      }
+      if (golosPendingReplies > 0) {
+        container.appendChild(makeGolosPendingEl());
+      }
+      return;
+    }
     container.innerHTML = `
       <div class="aton-empty-state">
         <div class="aton-empty-icon">
@@ -3437,6 +3584,7 @@ function createApp() {
   }
 
   function renderMessages() {
+    if (!messagesEl || !compose) return;
     messagesEl.innerHTML = "";
     const current = currentUser;
     shell.classList.toggle("aton-shell--guest-landing", !current);
@@ -3759,6 +3907,10 @@ function createApp() {
       messagesEl.appendChild(row);
     });
 
+    if (golosPendingReplies > 0 && isGolosAtonChat()) {
+      messagesEl.appendChild(makeGolosPendingEl());
+    }
+
     messagesEl.scrollTop = messagesEl.scrollHeight;
     // Для выбранного чата показываем поле ввода
     setComposeEnabled(true);
@@ -3781,6 +3933,8 @@ function createApp() {
     }
 
     const to = dmToForApi();
+    const toGolos = to === GOLOS_ATON_USERNAME;
+    if (toGolos) golosPendingReplies += 1;
     const chatId = currentChatId;
     const replyToId = replyToMessage ? replyToMessage.id : null;
 
@@ -3822,6 +3976,7 @@ function createApp() {
         renderMessages();
         renderChatList();
       } catch (err) {
+        if (toGolos) golosPendingReplies = Math.max(0, golosPendingReplies - 1);
         // Откат оптимистичной вставки
         allMessages = allMessages.filter((m) => m.id !== tempId);
         renderMessages();
@@ -4803,29 +4958,78 @@ function createApp() {
     });
   }
 
-  // Голосовые сообщения: запись → превью → отправить (как в Telegram)
-  micButton.addEventListener("click", async () => {
+  // Голосовые: удержание (PTT) → превью → отправить
+  function clearPttDocEndHandler() {
+    if (!pttDocEndHandler) return;
+    document.removeEventListener("pointerup", pttDocEndHandler, true);
+    document.removeEventListener("pointercancel", pttDocEndHandler, true);
+    pttDocEndHandler = null;
+  }
+
+  function releasePttPointerCaptureIfAny(capEl, pointerId) {
+    if (!capEl) return;
+    try {
+      if (typeof capEl.hasPointerCapture === "function" && capEl.hasPointerCapture(pointerId)) {
+        capEl.releasePointerCapture(pointerId);
+      }
+    } catch (_) {}
+  }
+
+  async function runPttFromPointerEvent(e) {
     unlockNotificationAudio();
     const user = currentUser;
     if (!user || !currentChatId) return;
+    if (e.button != null && e.button !== 0) return;
+    if (pttInFlight) return;
+    if (mediaRecorder && mediaRecorder.state === "recording") return;
 
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-      mediaRecorder.stop();
-      return;
-    }
-
+    const capEl = e.currentTarget;
+    if (!capEl) return;
+    const capturePointerId = e.pointerId;
+    pttInFlight = true;
+    pttUserReleasedBeforeRecord = false;
+    clearPttDocEndHandler();
+    pttDocEndHandler = (ev) => {
+      if (ev.pointerId !== capturePointerId) return;
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        try {
+          mediaRecorder.stop();
+        } catch (_) {}
+      } else {
+        pttUserReleasedBeforeRecord = true;
+      }
+    };
+    document.addEventListener("pointerup", pttDocEndHandler, true);
+    document.addEventListener("pointercancel", pttDocEndHandler, true);
     try {
+      try {
+        capEl.setPointerCapture(capturePointerId);
+      } catch (_) {}
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (pttUserReleasedBeforeRecord) {
+        clearPttDocEndHandler();
+        try {
+          stream.getTracks().forEach((t) => t.stop());
+        } catch (_) {}
+        releasePttPointerCaptureIfAny(capEl, capturePointerId);
+        pttInFlight = false;
+        return;
+      }
       activeMicStream = stream;
       recordedChunks = [];
       voiceSessionChatId = currentChatId;
+      const pttToGolosAton = isGolosAtonChat();
       mediaRecorder = new MediaRecorder(stream);
 
-      mediaRecorder.addEventListener("dataavailable", (e) => {
-        if (e.data.size > 0) recordedChunks.push(e.data);
+      mediaRecorder.addEventListener("dataavailable", (ev2) => {
+        if (ev2.data.size > 0) recordedChunks.push(ev2.data);
       });
 
       mediaRecorder.addEventListener("stop", () => {
+        clearPttDocEndHandler();
+        releasePttPointerCaptureIfAny(capEl, capturePointerId);
+        pttInFlight = false;
         stopRecordingTimerUi();
         if (composeRecordHint) composeRecordHint.hidden = true;
         setMicButtonIdle();
@@ -4855,22 +5059,60 @@ function createApp() {
           return;
         }
 
+        if (pttToGolosAton) {
+          voiceSessionChatId = null;
+          void (async () => {
+            try {
+              await sendAudioBlobAsMessage(blob);
+            } catch (e) {
+              alert((e && e.message) || "Не удалось отправить");
+            }
+          })();
+          return;
+        }
+
         showVoicePreview(blob);
       });
 
+      if (pttUserReleasedBeforeRecord) {
+        clearPttDocEndHandler();
+        try {
+          stream.getTracks().forEach((t) => t.stop());
+        } catch (_) {}
+        activeMicStream = null;
+        mediaRecorder = null;
+        recordedChunks = [];
+        releasePttPointerCaptureIfAny(capEl, capturePointerId);
+        pttInFlight = false;
+        return;
+      }
       mediaRecorder.start();
       if (composeRecordHint) composeRecordHint.hidden = false;
       setMicButtonRecordingUi();
       startRecordingTimerUi();
     } catch (err) {
+      clearPttDocEndHandler();
+      releasePttPointerCaptureIfAny(capEl, capturePointerId);
+      pttInFlight = false;
       alert("Не удалось получить доступ к микрофону.");
       console.error(err);
       activeMicStream = null;
       voiceSessionChatId = null;
     }
+  }
+
+  function onVoicePttPointerDownFrom(e) {
+    e.preventDefault();
+    void runPttFromPointerEvent(e);
+  }
+
+  micButton.addEventListener("pointerdown", onVoicePttPointerDownFrom, { passive: false });
+  micButton.addEventListener("contextmenu", (ev) => {
+    if (mediaRecorder && mediaRecorder.state === "recording") ev.preventDefault();
   });
 
   function updateTopbarTitle() {
+    if (!topbarTitleEl || !statusEl) return;
     function setTitle(titleText, verified) {
       topbarTitleEl.innerHTML = "";
       const inner = document.createElement("div");
@@ -4947,6 +5189,7 @@ function createApp() {
       statusEl.classList.toggle("aton-topbar-status--online", presence.online);
     } finally {
       updatePeerActionBar();
+      updateGolosChatChrome();
     }
   }
 
@@ -5119,42 +5362,79 @@ function createApp() {
     refreshUserDataFromServer();
   });
   window.addEventListener("pageshow", (ev) => {
-    if (ev.persisted) refreshUserDataFromServer();
+    if (ev.persisted && getToken()) {
+      void (async () => {
+        try {
+          await bootstrapData();
+          if (currentUser && !currentUser.verified) return;
+          applyCurrentUserUI();
+          renderChatList();
+          renderMessages();
+          updateTopbarTitle();
+          updateFriendsBadge();
+          renderContacts();
+        } catch (e) {
+          console.error("pageshow bfcache restore", e);
+        }
+      })();
+    }
   });
   window.addEventListener("online", () => {
-    if (getToken() && sessionBootstrapNeedsRetry) {
-      bootstrapData();
-    }
+    if (!getToken() || !sessionBootstrapNeedsRetry) return;
+    void bootstrapData()
+      .then(() => {
+        try {
+          applyCurrentUserUI();
+          renderChatList();
+          renderMessages();
+          updateTopbarTitle();
+          updateFriendsBadge();
+          renderContacts();
+        } catch (e) {
+          console.error("UI after reconnection", e);
+        }
+      })
+      .catch((e) => console.error("bootstrap after online", e));
   });
 
   (async () => {
-    const verifyResult = await handleVerifyToken();
-    if (verifyResult && verifyResult.ok) {
-      if (currentUser) currentUser.verified = true;
+    try {
+      const verifyResult = await handleVerifyToken();
+      if (verifyResult && verifyResult.ok) {
+        if (currentUser) currentUser.verified = true;
+      }
+
+      await bootstrapData();
+      allowUserDataRefetch = true;
+
+      if (currentUser && !currentUser.verified) {
+        showVerifyScreen(currentUser.email);
+        return;
+      }
+
+      if (currentUser) {
+        unlockNotificationAudio();
+      }
+
+      if (verifyResult && verifyResult.ok) {
+        const hint = document.querySelector(".aton-auth-hint");
+        if (hint) hint.textContent = "Email подтверждён! Добро пожаловать.";
+      }
+
+      applyCurrentUserUI();
+      renderContacts();
+      renderChatList();
+      renderMessages();
+      updateTopbarTitle();
+    } catch (e) {
+      console.error("Aton: init", e);
+      if (root) {
+        root.insertAdjacentHTML(
+          "afterbegin",
+          '<div class="aton-init-fatal" style="position:fixed;z-index:9999;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(2,6,23,0.95);color:#e5e7eb;font:14px/1.5 system-ui,sans-serif;text-align:center;max-width:100vw;box-sizing:border-box;"><div style="max-width:22rem">Не удалось запустить мессенджер. Обновите страницу (Ctrl+F5) или зайдите позже. Если снова так — откройте консоль (F12) и сделайте скриншот.</div></div>'
+        );
+      }
     }
-
-    await bootstrapData();
-    allowUserDataRefetch = true;
-
-    if (currentUser && !currentUser.verified) {
-      showVerifyScreen(currentUser.email);
-      return;
-    }
-
-    if (currentUser) {
-      unlockNotificationAudio();
-    }
-
-    if (verifyResult && verifyResult.ok) {
-      const hint = document.querySelector(".aton-auth-hint");
-      if (hint) hint.textContent = "Email подтверждён! Добро пожаловать.";
-    }
-
-    applyCurrentUserUI();
-    renderContacts();
-    renderChatList();
-    renderMessages();
-    updateTopbarTitle();
   })();
 }
 

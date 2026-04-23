@@ -49,6 +49,11 @@ async function collectMetrics() {
 
   const h = await req("/api/health");
   lines.push(`GET /api/health → ${h.status} за ${h.ms}ms, body: ${JSON.stringify(h.data).slice(0, 200)}`);
+  if (h.data && typeof h.data.golosMaxPerWindow === "number") {
+    lines.push(
+      `Голос Атона: golosMaxPerWindow=${h.data.golosMaxPerWindow} (0 = без лимита), golosRateUnlimited=${h.data.golosRateUnlimited === true}`
+    );
+  }
   const hWarm = await req("/api/health");
   lines.push(`повтор GET /api/health (тот же процесс) → ${hWarm.status} за ${hWarm.ms}ms — сравни с первым: большой разброс часто cold start / прогрев`);
 
@@ -98,7 +103,7 @@ async function main() {
   const user = `Ниже — результат проверок **публичного** API веб-мессенджера (прод). Секретов в данных нет.
 
 Сделай **полный отчёт**:
-1. **Краткое резюме** (здоровье API).
+1. **Краткое резюме** (здоровье API, в т.ч. **golosMaxPerWindow** / **golosRateUnlimited** в /api/health: **0** и **true** = нет почасового лимита к Голосу Атона; иначе — регрессия/риск жёсткого лимита).
 2. **Связь API → UX/клиент** — как ответы/ошибки/задержки бьют по опыту (в т.ч. **чат, лента сообщений, вложения** в духе **Telegram/WhatsApp**); кратко по данным. Явно: **сессия, F5, долгий вход** — чем **бэкенд** может бить по клиенту (тайминги health, cold start, тяжёлые агрегаты).
 3. **По логу смоука** — риски.
 4. **Производительность** — задержки **первого и второго** /api/health, что мерить в проде; влияние на **ощущаемый** срок «до чата».

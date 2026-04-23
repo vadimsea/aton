@@ -37,10 +37,12 @@ const GOLOS_ATON_USERNAME = "golos_aton";
 const GOLOS_ATON_EMAIL = "golos_aton@system.internal";
 const GOLOS_RATE = new Map();
 const GOLOS_RATE_WINDOW_MS = 60 * 60 * 1000;
-const GOLOS_MAX_PER_WINDOW = 40;
+/** 0 = без лимита (по умолчанию). Иначе — макс. обращений к Голосу Атона за окно. */
+const GOLOS_MAX_PER_WINDOW = Math.max(0, parseInt(String(process.env.GOLOS_MAX_PER_WINDOW || "0"), 10) || 0);
 
 function golosRateAllow(username) {
   if (!username) return true;
+  if (GOLOS_MAX_PER_WINDOW <= 0) return true;
   const now = Date.now();
   const rec = GOLOS_RATE.get(username) || { count: 0, windowStart: now };
   if (now - rec.windowStart > GOLOS_RATE_WINDOW_MS) {
@@ -126,6 +128,9 @@ app.get("/api/health", async (req, res) => {
   const out = { ok: true, service: "aton-api", ts: new Date().toISOString() };
   try {
     out.groqKeyConfigured = Boolean(String(process.env.GROQ_API_KEY || "").trim());
+    out.openaiTtsConfigured = Boolean(String(process.env.OPENAI_API_KEY || "").trim());
+    out.golosMaxPerWindow = GOLOS_MAX_PER_WINDOW;
+    out.golosRateUnlimited = GOLOS_MAX_PER_WINDOW <= 0;
     out.nodeFetch = typeof globalThis.fetch === "function";
     out.nodeVersion = process.version;
     const golos = await prisma.user.findUnique({

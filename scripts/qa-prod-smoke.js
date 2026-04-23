@@ -39,6 +39,12 @@ function ok(name, pass, detail) {
   {
     const r = await req("/api/health");
     ok("GET /api/health", r.status === 200 && r.data && r.data.ok === true, `status ${r.status}`);
+    const lim = r.data && typeof r.data.golosMaxPerWindow === "number" ? r.data.golosMaxPerWindow : null;
+    ok(
+      "GET /api/health (Голос Атона: без лимита)",
+      lim === 0,
+      `golosMaxPerWindow=${String(lim)} (ожидаем 0)`
+    );
   }
 
   const ts = Date.now();
