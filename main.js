@@ -1,8 +1,46 @@
 // Атон — фронтенд мессенджера, работающий с Node.js backend (server.js)
 
 const TOKEN_KEY = "aton_token";
+/** Кэш последнего успешного /api/me — чтобы при обрыве сети не показывать форму входа. */
+const SESSION_ME_CACHE_KEY = "aton_me_cache_v1";
 /** Системный ассистент (сервер: тот же username). */
 const GOLOS_ATON_USERNAME = "golos_aton";
+
+function persistSessionSnapshot(u) {
+  if (!u || typeof u !== "object" || !u.username) return;
+  try {
+    sessionStorage.setItem(
+      SESSION_ME_CACHE_KEY,
+      JSON.stringify({
+        id: u.id,
+        username: u.username,
+        displayName: u.displayName,
+        email: u.email,
+        publicId: u.publicId,
+        avatarDataUrl: u.avatarDataUrl,
+        verified: Boolean(u.verified),
+        isSuperAdmin: typeof u.isSuperAdmin === "boolean" ? u.isSuperAdmin : undefined,
+      })
+    );
+  } catch (_) {}
+}
+
+function readSessionSnapshot() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_ME_CACHE_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    return o && typeof o === "object" && o.username ? o : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearSessionSnapshot() {
+  try {
+    sessionStorage.removeItem(SESSION_ME_CACHE_KEY);
+  } catch (_) {}
+}
 
 // Базовый URL API и WebSocket (один и тот же хост, что и Socket.io на бэкенде).
 // 1) localhost / 127.0.0.1 сначала — локальный :3000 не перекрывается meta.
@@ -647,7 +685,15 @@ async function api(path, options = {}) {
   }
   const token = getToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(API_BASE + path, { ...options, headers });
+  let res;
+  try {
+    res = await fetch(API_BASE + path, { ...options, headers });
+  } catch (cause) {
+    const err = new Error("Нет сети или сервер не отвечает");
+    err.cause = cause;
+    err.isNetwork = true;
+    throw err;
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (
@@ -1119,6 +1165,29 @@ function createApp() {
     updateTopbarTitle();
   }
 
+  /** После F5: открываем тот же чат, что и до перезагрузки (если он ещё доступен). */
+  function restoreLastOpenChatIfValid() {
+    if (!currentUser || !currentUser.verified) return;
+    const saved = getLastChatId(currentUser.username);
+    if (!saved || typeof saved !== "string") return;
+    if (saved.startsWith("group:") || saved.startsWith("channel:")) {
+      if (!allChats.some((c) => c.id === saved)) {
+        return;
+      }
+    } else if (String(saved).includes("|")) {
+      const parts = saved.split("|");
+      if (parts.length !== 2) return;
+      const [a, b] = parts;
+      if (a !== currentUser.username && b !== currentUser.username) {
+        return;
+      }
+    } else {
+      return;
+    }
+    currentChatId = saved;
+    switchSocketChat(saved);
+  }
+
   function ensureToastStack() {
     let el = document.getElementById("aton-toast-stack");
     if (!el) {
@@ -1301,6 +1370,7 @@ function createApp() {
   const searchInput = document.getElementById("aton-user-search");
   const searchResultsEl = document.getElementById("aton-search-results");
   const loggedUserLabel = document.getElementById("aton-logged-user");
+  const loggedStatusEl = document.getElementById("aton-logged-status");
   const logoutButton = document.getElementById("aton-logout");
   const backButton = document.getElementById("aton-back-btn");
   const createGroupButton = document.getElementById("aton-create-group");
@@ -1320,6 +1390,23 @@ function createApp() {
   const sidebarThemeBtn = document.getElementById("aton-sidebar-theme-btn");
   const friendsSidebarBadge = document.getElementById("aton-sidebar-friends-badge");
   const notifyPermissionBtn = document.getElementById("aton-notify-permission");
+
+  if (getToken()) {
+    authLoginBlock.style.display = "none";
+    authLoggedBlock.style.display = "block";
+    const snap0 = readSessionSnapshot();
+    if (loggedUserLabel) {
+      loggedUserLabel.textContent = snap0
+        ? String(snap0.displayName || snap0.username || "").trim() || "Подключение…"
+        : "Подключение…";
+    }
+    if (loggedStatusEl) {
+      loggedStatusEl.textContent = "";
+    }
+    if (statusEl) {
+      statusEl.textContent = "Восстанавливаем сессию…";
+    }
+  }
 
   // Индикатор «печатает…»
   const typingIndicator = document.createElement("div");
@@ -1615,12 +1702,14 @@ function createApp() {
     }
   }
 
+  let sessionBootstrapNeedsRetry = false;
+
   async function bootstrapData() {
     const version = ++bootstrapVersion;
     const tokenAtStart = getToken();
+    sessionBootstrapNeedsRetry = false;
 
     if (!tokenAtStart) {
-      // если это уже устаревший вызов — ничего не делаем
       if (version !== bootstrapVersion) return;
       currentUser = null;
       allUsers = [];
@@ -1632,26 +1721,52 @@ function createApp() {
       return;
     }
 
+    function shouldRetryMeError(e) {
+      if (e && e.status === 401) return false;
+      return (
+        !e ||
+        e.isNetwork ||
+        !e.status ||
+        (e.status >= 500 && e.status < 600) ||
+        e.status === 429 ||
+        e.status === 408
+      );
+    }
+
     try {
-      const nextCurrentUser = await api("/api/me");
+      const maxMe = 6;
+      let nextCurrentUser;
+      let lastErr;
+      for (let attempt = 0; attempt < maxMe; attempt++) {
+        if (attempt > 0) {
+          const ms = Math.min(4000, 500 * (1 << (attempt - 1)));
+          await new Promise((r) => setTimeout(r, ms));
+        }
+        if (version !== bootstrapVersion) return;
+        try {
+          nextCurrentUser = await api("/api/me");
+          lastErr = null;
+          break;
+        } catch (e) {
+          lastErr = e;
+          if (e && e.status === 401) throw e;
+          if (!shouldRetryMeError(e) || attempt === maxMe - 1) {
+            throw e;
+          }
+        }
+      }
       if (version !== bootstrapVersion) return;
 
       currentUser = nextCurrentUser;
       currentUser.isSuperAdmin = resolveIsSuperAdmin(currentUser);
       assignPeerAliasesOnUser(currentUser);
+      persistSessionSnapshot(currentUser);
 
       if (!currentUser.verified) return;
 
       await maybeMergeLocalPeerAliasesOnce();
 
-      // Сначала без /api/users — полный список пользователей может быть тяжёлым и
-      // блокирует первый кадр со списком чатов после входа.
-      const [
-        nextAllChats,
-        nextAllMessages,
-        nextContacts,
-        nextDiscover,
-      ] = await Promise.all([
+      const settled = await Promise.allSettled([
         api("/api/chats"),
         api("/api/messages/all"),
         api("/api/contacts").catch(() => ({
@@ -1662,19 +1777,32 @@ function createApp() {
         })),
         api("/api/chats/discover").catch(() => []),
       ]);
-
       if (version !== bootstrapVersion) return;
 
+      const chatsRes = settled[0];
+      const msgRes = settled[1];
+      const contRes = settled[2];
+      const discRes = settled[3];
+
+      if (chatsRes.status === "rejected" && msgRes.status === "rejected") {
+        throw chatsRes.reason;
+      }
+      if (chatsRes.status === "rejected" || msgRes.status === "rejected") {
+        sessionBootstrapNeedsRetry = true;
+      }
+
       allUsers = [];
-      allChats = nextAllChats;
-      discoverChats = Array.isArray(nextDiscover) ? nextDiscover : [];
-      allMessages = nextAllMessages;
-      contacts = nextContacts;
+      allChats = chatsRes.status === "fulfilled" ? chatsRes.value : [];
+      allMessages = msgRes.status === "fulfilled" ? msgRes.value : [];
+      contacts =
+        contRes.status === "fulfilled"
+          ? contRes.value
+          : { friends: [], blocked: [], requestsIn: [], requestsOut: [] };
+      discoverChats = discRes.status === "fulfilled" && Array.isArray(discRes.value) ? discRes.value : [];
       if (!contacts.requestsIn) contacts.requestsIn = [];
       if (!contacts.requestsOut) contacts.requestsOut = [];
 
-      // Важно: при загрузке НЕ выбираем чат автоматически.
-      // currentChatId остаётся null, пока пользователь явно не кликнет по чату.
+      restoreLastOpenChatIfValid();
 
       (async function loadUsersDirectory() {
         try {
@@ -1694,17 +1822,17 @@ function createApp() {
     } catch (err) {
       console.error(err);
 
-      // если это устаревший вызов — игнорируем результат ошибки
       if (version !== bootstrapVersion) return;
 
-      // Если токен невалиден (401) — очищаем токен и считаем пользователя гостем.
-      if (
+      const sessionGone =
         err.status === 401 ||
-        (err.message && err.message.includes("Неверный токен"))
-      ) {
-        // Защита: не очищаем токен, если он уже был заменён новым логином.
+        (err.message &&
+          (err.message.includes("Неверный токен") || err.message.includes("Сессия устарела")));
+
+      if (sessionGone) {
         if (getToken() === tokenAtStart) {
           setToken(null);
+          clearSessionSnapshot();
           currentUser = null;
           allUsers = [];
           allChats = [];
@@ -1713,8 +1841,51 @@ function createApp() {
           contacts = { friends: [], blocked: [], requestsIn: [], requestsOut: [] };
           currentChatId = null;
         }
+        return;
       }
-      // Для других ошибок оставляем текущее состояние.
+
+      if (getToken() === tokenAtStart) {
+        sessionBootstrapNeedsRetry = true;
+        const snap = readSessionSnapshot();
+        if (snap && snap.verified) {
+          currentUser = {
+            id: snap.id,
+            username: snap.username,
+            displayName: snap.displayName || snap.username,
+            email: snap.email,
+            publicId: snap.publicId,
+            avatarDataUrl: snap.avatarDataUrl,
+            verified: true,
+            peerAliases: {},
+          };
+          assignPeerAliasesOnUser(currentUser);
+          currentUser.isSuperAdmin = resolveIsSuperAdmin(currentUser);
+          allUsers = [];
+          allChats = [];
+          discoverChats = [];
+          allMessages = [];
+          contacts = { friends: [], blocked: [], requestsIn: [], requestsOut: [] };
+          currentChatId = null;
+          authLoginBlock.style.display = "none";
+          authLoggedBlock.style.display = "block";
+          if (hintEl) {
+            hintEl.textContent = "";
+          }
+          if (statusEl) {
+            statusEl.textContent = "Нет сети — подключаемся, как только сеть появится";
+          }
+        } else {
+          currentUser = null;
+          authLoginBlock.style.display = "block";
+          authLoggedBlock.style.display = "none";
+          if (hintEl) {
+            hintEl.textContent = "Не удалось загрузить данные. Проверьте сеть и обновите страницу.";
+          }
+          if (statusEl) {
+            statusEl.textContent = "Проблема с подключением";
+          }
+        }
+      }
     }
   }
 
@@ -1899,6 +2070,7 @@ function createApp() {
         currentUser = data.user;
         currentUser.isSuperAdmin = resolveIsSuperAdmin(currentUser);
         assignPeerAliasesOnUser(currentUser);
+        persistSessionSnapshot(currentUser);
       }
 
       if (data.user && !data.user.verified) {
@@ -1922,6 +2094,12 @@ function createApp() {
   // поэтому дополнительных обработчиков здесь не требуется.
 
   function performFullLogout() {
+    try {
+      if (currentUser && currentUser.username) {
+        localStorage.removeItem(LAST_CHAT_KEY_PREFIX + currentUser.username);
+      }
+    } catch (_) {}
+    clearSessionSnapshot();
     setToken(null);
     socket.auth.token = "";
     socket.disconnect().connect();
@@ -4942,6 +5120,11 @@ function createApp() {
   });
   window.addEventListener("pageshow", (ev) => {
     if (ev.persisted) refreshUserDataFromServer();
+  });
+  window.addEventListener("online", () => {
+    if (getToken() && sessionBootstrapNeedsRetry) {
+      bootstrapData();
+    }
   });
 
   (async () => {
