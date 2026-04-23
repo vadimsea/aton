@@ -17,7 +17,7 @@ const {
   messageFromPrismaRow,
   generateUniquePublicId,
 } = require("./lib/aton-mappers");
-const { fetchGolosReply } = require("./lib/golos-groq");
+const { fetchGolosReply, transcribeGolosAudioDataUrl, buildGolosBotReplyContent } = require("./lib/golos-groq");
 
 /** Ключ в peerAliases — точный username из БД; peerUsername в запросе может отличаться регистром. */
 async function findCanonicalUsernameForPeerAlias(peerUsername) {
@@ -406,19 +406,20 @@ async function notifyNewMessage(msg, sender) {
   }
 }
 
-async function postGolosAtonMessage({ text, toUsername, chatId }) {
+async function postGolosAtonMessage({ text, toUsername, chatId, type = "text", audioDataUrl = null }) {
   const msgId = generateToken();
   const now = new Date();
+  const msgType = type === "audio" && audioDataUrl ? "audio" : "text";
   const row = await prisma.message.create({
     data: {
       id: msgId,
       chatId,
       senderUsername: GOLOS_ATON_USERNAME,
       recipientUsername: toUsername,
-      type: "text",
+      type: msgType,
       text: text || "",
       imageDataUrl: null,
-      audioDataUrl: null,
+      audioDataUrl: msgType === "audio" && audioDataUrl ? audioDataUrl : null,
       createdAt: now,
       pinned: false,
       reactions: [],
@@ -446,7 +447,10 @@ async function processGolosAtonUserReply({ savedUserMsg, authorUsername, authorI
   if (!userMessageToGolosAton(savedUserMsg, authorUsername)) {
     return;
   }
-  if (savedUserMsg.type !== "text" || !String(savedUserMsg.text || "").trim()) return;
+  const isAudio = savedUserMsg.type === "audio" && String(savedUserMsg.audioDataUrl || "").trim();
+  const isText = savedUserMsg.type === "text" && String(savedUserMsg.text || "").trim();
+  if (!isAudio && !isText) return;
+
   const chatId = savedUserMsg.chatId || dmChatIdForUsernames(authorUsername, GOLOS_ATON_USERNAME);
   if (!golosRateAllow(authorUsername)) {
     await postGolosAtonMessage({
@@ -458,17 +462,48 @@ async function processGolosAtonUserReply({ savedUserMsg, authorUsername, authorI
   }
   const authorRow = await prisma.user.findUnique({ where: { id: authorId } });
   const u = authorRow ? userFromPrismaRow(authorRow) : { username: authorUsername, displayName: authorUsername };
+
+  let userText = "";
+  if (isText) {
+    userText = String(savedUserMsg.text).trim();
+  } else {
+    try {
+      userText = await transcribeGolosAudioDataUrl(savedUserMsg.audioDataUrl);
+    } catch (e) {
+      console.error("transcribeGolosAudioDataUrl:", e);
+    }
+    userText = String(userText || "").trim();
+    if (!userText) {
+      await postGolosAtonMessage({
+        type: "text",
+        text: "Не разобрал голосовое сообщение. Скажите, пожалуйста, ещё раз или напишите текстом.",
+        toUsername: authorUsername,
+        chatId,
+      });
+      return;
+    }
+  }
+
   let replyText;
   try {
-    replyText = await fetchGolosReply(savedUserMsg.text, {
+    replyText = await fetchGolosReply(userText, {
       username: u.username,
       displayName: u.displayName,
+      fromVoice: Boolean(isAudio),
     });
   } catch (e) {
     console.error("fetchGolosReply:", e);
     replyText = "Произошла ошибка. Попробуйте позже.";
   }
-  await postGolosAtonMessage({ text: replyText, toUsername: authorUsername, chatId });
+
+  const body = await buildGolosBotReplyContent(replyText, { asVoice: Boolean(isAudio) });
+  await postGolosAtonMessage({
+    type: body.type,
+    text: body.text,
+    audioDataUrl: body.audioDataUrl || null,
+    toUsername: authorUsername,
+    chatId,
+  });
 }
 
 async function ensureGolosAtonUser() {
@@ -2234,6 +2269,10 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
     }
   }
 
+  if (type === "audio" && !String(audioDataUrl || "").trim()) {
+    return res.status(400).json({ error: "Нет аудиозаписи" });
+  }
+
   if (
     type === "text" &&
     (!text || !String(text).trim()) &&
@@ -2271,7 +2310,10 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
     }
     res.json(msg);
 
-    if (userMessageToGolosAton(msg, req.user.username) && type === "text" && String(text || "").trim()) {
+    const toGolos = userMessageToGolosAton(msg, req.user.username);
+    const hasText = type === "text" && String(text || "").trim();
+    const hasAudio = type === "audio" && String(audioDataUrl || "").trim();
+    if (toGolos && (hasText || hasAudio)) {
       void processGolosAtonUserReply({
         savedUserMsg: msg,
         authorUsername: req.user.username,
