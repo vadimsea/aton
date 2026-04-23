@@ -1,10 +1,48 @@
 /**
  * Вызовы Groq (vision + text). Ключ: GROQ_API_KEY
+ * Vision: у модели лимит **5 изображений** за запрос — пакуем и сливаем в один отчёт.
  */
 
 const GROQ_CHAT = "https://api.groq.com/openai/v1/chat/completions";
+/** Groq: Too many images provided. This model supports up to 5 images */
+const GROQ_VISION_MAX_IMAGES = 5;
 
 export async function groqVision({
+  system,
+  userText,
+  imagePaths,
+  imageLabels,
+  model = process.env.GROQ_VISION_MODEL || "meta-llama/llama-4-scout-17b-16e-instruct",
+  maxTokens = 4000,
+}) {
+  const paths = Array.isArray(imagePaths) ? imagePaths.filter(Boolean) : [];
+  if (paths.length <= GROQ_VISION_MAX_IMAGES) {
+    return groqVisionOnce({ system, userText, imagePaths: paths, model, maxTokens });
+  }
+  const labels = Array.isArray(imageLabels) && imageLabels.length === paths.length ? imageLabels : null;
+  const parts = [];
+  const totalBatches = Math.ceil(paths.length / GROQ_VISION_MAX_IMAGES);
+  for (let b = 0; b < totalBatches; b++) {
+    const from = b * GROQ_VISION_MAX_IMAGES;
+    const chunk = paths.slice(from, from + GROQ_VISION_MAX_IMAGES);
+    const lab = labels ? labels.slice(from, from + GROQ_VISION_MAX_IMAGES) : null;
+    const sub =
+      `**Пакет кадров ${b + 1} из ${totalBatches}** (${chunk.length} скриншот).` +
+      (lab && lab.length
+        ? `\nПодписи к кадрам этого пакета: ${lab.join(" | ")}`
+        : "") +
+      `\n\n${userText}`;
+    const p = await groqVisionOnce({ system, userText: sub, imagePaths: chunk, model, maxTokens: Math.min(maxTokens, 5000) });
+    parts.push(`--- Пакет ${b + 1} / ${totalBatches} ---\n\n${p}`);
+  }
+  return groqText({
+    system: `Ты редактор UI/UX-отчёта (мессенджер «Атон»). Ниже — части анализа **разных паков скриншотов** (один пак = до ${GROQ_VISION_MAX_IMAGES} кадров). Объедини в **один** связный отчёт на русском, сохрани P1-проблемы и конкретику, убери дубли, добавь краткое резюме в начало.`,
+    user: `Части анализа:\n\n${parts.join("\n\n")}`,
+    maxTokens: Math.min(8000, maxTokens + 2000),
+  });
+}
+
+async function groqVisionOnce({
   system,
   userText,
   imagePaths,

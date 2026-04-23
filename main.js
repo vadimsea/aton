@@ -67,27 +67,86 @@ function selfDisplayNameForUi(user, full) {
   return base.displayName || base.username || "";
 }
 
-/** Локальные имена собеседников: JSON в localStorage, только на этом устройстве. */
+/** Локальные имена: legacy в localStorage; приоритет — peerAliases в аккаунте (сервер, все устройства). */
 const LOCAL_PEER_ALIASES_PREFIX = "aton_peer_aliases_";
+const gPeerAliasState = { getUser: () => null };
+
+function normalizePeerAliasesClient(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (typeof k !== "string" || k.length > 200) continue;
+    if (typeof v !== "string" || !v.trim()) continue;
+    out[k] = v.trim();
+  }
+  return out;
+}
+
+function assignPeerAliasesOnUser(u) {
+  if (!u || typeof u !== "object") return;
+  u.peerAliases = normalizePeerAliasesClient(u.peerAliases);
+}
+
+/** Псевдоним по peerUsername, если в map ключи отличались регистром от username в чате. */
+function getPeerAliasValue(map, peerUsername) {
+  if (!peerUsername || !map || typeof map !== "object") return "";
+  const s = String(peerUsername);
+  if (Object.prototype.hasOwnProperty.call(map, s) && String(map[s] || "").trim()) {
+    return String(map[s]).trim();
+  }
+  const low = s.toLowerCase();
+  for (const k of Object.keys(map)) {
+    if (k.toLowerCase() === low && String(map[k] || "").trim()) return String(map[k]).trim();
+  }
+  return "";
+}
 
 function getPeerAliasesMap(myUsername) {
   if (!myUsername) return {};
+  const u = gPeerAliasState.getUser();
+  const fromServer =
+    u &&
+    u.username === myUsername &&
+    u.peerAliases &&
+    typeof u.peerAliases === "object" &&
+    !Array.isArray(u.peerAliases)
+      ? normalizePeerAliasesClient(u.peerAliases)
+      : {};
+  let fromLocal = {};
   try {
     const raw = localStorage.getItem(LOCAL_PEER_ALIASES_PREFIX + myUsername);
     const o = raw ? JSON.parse(raw) : {};
-    return o && typeof o === "object" ? o : {};
+    fromLocal = o && typeof o === "object" && !Array.isArray(o) ? normalizePeerAliasesClient(o) : {};
   } catch {
-    return {};
+    fromLocal = {};
   }
+  return { ...fromLocal, ...fromServer };
 }
 
-function setPeerAlias(myUsername, peerUsername, alias) {
+async function setPeerAlias(myUsername, peerUsername, alias) {
   if (!myUsername || !peerUsername) return;
-  const map = getPeerAliasesMap(myUsername);
   const t = String(alias || "").trim();
+  const me = gPeerAliasState.getUser();
+  if (getToken() && me && me.username === myUsername) {
+    try {
+      const r = await api("/api/peer-alias", {
+        method: "PUT",
+        body: JSON.stringify({ peerUsername, alias: t || null }),
+      });
+      if (r.peerAliases) {
+        me.peerAliases = normalizePeerAliasesClient(r.peerAliases);
+      }
+      return;
+    } catch (e) {
+      console.error("setPeerAlias API:", e);
+    }
+  }
+  const map = { ...getPeerAliasesMap(myUsername) };
   if (t) map[peerUsername] = t;
   else delete map[peerUsername];
-  localStorage.setItem(LOCAL_PEER_ALIASES_PREFIX + myUsername, JSON.stringify(map));
+  try {
+    localStorage.setItem(LOCAL_PEER_ALIASES_PREFIX + myUsername, JSON.stringify(map));
+  } catch (_) {}
 }
 
 /** Как показывать собеседника вам: локальный псевдоним или профиль / username. */
@@ -95,7 +154,8 @@ function displayNameForPeer(myUsername, peerUsername, peerUser) {
   if (!peerUsername) return peerUser?.displayName || "";
   if (!myUsername) return peerUser?.displayName || peerUsername;
   const map = getPeerAliasesMap(myUsername);
-  if (map[peerUsername]) return map[peerUsername];
+  const alias = getPeerAliasValue(map, peerUsername);
+  if (alias) return alias;
   if (peerUsername === GOLOS_ATON_USERNAME) return "Голос Атона";
   return peerUser?.displayName || peerUsername;
 }
@@ -181,6 +241,52 @@ function formatTimeLabel(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+/** Сайдбар: сегодня — только часы, иначе дата (коротко) + время. */
+function formatChatListMessageTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  const startOfDay = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+  if (startOfDay(d).getTime() === startOfDay(now).getTime()) {
+    return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  }
+  const dateOpts = { day: "numeric", month: "short" };
+  if (d.getFullYear() !== now.getFullYear()) dateOpts.year = "numeric";
+  return (
+    d.toLocaleDateString("ru-RU", dateOpts) +
+    ", " +
+    d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
+  );
+}
+
+function chatListPreviewWords(text, maxWords) {
+  const n = maxWords == null ? 5 : maxWords;
+  if (!text || typeof text !== "string") return "";
+  const words = String(text)
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (words.length === 0) return "";
+  if (words.length <= n) return words.join(" ");
+  return words.slice(0, n).join(" ") + "…";
+}
+
+function buildLastMessagePreviewForChatList(lastMsg) {
+  if (!lastMsg) return "Нет сообщений";
+  let tag = "";
+  if (lastMsg.type === "image") tag = "📷";
+  else if (lastMsg.type === "audio") tag = "🎙";
+  const raw = (lastMsg.text && String(lastMsg.text).trim()) || "";
+  if (raw) {
+    const short = chatListPreviewWords(raw, 5);
+    return tag ? `${tag} ${short}` : short;
+  }
+  if (lastMsg.type === "image") return "📷 Фото";
+  if (lastMsg.type === "audio") return "🎙 Голосовое";
+  return "Сообщение без текста";
 }
 
 /** Статус «был в сети» для шапки и списка личных чатов. При blockedMe не показываем реальный lastSeen. */
@@ -528,6 +634,12 @@ function setLastChatId(username, chatId) {
   localStorage.setItem(`${LAST_CHAT_KEY_PREFIX}${username}`, chatId);
 }
 
+/** 401 с этих путей не сбрасывает локальную сессию (например неверный пароль при /api/login). */
+function api401ShouldSkipSessionInvalidate(path) {
+  const p = path.split("?")[0];
+  return p === "/api/login" || p === "/api/register";
+}
+
 async function api(path, options = {}) {
   const headers = options.headers || {};
   if (!(options.body instanceof FormData)) {
@@ -538,6 +650,20 @@ async function api(path, options = {}) {
   const res = await fetch(API_BASE + path, { ...options, headers });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    if (
+      res.status === 401 &&
+      token &&
+      getToken() === token &&
+      !api401ShouldSkipSessionInvalidate(path)
+    ) {
+      setToken(null);
+      document.dispatchEvent(new CustomEvent("aton:session-expired"));
+      const err = new Error(
+        "Сессия устарела. Войдите снова — так бывает, если вы входили с другого устройства или браузера."
+      );
+      err.status = 401;
+      throw err;
+    }
     const err = new Error(data.error || "Ошибка соединения с сервером");
     err.status = res.status;
     throw err;
@@ -875,6 +1001,7 @@ function createApp() {
   // === Состояние ===
   let authMode = "login";
   let currentUser = null;
+  gPeerAliasState.getUser = () => currentUser;
   let allUsers = [];
   let allChats = [];
   let discoverChats = [];
@@ -1448,6 +1575,46 @@ function createApp() {
   tabLogin.addEventListener("click", () => switchMode("login"));
   tabRegister.addEventListener("click", () => switchMode("register"));
 
+  async function maybeMergeLocalPeerAliasesOnce() {
+    if (!currentUser) return;
+    const key = LOCAL_PEER_ALIASES_PREFIX + currentUser.username;
+    let local = {};
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) local = JSON.parse(raw) || {};
+    } catch {
+      return;
+    }
+    if (!local || typeof local !== "object" || !Object.keys(local).length) return;
+    const srv = normalizePeerAliasesClient(currentUser.peerAliases);
+    const patch = {};
+    for (const [k, v] of Object.entries(local)) {
+      if (typeof v !== "string" || !v.trim()) continue;
+      if (getPeerAliasValue(srv, k)) continue;
+      patch[k] = v.trim();
+    }
+    if (!Object.keys(patch).length) {
+      try {
+        localStorage.removeItem(key);
+      } catch (_) {}
+      return;
+    }
+    try {
+      const r = await api("/api/peer-aliases/merge", {
+        method: "PUT",
+        body: JSON.stringify({ merge: patch }),
+      });
+      if (r.peerAliases) {
+        currentUser.peerAliases = normalizePeerAliasesClient(r.peerAliases);
+      }
+      try {
+        localStorage.removeItem(key);
+      } catch (_) {}
+    } catch (e) {
+      console.warn("peer-aliases/merge", e);
+    }
+  }
+
   async function bootstrapData() {
     const version = ++bootstrapVersion;
     const tokenAtStart = getToken();
@@ -1471,8 +1638,11 @@ function createApp() {
 
       currentUser = nextCurrentUser;
       currentUser.isSuperAdmin = resolveIsSuperAdmin(currentUser);
+      assignPeerAliasesOnUser(currentUser);
 
       if (!currentUser.verified) return;
+
+      await maybeMergeLocalPeerAliasesOnce();
 
       // Сначала без /api/users — полный список пользователей может быть тяжёлым и
       // блокирует первый кадр со списком чатов после входа.
@@ -1572,7 +1742,11 @@ function createApp() {
       compose.style.display = "none";
       if (contactsEl) contactsEl.innerHTML = "";
       if (friendsBtn) friendsBtn.style.display = "none";
-      if (sidebarToolbar) sidebarToolbar.hidden = true;
+      /* Тема доступна и до регистрации: на мобилке main скрыт — переключатель только в шапке сайдбара */
+      if (sidebarToolbar) {
+        sidebarToolbar.removeAttribute("hidden");
+        sidebarToolbar.hidden = false;
+      }
       if (sidebarFriendsBtn) sidebarFriendsBtn.style.display = "none";
       if (notifyPermissionBtn) notifyPermissionBtn.style.display = "none";
       if (friendsOverlay) friendsOverlay.hidden = true;
@@ -1632,7 +1806,10 @@ function createApp() {
       if (filterPrivateBtn) filterPrivateBtn.style.display = "inline-flex";
       if (filterGroupBtn) filterGroupBtn.style.display = "inline-flex";
       if (friendsBtn) friendsBtn.style.display = user.verified ? "inline-flex" : "none";
-      if (sidebarToolbar) sidebarToolbar.hidden = false;
+      if (sidebarToolbar) {
+        sidebarToolbar.removeAttribute("hidden");
+        sidebarToolbar.hidden = false;
+      }
       if (sidebarFriendsBtn) {
         sidebarFriendsBtn.style.display = user.verified ? "inline-flex" : "none";
       }
@@ -1721,6 +1898,7 @@ function createApp() {
       if (data.user) {
         currentUser = data.user;
         currentUser.isSuperAdmin = resolveIsSuperAdmin(currentUser);
+        assignPeerAliasesOnUser(currentUser);
       }
 
       if (data.user && !data.user.verified) {
@@ -1743,23 +1921,27 @@ function createApp() {
   // Ссылка "Забыли пароль?" ведёт на отдельную страницу forgot.html,
   // поэтому дополнительных обработчиков здесь не требуется.
 
+  function performFullLogout() {
+    setToken(null);
+    socket.auth.token = "";
+    socket.disconnect().connect();
+    currentUser = null;
+    allUsers = [];
+    allChats = [];
+    discoverChats = [];
+    allMessages = [];
+    contacts = { friends: [], blocked: [], requestsIn: [], requestsOut: [] };
+    switchSocketChat(null);
+    currentChatId = null;
+    applyCurrentUserUI();
+    renderChatList();
+    renderMessages();
+    updateTopbarTitle();
+  }
+  document.addEventListener("aton:session-expired", performFullLogout);
+
   if (logoutButton) {
-    logoutButton.addEventListener("click", () => {
-      setToken(null);
-      socket.auth.token = "";
-      socket.disconnect().connect();
-      currentUser = null;
-      allUsers = [];
-      allChats = [];
-      discoverChats = [];
-      allMessages = [];
-      switchSocketChat(null);
-      currentChatId = null;
-      applyCurrentUserUI();
-      renderChatList();
-      renderMessages();
-      updateTopbarTitle();
-    });
+    logoutButton.addEventListener("click", () => performFullLogout());
   }
 
   if (backButton) {
@@ -1956,7 +2138,7 @@ function createApp() {
   function openPeerAliasModal(peer) {
     if (!peer || !currentUser) return;
     const peerUser = userByUsername(peer);
-    const cur = getPeerAliasesMap(currentUser.username)[peer] || "";
+    const cur = getPeerAliasValue(getPeerAliasesMap(currentUser.username), peer) || "";
     const defaultDisplay = peerUser?.displayName || peer;
 
     const overlay = document.createElement("div");
@@ -1965,7 +2147,7 @@ function createApp() {
       <div class="aton-peer-alias-backdrop" aria-label="Закрыть" role="presentation"></div>
       <div class="aton-peer-alias-modal" role="dialog" aria-modal="true" aria-labelledby="aton-peer-alias-title">
         <h2 class="aton-peer-alias-heading" id="aton-peer-alias-title">Изменить имя собеседника</h2>
-        <p class="aton-peer-alias-lead">Имя видите только вы в этом браузере. Остальные пользователи по-прежнему видят профиль в Атоне.</p>
+        <p class="aton-peer-alias-lead">Сохраняется в вашем аккаунте — одинаково на всех устройствах, где вы вошли. Собеседник по-прежнему видит свой профиль в Атоне.</p>
         <label class="aton-input-label" for="aton-peer-alias-input">Как показывать в чатах</label>
         <input type="text" id="aton-peer-alias-input" class="aton-input aton-peer-alias-input" autocomplete="off" />
         <p class="aton-peer-alias-footnote">Оставьте поле пустым и сохраните — вернётся имя из профиля.</p>
@@ -1991,15 +2173,19 @@ function createApp() {
 
     overlay.querySelector(".aton-peer-alias-backdrop").addEventListener("click", close);
     overlay.querySelector("#aton-peer-alias-cancel").addEventListener("click", close);
-    overlay.querySelector("#aton-peer-alias-save").addEventListener("click", () => {
+    overlay.querySelector("#aton-peer-alias-save").addEventListener("click", async () => {
       const next = input.value.trim();
-      setPeerAlias(currentUser.username, peer, next);
-      renderChatList();
-      renderMessages();
-      updateTopbarTitle();
-      updatePeerActionBar();
-      showToast("Сохранено");
-      close();
+      try {
+        await setPeerAlias(currentUser.username, peer, next);
+        renderChatList();
+        renderMessages();
+        updateTopbarTitle();
+        updatePeerActionBar();
+        showToast("Сохранено");
+        close();
+      } catch (e) {
+        showToast(e && e.message ? e.message : "Не удалось сохранить");
+      }
     });
 
     requestAnimationFrame(() => {
@@ -2192,10 +2378,6 @@ function createApp() {
       const unread = countUnreadInbound(chatMessages, reads[dmId], current.username);
       privateUnreadTotal += unread;
       const pinned = pins.has(dmId);
-      const presence = isGolos
-        ? { text: "Помощник", title: "Голос Атона", online: true }
-        : formatPeerPresence(peerUser);
-      const peerOnline = presence.online;
       const pMuted = isChatNotifyMuted(current.username, dmId);
       const item = document.createElement("button");
       item.className =
@@ -2234,41 +2416,25 @@ function createApp() {
         offEl.textContent = "🔕";
         titleEl.appendChild(offEl);
       }
-      const subtitleEl = document.createElement("div");
-      subtitleEl.className = "aton-chat-item-subtitle";
-      if (isGolos) {
-        subtitleEl.textContent = "Помощник «Атона» · вопросы и подсказки";
-      } else {
-        const onlineDot = document.createElement("span");
-        onlineDot.className = `aton-chat-online-dot ${peerOnline ? "online" : "offline"}`;
-        subtitleEl.appendChild(onlineDot);
-        subtitleEl.appendChild(
-          document.createTextNode(`@${peer} · ${presence.text}`)
-        );
-        subtitleEl.title = presence.title || presence.text;
-      }
       const previewEl = document.createElement("div");
-      previewEl.className = "aton-chat-item-subtitle";
-      if (lastMsg) {
-        let preview = "";
-        if (lastMsg.type === "image") preview = "📷 Фото";
-        else if (lastMsg.type === "audio") preview = "🎙 Голосовое сообщение";
-        if (lastMsg.text) {
-          preview = (preview ? preview + " · " : "") + lastMsg.text;
-        }
-        previewEl.textContent = preview || "Сообщение без текста";
-      } else {
-        previewEl.textContent = "Нет сообщений";
-      }
+      previewEl.className = "aton-chat-item-subtitle aton-chat-item-preview";
+      previewEl.textContent = lastMsg
+        ? buildLastMessagePreviewForChatList(lastMsg)
+        : "Нет сообщений";
       main.appendChild(titleEl);
-      main.appendChild(subtitleEl);
+      if (isGolos) {
+        const subtitleEl = document.createElement("div");
+        subtitleEl.className = "aton-chat-item-subtitle";
+        subtitleEl.textContent = "ИИ бот";
+        main.appendChild(subtitleEl);
+      }
       main.appendChild(previewEl);
 
       const metaWrap = document.createElement("div");
       metaWrap.className = "aton-chat-meta";
       const timeEl = document.createElement("div");
       timeEl.className = "aton-chat-time";
-      timeEl.textContent = lastMsg ? formatTimeLabel(lastMsg.time) : "";
+      timeEl.textContent = lastMsg ? formatChatListMessageTime(lastMsg.time) : "";
       metaWrap.appendChild(timeEl);
       if (unread) {
         const badge = document.createElement("div");
@@ -2373,19 +2539,10 @@ function createApp() {
       const chatTypeLabel = chatMeta.type === "channel" ? "канал" : "группа";
       subtitleEl.textContent = `${chatTypeLabel} • создал ${chatMeta.owner}`;
       const previewEl = document.createElement("div");
-      previewEl.className = "aton-chat-item-subtitle";
-      if (lastMsg) {
-        let preview = "";
-        if (lastMsg.type === "image") preview = "📷 Фото";
-        else if (lastMsg.type === "audio") preview = "🎙 Голосовое сообщение";
-        if (lastMsg.text) {
-          preview = (preview ? preview + " · " : "") + lastMsg.text;
-        }
-        previewEl.textContent =
-          preview || "Сообщение без текста";
-      } else {
-        previewEl.textContent = "Нет сообщений";
-      }
+      previewEl.className = "aton-chat-item-subtitle aton-chat-item-preview";
+      previewEl.textContent = lastMsg
+        ? buildLastMessagePreviewForChatList(lastMsg)
+        : "Нет сообщений";
       main.appendChild(titleEl);
       main.appendChild(subtitleEl);
       main.appendChild(previewEl);
@@ -2394,7 +2551,7 @@ function createApp() {
       metaWrap.className = "aton-chat-meta";
       const timeEl = document.createElement("div");
       timeEl.className = "aton-chat-time";
-      timeEl.textContent = lastMsg ? formatTimeLabel(lastMsg.time) : "";
+      timeEl.textContent = lastMsg ? formatChatListMessageTime(lastMsg.time) : "";
       metaWrap.appendChild(timeEl);
       if (unread) {
         const badge = document.createElement("div");
@@ -4082,6 +4239,7 @@ function createApp() {
       });
       currentUser = updated;
       currentUser.isSuperAdmin = resolveIsSuperAdmin(currentUser);
+      assignPeerAliasesOnUser(currentUser);
       const idx = allUsers.findIndex((u) => u.id === updated.id);
       if (idx !== -1) allUsers[idx] = updated;
       else allUsers.push(updated);
@@ -4747,6 +4905,45 @@ function createApp() {
     });
   }
 
+  let refreshUserDataDebounce = null;
+  let allowUserDataRefetch = false;
+  function refreshUserDataFromServer() {
+    if (!allowUserDataRefetch) return;
+    if (!getToken() || !currentUser) return;
+    if (refreshUserDataDebounce) clearTimeout(refreshUserDataDebounce);
+    refreshUserDataDebounce = setTimeout(async () => {
+      refreshUserDataDebounce = null;
+      try {
+        const me = await api("/api/me");
+        if (!getToken() || !currentUser) return;
+        currentUser = me;
+        currentUser.isSuperAdmin = resolveIsSuperAdmin(currentUser);
+        assignPeerAliasesOnUser(currentUser);
+        const ulist = await api("/api/users");
+        if (!getToken() || !currentUser) return;
+        if (Array.isArray(ulist)) allUsers = ulist;
+        applyCurrentUserUI();
+        renderChatList();
+        renderMessages();
+        updateTopbarTitle();
+        updateFriendsBadge();
+        renderContacts();
+      } catch (e) {
+        console.error("refreshUserDataFromServer", e);
+      }
+    }, 300);
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refreshUserDataFromServer();
+  });
+  window.addEventListener("focus", () => {
+    refreshUserDataFromServer();
+  });
+  window.addEventListener("pageshow", (ev) => {
+    if (ev.persisted) refreshUserDataFromServer();
+  });
+
   (async () => {
     const verifyResult = await handleVerifyToken();
     if (verifyResult && verifyResult.ok) {
@@ -4754,6 +4951,7 @@ function createApp() {
     }
 
     await bootstrapData();
+    allowUserDataRefetch = true;
 
     if (currentUser && !currentUser.verified) {
       showVerifyScreen(currentUser.email);

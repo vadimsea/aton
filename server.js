@@ -19,6 +19,18 @@ const {
 } = require("./lib/aton-mappers");
 const { fetchGolosReply } = require("./lib/golos-groq");
 
+/** Ключ в peerAliases — точный username из БД; peerUsername в запросе может отличаться регистром. */
+async function findCanonicalUsernameForPeerAlias(peerUsername) {
+  if (!peerUsername || typeof peerUsername !== "string") return null;
+  if (peerUsername.length > 64) return null;
+  const direct = await prisma.user.findUnique({ where: { username: peerUsername } });
+  if (direct) return direct.username;
+  const ci = await prisma.user.findFirst({
+    where: { username: { equals: peerUsername, mode: "insensitive" } },
+  });
+  return ci ? ci.username : null;
+}
+
 const app = express();
 /** Системный ассистент: один DM с каждым пользователем, без входа в аккаунт. */
 const GOLOS_ATON_USERNAME = "golos_aton";
@@ -631,6 +643,7 @@ app.post("/api/register", registerLimiter, async (req, res) => {
         email: user.email,
         avatarDataUrl: user.avatarDataUrl,
         verified: false,
+        peerAliases: user.peerAliases || {},
       },
     });
   } catch (err) {
@@ -739,6 +752,7 @@ app.post("/api/login", loginLimiter, async (req, res) => {
       email: user.email,
       avatarDataUrl: user.avatarDataUrl,
       verified: Boolean(pgUser.verified),
+      peerAliases: user.peerAliases || {},
     },
   });
 });
@@ -767,9 +781,101 @@ app.get("/api/me", authMiddleware, async (req, res) => {
       verified: Boolean(row.verified),
       isVerified: Boolean(u.isVerified),
       isSuperAdmin: Boolean(u.isSuperAdmin),
+      peerAliases: u.peerAliases || {},
     });
   } catch (err) {
     console.error("GET /api/me:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+/** Один псевдоним собеседника; синхронно на всех устройствах (хранится в БД). */
+app.put("/api/peer-alias", authMiddleware, requireVerified, async (req, res) => {
+  const { peerUsername, alias } = req.body || {};
+  try {
+    if (!peerUsername || typeof peerUsername !== "string") {
+      return res.status(400).json({ error: "Укажите peerUsername" });
+    }
+    if (peerUsername.length > 64) {
+      return res.status(400).json({ error: "Некорректный peerUsername" });
+    }
+    const row = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!row) return res.status(404).json({ error: "Пользователь не найден" });
+    const u = userFromPrismaRow(row);
+    const next = { ...(u.peerAliases && typeof u.peerAliases === "object" ? u.peerAliases : {}) };
+    const canonical = await findCanonicalUsernameForPeerAlias(peerUsername);
+    if (!canonical) {
+      return res.status(400).json({ error: "Пользователь не найден" });
+    }
+    if (canonical === u.username) {
+      return res.status(400).json({ error: "Нельзя задать псевдоним себе" });
+    }
+    const t = alias == null || alias === "" ? "" : String(alias).trim();
+    for (const k of Object.keys({ ...next })) {
+      if (k.toLowerCase() === canonical.toLowerCase()) delete next[k];
+    }
+    if (t) {
+      if (t.length > 120) {
+        return res.status(400).json({ error: "Слишком длинное имя (макс. 120 символов)" });
+      }
+      next[canonical] = t;
+    }
+    if (Object.keys(next).length > 400) {
+      return res.status(400).json({ error: "Слишком много переименований" });
+    }
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { peerAliases: next },
+    });
+    res.json({ ok: true, peerAliases: next });
+  } catch (err) {
+    console.error("PUT /api/peer-alias:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+/** Слияние map из старого localStorage (одноразовая миграция). */
+app.put("/api/peer-aliases/merge", authMiddleware, requireVerified, async (req, res) => {
+  const { merge } = req.body || {};
+  try {
+    if (!merge || typeof merge !== "object" || Array.isArray(merge)) {
+      return res.status(400).json({ error: "Нужен объект merge" });
+    }
+    const row = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!row) return res.status(404).json({ error: "Пользователь не найден" });
+    const u = userFromPrismaRow(row);
+    const base = { ...(u.peerAliases && typeof u.peerAliases === "object" ? u.peerAliases : {}) };
+    for (const [k, v] of Object.entries(merge)) {
+      if (typeof k !== "string" || k.length > 64) continue;
+      if (typeof v !== "string") continue;
+      const t = v.trim();
+      if (!t) continue;
+      if (t.length > 120) continue;
+      const canonical = await findCanonicalUsernameForPeerAlias(k);
+      if (!canonical || canonical === u.username) continue;
+      let hasForPeer = false;
+      for (const bk of Object.keys(base)) {
+        if (bk.toLowerCase() === canonical.toLowerCase() && String(base[bk] || "").trim()) {
+          hasForPeer = true;
+          break;
+        }
+      }
+      if (hasForPeer) continue;
+      for (const bk of Object.keys({ ...base })) {
+        if (bk.toLowerCase() === canonical.toLowerCase() && bk !== canonical) delete base[bk];
+      }
+      base[canonical] = t;
+    }
+    if (Object.keys(base).length > 400) {
+      return res.status(400).json({ error: "Слишком много переименований" });
+    }
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { peerAliases: base },
+    });
+    res.json({ ok: true, peerAliases: base });
+  } catch (err) {
+    console.error("PUT /api/peer-aliases/merge:", err);
     res.status(500).json({ error: "Ошибка сервера" });
   }
 });
@@ -882,6 +988,7 @@ app.post("/api/profile", authMiddleware, requireVerified, async (req, res) => {
       verified: Boolean(updated.verified),
       isVerified: Boolean(u.isVerified),
       isSuperAdmin: Boolean(u.isSuperAdmin),
+      peerAliases: u.peerAliases || {},
     });
   } catch (err) {
     if (err.code === "P2002") {

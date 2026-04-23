@@ -34,6 +34,9 @@ model User {
   friendRequestsIn  Json @default("[]")
   friendRequestsOut Json @default("[]")
 
+  /** Как этот пользователь переименовал собеседников у себя: { "username": "отображаемое имя" } — на всех устройствах */
+  peerAliases       Json @default("{}")
+
   @@map("users")
 }
 
