@@ -16,7 +16,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { groqText } from "./lib/groq.mjs";
 import { uploadOutDir } from "./lib/ftp-client.mjs";
-import { writeIndexHtml } from "./lib/report-index.mjs";
+import { writeMergedQaIndex } from "./lib/write-merged-qa-index.mjs";
 
 loadQaBotsEnv();
 
@@ -406,7 +406,7 @@ ${analysis}
 *Сгенерировано: qa-bots/social-daily.mjs (см. токены или QA_EMAIL+QA_PASSWORD / QA_BOT2_*)*
 `;
   await writeFile(path.join(OUT, `${safeName}.md`), md, "utf8");
-  await writeIndexHtml(OUT);
+  await writeMergedQaIndex(OUT);
   console.log("OK:", path.join(OUT, `${safeName}.md`));
 
   if (process.env.FTP_HOST && process.env.FTP_USER && process.env.FTP_PASS) {

@@ -21,10 +21,23 @@ async function listReportFilesRec(currentDir, baseDir) {
   return out;
 }
 
-export async function writeIndexHtml(outDir) {
+/**
+ * @param {string} outDir
+ * @param {{ additionalRels?: string[] }} [options] — пути (posix) к отчётам, уже лежащим на FTP с прошлых заливок, чтобы index не «обрезал» архив
+ */
+export async function writeIndexHtml(outDir, options = {}) {
   const abs = path.resolve(outDir);
-  const relpaths = (await listReportFilesRec(abs, abs))
-    .map((rel) => rel.split(path.sep).join("/"))
+  const localRels = (await listReportFilesRec(abs, abs)).map((rel) =>
+    rel.split(path.sep).join("/")
+  );
+  const extra = (options.additionalRels || [])
+    .map((r) => String(r).trim().replace(/\\/g, "/"))
+    .filter((r) => {
+      if (!r || r === "index.html") return false;
+      if (r.endsWith("/index.html")) return false;
+      return /\.(html|md|png|webp|jpe?g)$/i.test(r);
+    });
+  const relpaths = [...new Set([...localRels, ...extra])]
     .filter(Boolean)
     .sort()
     .reverse();

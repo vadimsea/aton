@@ -14,7 +14,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { groqVision } from "./lib/groq.mjs";
 import { uploadOutDir } from "./lib/ftp-client.mjs";
-import { writeIndexHtml } from "./lib/report-index.mjs";
+import { writeMergedQaIndex } from "./lib/write-merged-qa-index.mjs";
 
 loadQaBotsEnv();
 
@@ -276,7 +276,7 @@ pre.content{white-space:pre-wrap;word-break:break-word;font-size:0.9rem;margin-t
 </body></html>`;
   await writeFile(path.join(OUT, `${safeName}.html`), htmlOut, "utf8");
 
-  await writeIndexHtml(OUT);
+  await writeMergedQaIndex(OUT);
 
   console.log("OK:", path.join(OUT, `${safeName}.md`));
 

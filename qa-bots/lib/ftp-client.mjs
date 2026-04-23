@@ -96,3 +96,70 @@ export async function uploadOutDir(localOutDir) {
     client.close();
   }
 }
+
+const REPORT_NAME_RE = /\.(html|md|png|webp|jpe?g)$/i;
+
+/**
+ * Список относительных путей (как в walkLocalFiles) внутри FTP_QA_DIR — файлы, уже существующие на сервере.
+ * Нужен для merge в index.html, чтобы старые отчёты не исчезали из оглавления после заливки из «пустого» CI out/.
+ */
+export async function listRemoteQaReportPaths() {
+  const host = process.env.FTP_HOST;
+  const user = process.env.FTP_USER;
+  const pass = process.env.FTP_PASS;
+  if (!host || !user || !pass) {
+    return [];
+  }
+  const remoteRoot = (process.env.FTP_QA_DIR || "qa-bots")
+    .trim()
+    .replace(/^\/+/, "")
+    .replace(/\/+$/, "");
+  if (!remoteRoot) {
+    return [];
+  }
+  const port = process.env.FTP_PORT
+    ? parseInt(process.env.FTP_PORT, 10)
+    : 21;
+  const client = new Client(120_000);
+  client.ftp.verbose = process.env.FTP_DEBUG === "1";
+  const out = [];
+
+  try {
+    await client.access({ host, user, password: pass, port, secure: false });
+    try {
+      await client.cd("/");
+    } catch {
+      /* */
+    }
+
+    async function walkDir(relFromQaRoot) {
+      const full = relFromQaRoot
+        ? path.posix.join(remoteRoot, relFromQaRoot)
+        : remoteRoot;
+      let entries;
+      try {
+        entries = await client.list(full);
+      } catch (e) {
+        console.warn("FTP listRemoteQaReportPaths: list", full, e.message || e);
+        return;
+      }
+      for (const ent of entries) {
+        const name = ent.name;
+        if (name === "." || name === "..") continue;
+        const rel = relFromQaRoot ? path.posix.join(relFromQaRoot, name) : name;
+        if (ent.isDirectory) {
+          await walkDir(rel);
+        } else {
+          if (name === "index.html") continue;
+          if (!REPORT_NAME_RE.test(name)) continue;
+          out.push(rel);
+        }
+      }
+    }
+
+    await walkDir("");
+  } finally {
+    client.close();
+  }
+  return [...new Set(out.map((p) => p.split(path.sep).join("/")))];
+}

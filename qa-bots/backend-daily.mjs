@@ -12,7 +12,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { groqText } from "./lib/groq.mjs";
 import { uploadOutDir } from "./lib/ftp-client.mjs";
-import { writeIndexHtml } from "./lib/report-index.mjs";
+import { writeMergedQaIndex } from "./lib/write-merged-qa-index.mjs";
 
 loadQaBotsEnv();
 
@@ -159,7 +159,7 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:0.8rem;background:rgba(
 </body></html>`;
   await writeFile(path.join(OUT, `${safeName}.html`), htmlOut, "utf8");
 
-  await writeIndexHtml(OUT);
+  await writeMergedQaIndex(OUT);
   console.log("OK:", path.join(OUT, `${safeName}.md`));
 
   if (process.env.FTP_HOST && process.env.FTP_USER && process.env.FTP_PASS) {
