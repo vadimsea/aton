@@ -751,7 +751,7 @@ function createApp() {
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         <span class="aton-topbar-icon-badge" id="aton-filter-group-badge"></span>
       </button>
-      <button class="aton-topbar-icon" id="aton-admin-users" title="Все пользователи (новое окно)" style="display:none;">
+      <button class="aton-topbar-icon" id="aton-admin-users" title="Все пользователи" style="display:none;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
       </button>
       <button class="aton-topbar-icon" id="aton-moderation" title="Модерация" style="display:none;">
@@ -4269,11 +4269,157 @@ function createApp() {
     });
   }
 
+  function formatAdminListDate(iso) {
+    if (!iso) return "—";
+    try {
+      return new Date(iso).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
+    } catch {
+      return String(iso);
+    }
+  }
+
+  async function openAdminUsersModal() {
+    if (!currentUser || !currentUser.isSuperAdmin) return;
+    const overlay = document.createElement("div");
+    overlay.style.cssText =
+      "position:fixed;inset:0;background:rgba(15,23,42,0.88);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;z-index:90;";
+    const modal = document.createElement("div");
+    modal.style.cssText =
+      "background:rgba(15,23,42,0.98);border-radius:18px;border:1px solid rgba(148,163,184,0.7);padding:16px 18px;width:min(960px,96vw);max-height:86vh;color:#e5e7eb;display:flex;flex-direction:column;box-sizing:border-box;";
+    modal.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap;">
+        <div style="font-size:14px;font-weight:600;">Все пользователи</div>
+        <input type="search" id="aton-admin-users-filter" placeholder="Поиск…" style="flex:1;min-width:160px;max-width:320px;padding:6px 10px;border-radius:8px;border:1px solid rgba(148,163,184,0.35);background:rgba(15,23,42,0.6);color:#e5e7eb;"/>
+        <button type="button" id="aton-admin-users-close" class="aton-new-chat-button">Закрыть</button>
+      </div>
+      <div id="aton-admin-users-body" style="overflow:auto;flex:1;min-height:120px;font-size:12px;"></div>
+    `;
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    const bodyEl = modal.querySelector("#aton-admin-users-body");
+    const closeBtn = modal.querySelector("#aton-admin-users-close");
+    const filterInput = modal.querySelector("#aton-admin-users-filter");
+    bodyEl.textContent = "Загрузка…";
+
+    let list = [];
+    try {
+      list = await api("/api/admin/users");
+    } catch (err) {
+      bodyEl.textContent = "";
+      const errDiv = document.createElement("div");
+      errDiv.style.cssText = "color:#fecaca;padding:8px 0;";
+      errDiv.textContent = err.message || "Не удалось загрузить список. Проверьте, что бэкенд обновлён (есть GET /api/admin/users).";
+      bodyEl.appendChild(errDiv);
+      closeBtn.addEventListener("click", () => overlay.remove());
+      overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) overlay.remove();
+      });
+      return;
+    }
+
+    if (!Array.isArray(list) || !list.length) {
+      bodyEl.textContent = "Пользователей нет.";
+    } else {
+      const wrap = document.createElement("div");
+      wrap.style.cssText = "overflow:auto;max-height:min(64vh,560px);border:1px solid rgba(55,65,81,0.9);border-radius:12px;";
+      const table = document.createElement("table");
+      table.style.cssText = "width:100%;border-collapse:collapse;";
+      const thead = document.createElement("thead");
+      const hr = document.createElement("tr");
+      ["#", "Имя / @", "Email", "Регистрация", "Last seen", "Флаги", "id"].forEach((h) => {
+        const th = document.createElement("th");
+        th.textContent = h;
+        th.style.cssText =
+          "text-align:left;padding:8px 6px;border-bottom:1px solid rgba(55,65,81,0.9);position:sticky;top:0;background:rgba(15,23,42,0.95);color:#94a3b8;font-size:11px;";
+        hr.appendChild(th);
+      });
+      thead.appendChild(hr);
+      table.appendChild(thead);
+      const tbody = document.createElement("tbody");
+      tbody.id = "aton-admin-users-tbody";
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      bodyEl.textContent = "";
+      bodyEl.appendChild(wrap);
+
+      const renderRows = (q) => {
+        tbody.innerHTML = "";
+        const needle = String(q || "")
+          .trim()
+          .toLowerCase();
+        let n = 0;
+        for (let i = 0; i < list.length; i++) {
+          const u = list[i];
+          if (needle) {
+            const pack = [u.username, u.publicId, u.displayName, u.email, u.id].join(" ").toLowerCase();
+            if (pack.indexOf(needle) === -1) continue;
+          }
+          n += 1;
+          const tr = document.createElement("tr");
+          tr.style.borderBottom = "1px solid rgba(55,65,81,0.45)";
+          const td0 = document.createElement("td");
+          td0.textContent = String(n);
+          td0.style.padding = "6px";
+          const td1 = document.createElement("td");
+          td1.style.padding = "6px";
+          const strong = document.createElement("strong");
+          strong.textContent = u.displayName || u.username;
+          td1.appendChild(strong);
+          td1.appendChild(document.createElement("br"));
+          const sub = document.createElement("span");
+          sub.style.cssText = "font-size:10px;opacity:0.85;word-break:break-all;";
+          sub.textContent = "@" + (u.publicId || "");
+          td1.appendChild(sub);
+          const td2 = document.createElement("td");
+          td2.style.cssText = "padding:6px;word-break:break-all;font-size:11px;";
+          td2.textContent = u.email || "—";
+          const td3 = document.createElement("td");
+          td3.style.padding = "6px";
+          td3.textContent = formatAdminListDate(u.createdAt);
+          const td4 = document.createElement("td");
+          td4.style.padding = "6px";
+          td4.textContent = formatAdminListDate(u.lastSeen);
+          const td5 = document.createElement("td");
+          td5.style.padding = "6px";
+          const fl = [];
+          if (u.isSuperAdmin) fl.push("super");
+          if (u.verified || u.isVerified) fl.push("ok");
+          td5.textContent = fl.length ? fl.join(", ") : "—";
+          const td6 = document.createElement("td");
+          td6.style.cssText = "padding:6px;word-break:break-all;font-size:10px;opacity:0.85;";
+          td6.textContent = u.id || "—";
+          tr.appendChild(td0);
+          tr.appendChild(td1);
+          tr.appendChild(td2);
+          tr.appendChild(td3);
+          tr.appendChild(td4);
+          tr.appendChild(td5);
+          tr.appendChild(td6);
+          tbody.appendChild(tr);
+        }
+        if (n === 0 && needle) {
+          const tr = document.createElement("tr");
+          const td = document.createElement("td");
+          td.colSpan = 7;
+          td.style.cssText = "padding:12px;text-align:center;color:#94a3b8;";
+          td.textContent = "Никого не найдено";
+          tr.appendChild(td);
+          tbody.appendChild(tr);
+        }
+      };
+      renderRows("");
+      filterInput.addEventListener("input", () => renderRows(filterInput.value));
+    }
+
+    closeBtn.addEventListener("click", () => overlay.remove());
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+  }
+
   if (adminUsersButton) {
     adminUsersButton.addEventListener("click", () => {
-      if (!currentUser || !currentUser.isSuperAdmin) return;
-      const url = new URL("admin-users.html", window.location.href);
-      window.open(url.href, "_blank", "noopener,noreferrer");
+      openAdminUsersModal();
     });
   }
 
