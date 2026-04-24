@@ -1876,6 +1876,8 @@ body {
   width: max-content;
   max-width: 100%;
   vertical-align: top;
+  /* Иначе \n в сообщении (боты, длинные отчёты) схлопываются в один абзац */
+  white-space: pre-wrap;
 }
 
 .aton-message-text--media {

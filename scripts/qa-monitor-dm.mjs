@@ -47,6 +47,44 @@ function splitChunks(text, maxLen) {
   return out;
 }
 
+/** В чате нет рендера markdown — убираем ** … ** чтобы текст не выглядел кашей. */
+function stripChatMarkdown(s) {
+  return String(s || "").replace(/\*\*/g, "");
+}
+
+/**
+ * @param {{ ok: boolean, out: string }} smoke
+ * @param {string} shotBlock — блок про скрины (короткий)
+ * @param {string} uxNote
+ * @returns {string[]}
+ */
+function buildQaReportBubbles({ smoke, shotBlock, uxNote }) {
+  const t = new Date().toISOString();
+  const p1 = [
+    "━━━  QA · мини-отчёт  ━━━",
+    "",
+    `▸ Время (UTC): ${t}`,
+    `▸ API:         ${API}`,
+    `▸ Фронт:       ${FRONT}`,
+    "",
+    smoke.ok ? "▸ Смоук API:  ✅ готово" : "▸ Смоук API:  ❌ ошибка (см. ниже)",
+    ...(smoke.ok
+      ? []
+      : [
+          "",
+          "— фрагмент лога —",
+          (smoke.out || "").trim().slice(-2500) || "(пусто)",
+        ]),
+  ]
+    .filter((line) => line !== null && line !== undefined)
+    .join("\n");
+
+  const p2 = shotBlock && shotBlock.trim() ? `━━━  Скриншоты  ━━━\n\n${shotBlock.trim()}` : "";
+  const rawUx = stripChatMarkdown(uxNote || "—");
+  const p3 = `━━━  UI / UX (кратко)  ━━━\n\n${rawUx.trim()}`;
+  return [p1, p2, p3].filter((s) => s && String(s).trim());
+}
+
 function runSmoke() {
   const script = path.join(__dirname, "qa-prod-smoke.js");
   const r = spawnSync(process.execPath, [script], {
@@ -174,8 +212,10 @@ async function analyzeUxWithGroq(pngPaths, labels) {
     "Разбери: **тред** (пузыри, свои/чужие, скругления, фон), **аватары** и выравнивание, **текст и эмодзи** в пузырях, " +
     "**шапка чата** и **compose** (ввод, микрофон, вложения, safe area).";
   const userText =
-    "12–16 коротких пунктов на русском, **без вступлений**; 3–4 пункта — явный gap vs Telegram/WhatsApp и что подтянуть. " +
-    "Кадры идут с подписями; если паков несколько — смотри нумерацию пакетов в тексте.";
+    "12–16 коротких пунктов на русском. " +
+    "Важно: в ответе НЕ используй разметку markdown (никаких **звёздочек**). " +
+    "Структура: (1) одна строка-заголовок «Наблюдения», (2) пустая строка, (2) нумерованный список 1. 2. 3. …, (3) пустая строка, (4) краткое сравнение с Telegram/WhatsApp. " +
+    "Пустая строка между смысловыми абзацами. Кадры: учитывай подписи пакетов, если было несколько паков.";
 
   try {
     return await groqVision({
@@ -203,12 +243,13 @@ async function fetchBotUsername() {
   return data.username;
 }
 
-async function sendDmText(text) {
+/** Одно или несколько фрагментов с лимитом 3400 симв./сообщение. */
+async function postDmChunks(text) {
   const botUsername = await fetchBotUsername();
   const chatId = dmChatId(botUsername, ADMIN);
   const chunks = splitChunks(text, 3400);
   for (let i = 0; i < chunks.length; i++) {
-    const part = chunks.length > 1 ? `[${i + 1}/${chunks.length}]\n${chunks[i]}` : chunks[i];
+    const part = chunks.length > 1 ? `[часть ${i + 1}/${chunks.length}]\n${chunks[i]}` : chunks[i];
     const r = await fetch(`${API}/api/messages`, {
       method: "POST",
       headers: {
@@ -229,6 +270,23 @@ async function sendDmText(text) {
   }
 }
 
+async function sendDmText(text) {
+  await postDmChunks(text);
+}
+
+/** Несколько пузырей подряд: секции отчёта не сливаются в один абзац. */
+async function sendQaBubbles(sections) {
+  const list = Array.isArray(sections) ? sections : [];
+  for (let k = 0; k < list.length; k++) {
+    const s = list[k];
+    if (!s || !String(s).trim()) continue;
+    await postDmChunks(String(s).trim());
+    if (k < list.length - 1) {
+      await sleep(750);
+    }
+  }
+}
+
 async function main() {
   if (!TOKEN || !String(TOKEN).trim()) {
     console.error("Задай QA_BOT_TOKEN (токен сессии верифицированного бота).");
@@ -239,48 +297,34 @@ async function main() {
     process.exit(1);
   }
 
-  const lines = [];
-  lines.push(`📋 Отчёт QA (бот)`);
-  lines.push(`Время: ${new Date().toISOString()}`);
-  lines.push(`API: ${API}`);
-  lines.push(`Фронт: ${FRONT}`);
-  lines.push("");
-
   const smoke = runSmoke();
-  lines.push(smoke.ok ? "✅ API смоук: OK" : "❌ API смоук: FAIL");
-  if (!smoke.ok) {
-    lines.push("--- лог смоука ---");
-    lines.push(smoke.out.slice(-3500) || "(пусто)");
-  }
-  lines.push("");
-
-  let shotNote = "▸ Скриншоты: не сделаны";
+  let shotBlock = "▸ Скриншоты не сделаны (см. условия бота).";
   let uxNote = "";
   try {
     const shots = await takeFrontendScreenshots();
-    shotNote =
-      "▸ Скриншоты:\n" +
-      shots.paths.map((p, i) => `  ${i + 1}. ${shots.labels[i] || "кадр"} → ${p}`).join("\n");
-    lines.push(shotNote);
+    shotBlock = shots.paths
+      .map((p, i) => {
+        const base = path.basename(p);
+        return `  ${i + 1}. ${shots.labels[i] || "кадр"}\n      файл: ${base}`;
+      })
+      .join("\n");
     try {
       uxNote = await analyzeUxWithGroq(shots.paths, shots.labels);
     } catch (e) {
       uxNote = `Анализ UI: ${e.message || e}`;
     }
   } catch (e) {
-    lines.push(`▸ Скриншоты: ошибка — ${e.message || e}`);
-    uxNote = "(Playwright недоступен, нет токена бота или таймаут загрузки)";
+    shotBlock = `▸ Ошибка Playwright/скринов:\n  ${(e && e.message) || e}`;
+    uxNote = "(анализ UI недоступен — нет кадров или таймаут)";
   }
 
-  lines.push("");
-  lines.push("--- UI / UX ---");
-  lines.push(uxNote || "—");
+  const bubbles = buildQaReportBubbles({ smoke, shotBlock, uxNote });
+  for (const b of bubbles) {
+    console.log("---\n" + b.slice(0, 800) + (b.length > 800 ? "…" : "") + "\n");
+  }
 
-  const report = lines.join("\n");
-  console.log(report);
-
-  await sendDmText(report);
-  console.log("\nOK: сообщение отправлено в ЛС", ADMIN);
+  await sendQaBubbles(bubbles);
+  console.log("\nOK: отчёт отправлен в ЛС (несколько сообщ.)", ADMIN);
 
   process.exit(smoke.ok ? 0 : 1);
 }
