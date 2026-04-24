@@ -18,6 +18,7 @@ import { readFileSync, existsSync } from "fs";
 import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
+import { groqVision } from "../qa-bots/lib/groq.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -144,64 +145,50 @@ async function analyzeUxWithGroq(pngPaths, labels) {
       "Добавь секрет GROQ_API_KEY в GitHub (или локально в .env) для анализа скринов.",
     ].join("\n");
   }
-  const paths = Array.isArray(pngPaths) ? pngPaths : [pngPaths];
-  const labs = Array.isArray(labels) ? labels : [];
-
+  const raw = Array.isArray(pngPaths) ? pngPaths : [pngPaths];
+  const rawLabs = Array.isArray(labels) ? labels : [];
+  const paths = [];
+  const alignedLabs = [];
   let total = 0;
-  const parts = [];
-  for (let i = 0; i < paths.length; i++) {
-    const p = paths[i];
-    if (!existsSync(p)) continue;
+  for (let i = 0; i < raw.length; i++) {
+    const p = raw[i];
+    if (!p || !existsSync(p)) continue;
     const buf = readFileSync(p);
-    total += buf.length;
     if (buf.length > 3.5 * 1024 * 1024) {
-      return `Скрин ${i + 1} слишком большой для Groq (>3.5MB).`;
+      return `Скрин слишком большой для Groq (>3.5MB).`;
     }
-    const label = labs[i] || `кадр ${i + 1}`;
-    parts.push({ label, b64: buf.toString("base64") });
+    total += buf.length;
+    paths.push(p);
+    alignedLabs.push(rawLabs[i] || `кадр ${paths.length}`);
   }
-  if (parts.length === 0) {
+  if (paths.length === 0) {
     return "Нет файлов скринов для Groq.";
   }
   if (total > 10 * 1024 * 1024) {
     return "Суммарный размер скринов слишком большой — сократи число кадров.";
   }
 
-  const intro =
+  const system =
     "Ты UI/UX-ревьюер. Скрины мобильного веб-мессенджера «Атон»: список чатов, затем **открытая переписка** (в приоритете). " +
     "Ориентир по ощущениям: **Telegram** и **WhatsApp** (чистая лента, пузыри, аватары, поле ввода, эмодзи/кнопки). " +
     "Разбери: **тред** (пузыри, свои/чужие, скругления, фон), **аватары** и выравнивание, **текст и эмодзи** в пузырях, " +
-    "**шапка чата** и **compose** (ввод, микрофон, вложения, safe area). " +
-    "12–16 коротких пунктов на русском, **без вступлений**; 3–4 пункта — явный gap vs Telegram/WhatsApp и что подтянуть.";
+    "**шапка чата** и **compose** (ввод, микрофон, вложения, safe area).";
+  const userText =
+    "12–16 коротких пунктов на русском, **без вступлений**; 3–4 пункта — явный gap vs Telegram/WhatsApp и что подтянуть. " +
+    "Кадры идут с подписями; если паков несколько — смотри нумерацию пакетов в тексте.";
 
-  const content = [{ type: "text", text: intro }];
-  for (const part of parts) {
-    content.push({ type: "text", text: `Кадр: ${part.label}` });
-    content.push({
-      type: "image_url",
-      image_url: { url: `data:image/png;base64,${part.b64}` },
-    });
-  }
-
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${GROQ}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  try {
+    return await groqVision({
+      system,
+      userText,
+      imagePaths: paths,
+      imageLabels: alignedLabs,
       model: GROQ_MODEL,
-      messages: [{ role: "user", content }],
-      max_tokens: 2000,
-      temperature: 0.4,
-    }),
-  });
-  const j = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    return `Groq API ошибка ${res.status}: ${JSON.stringify(j).slice(0, 1200)}`;
+      maxTokens: 2000,
+    });
+  } catch (e) {
+    return `Groq: ${e?.message || e}`;
   }
-  const text = j.choices?.[0]?.message?.content;
-  return text || JSON.stringify(j).slice(0, 500);
 }
 
 async function fetchBotUsername() {

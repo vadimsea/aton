@@ -4,8 +4,8 @@
  */
 
 const GROQ_CHAT = "https://api.groq.com/openai/v1/chat/completions";
-/** Groq: Too many images provided. This model supports up to 5 images */
-const GROQ_VISION_MAX_IMAGES = 5;
+/** Groq vision: в одном запросе не больше стольки image_url (см. ошибку 400) */
+export const GROQ_VISION_MAX_IMAGES = 5;
 
 export async function groqVision({
   system,
@@ -52,9 +52,17 @@ async function groqVisionOnce({
   const fs = await import("fs");
   const { readFileSync, existsSync } = fs;
 
+  let paths = Array.isArray(imagePaths) ? imagePaths.filter(Boolean) : [];
+  if (paths.length > GROQ_VISION_MAX_IMAGES) {
+    console.warn(
+      `[groq] groqVisionOnce: срезано ${paths.length} → ${GROQ_VISION_MAX_IMAGES} кадров (лимит API)`
+    );
+    paths = paths.slice(0, GROQ_VISION_MAX_IMAGES);
+  }
+
   const content = [{ type: "text", text: userText }];
   let i = 0;
-  for (const p of imagePaths) {
+  for (const p of paths) {
     if (!existsSync(p)) continue;
     const buf = readFileSync(p);
     if (buf.length > 3.2 * 1024 * 1024) {
