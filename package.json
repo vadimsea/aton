@@ -15,6 +15,7 @@
     "db:studio": "prisma studio",
     "db:smoke": "node scripts/pg-smoke.js",
     "qa:prod": "node scripts/qa-prod-smoke.js",
+    "test:multi-session": "node scripts/test-multi-session.mjs",
     "qa:monitor": "node scripts/qa-monitor-dm.mjs",
     "qa:bot:fe": "node qa-bots/frontend-daily.mjs",
     "qa:bot:be": "node qa-bots/backend-daily.mjs",

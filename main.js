@@ -599,6 +599,16 @@ function setToken(token) {
   else localStorage.removeItem(TOKEN_KEY);
 }
 
+/** Сообщаем API удалить сессию в БД (не полагаемся только на очистку localStorage). */
+function notifyServerLogout() {
+  const t = getToken();
+  if (!t || !API_BASE) return;
+  void fetch(`${API_BASE}/api/logout`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${t}` },
+  }).catch(() => {});
+}
+
 function getPinnedChats(username) {
   if (!username) return new Set();
   const raw = localStorage.getItem(LOCAL_PINS_KEY);
@@ -784,6 +794,7 @@ function createApp() {
     });
 
     wrap.querySelector(".aton-logout-link").addEventListener("click", () => {
+      notifyServerLogout();
       setToken(null);
       socket.auth.token = "";
       socket.disconnect().connect();
@@ -2186,6 +2197,7 @@ function createApp() {
         localStorage.removeItem(LAST_CHAT_KEY_PREFIX + currentUser.username);
       }
     } catch (_) {}
+    notifyServerLogout();
     clearSessionSnapshot();
     setToken(null);
     socket.auth.token = "";

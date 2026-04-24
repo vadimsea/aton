@@ -37,7 +37,22 @@ model User {
   /** Как этот пользователь переименовал собеседников у себя: { "username": "отображаемое имя" } — на всех устройствах */
   peerAliases       Json @default("{}")
 
+  sessions Session[]
+
   @@map("users")
+}
+
+/** Несколько активных сессий на пользователя — новый вход не отзывает старые устройства. */
+model Session {
+  id        String   @id
+  userId    String
+  token     String   @unique
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
 }
 
 model Chat {

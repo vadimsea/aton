@@ -165,7 +165,7 @@ io.use(async (socket, next) => {
 
   let pgUser = null;
   try {
-    pgUser = await prisma.user.findFirst({ where: { sessionToken: token } });
+    pgUser = await findUserBySessionToken(token);
   } catch (err) {
     console.error("socket.io prisma auth:", err);
   }
@@ -227,6 +227,51 @@ io.on("connection", (socket) => {
 
 function generateToken() {
   return crypto.randomBytes(32).toString("hex");
+}
+
+/** Сколько сессий хранить на пользователя (новые не вытесняют сразу; старые удаляем при превышении). */
+const MAX_ACTIVE_SESSIONS = Math.min(
+  200,
+  Math.max(5, parseInt(String(process.env.ATON_MAX_ACTIVE_SESSIONS || "40"), 10) || 40)
+);
+
+/**
+ * Сессия в таблице `sessions` ИЛИ legacy `users.sessionToken` (пока оба валидны).
+ */
+async function findUserBySessionToken(token) {
+  if (!token || typeof token !== "string") return null;
+  try {
+    const sess = await prisma.session.findUnique({
+      where: { token },
+      include: { user: true },
+    });
+    if (sess?.user) return sess.user;
+  } catch (err) {
+    console.error("findUserBySessionToken (sessions):", err);
+  }
+  try {
+    return await prisma.user.findFirst({ where: { sessionToken: token } });
+  } catch (err) {
+    console.error("findUserBySessionToken (legacy):", err);
+    return null;
+  }
+}
+
+async function pruneExcessUserSessions(userId) {
+  try {
+    const all = await prisma.session.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+    if (all.length <= MAX_ACTIVE_SESSIONS) return;
+    const toDelete = all.slice(MAX_ACTIVE_SESSIONS).map((s) => s.id);
+    if (toDelete.length) {
+      await prisma.session.deleteMany({ where: { id: { in: toDelete } } });
+    }
+  } catch (e) {
+    console.error("pruneExcessUserSessions:", e);
+  }
 }
 
 function ensureChatFields(chat, usersByUsername) {
@@ -598,7 +643,7 @@ async function authMiddleware(req, res, next) {
 
     let pgUser = null;
     try {
-      pgUser = await prisma.user.findFirst({ where: { sessionToken: token } });
+      pgUser = await findUserBySessionToken(token);
     } catch (err) {
       console.error("authMiddleware prisma lookup:", err);
     }
@@ -684,6 +729,14 @@ app.post("/api/register", registerLimiter, async (req, res) => {
         blocked: [],
         friendRequestsIn: [],
         friendRequestsOut: [],
+      },
+    });
+
+    await prisma.session.create({
+      data: {
+        id: generateToken(),
+        userId,
+        token: sessionToken,
       },
     });
 
@@ -811,12 +864,16 @@ app.post("/api/login", loginLimiter, async (req, res) => {
   const sessionToken = generateToken();
 
   try {
-    await prisma.user.update({
-      where: { id: pgUser.id },
-      data: { sessionToken },
+    await prisma.session.create({
+      data: {
+        id: generateToken(),
+        userId: pgUser.id,
+        token: sessionToken,
+      },
     });
+    await pruneExcessUserSessions(pgUser.id);
   } catch (err) {
-    console.error("prisma login session update:", err);
+    console.error("prisma login session create:", err);
     return res.status(500).json({ error: "Не удалось войти" });
   }
 
@@ -864,6 +921,26 @@ app.get("/api/me", authMiddleware, async (req, res) => {
     });
   } catch (err) {
     console.error("GET /api/me:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+/** Удалить текущую сессию (строка в `sessions` и при совпадении — legacy `users.sessionToken`). */
+app.post("/api/logout", authMiddleware, async (req, res) => {
+  try {
+    const header = req.headers.authorization || "";
+    const parts = header.split(" ");
+    const sessionTok = parts.length >= 2 ? parts[1] : null;
+    if (sessionTok) {
+      await prisma.session.deleteMany({ where: { token: sessionTok } });
+      await prisma.user.updateMany({
+        where: { id: req.user.id, sessionToken: sessionTok },
+        data: { sessionToken: null },
+      });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("POST /api/logout:", err);
     res.status(500).json({ error: "Ошибка сервера" });
   }
 });
@@ -1512,9 +1589,10 @@ app.post("/api/password/reset", async (req, res) => {
     });
     if (!row) return res.status(400).json({ error: "Токен недействителен или истёк" });
     const passwordHash = await bcrypt.hash(password, 10);
+    await prisma.session.deleteMany({ where: { userId: row.id } });
     await prisma.user.update({
       where: { id: row.id },
-      data: { passwordHash, resetToken: null, resetTokenExp: null },
+      data: { passwordHash, resetToken: null, resetTokenExp: null, sessionToken: null },
     });
     res.json({ ok: true });
   } catch (err) {
