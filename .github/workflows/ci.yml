@@ -17,4 +17,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # Prisma 6+ требует DATABASE_URL в окружении при validate, даже без реального подключения
       - run: npm run ci
+        env:
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/aton_ci?schema=public
