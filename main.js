@@ -3842,7 +3842,7 @@ function createApp() {
       <div class="aton-golos-typing-dots" aria-hidden="true"><span></span><span></span><span></span></div>
       <div class="aton-golos-pending-copy">
         <p class="aton-golos-pending-title">Голос Атона думает${queueBadge}</p>
-        <p class="aton-golos-pending-hint">Обычно 5–25 с. Ответ появится в ленте ниже.</p>
+        <p class="aton-golos-pending-hint">Часто 3–15 с; с голосом дольше — распознавание, ответ и озвучка. Ниже в ленте.</p>
       </div>
     </div>`;
     return wrap;

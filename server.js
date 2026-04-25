@@ -706,18 +706,24 @@ function userMessageToGolosAton(saved, authorUsername) {
   return p === GOLOS_ATON_USERNAME;
 }
 
-/** История в формате ChatGPT: user/assistant по сообщениям в личке с ботом. */
-async function buildGolosLlmHistory(chatId, userUsername, currentMsg, currentUserText) {
-  const maxN = (() => {
-    const n = parseInt(String(process.env.GOLOS_HISTORY_MAX_MESSAGES || "40"), 10);
-    return Number.isFinite(n) && n >= 2 ? Math.min(100, n) : 40;
-  })();
+function golosHistoryMaxMessages() {
+  const n = parseInt(String(process.env.GOLOS_HISTORY_MAX_MESSAGES || "40"), 10);
+  return Number.isFinite(n) && n >= 2 ? Math.min(100, n) : 40;
+}
+
+/** Последние сообщения лички (для истории LLM). Параллелится с Whisper на голосовом пути. */
+async function loadGolosHistoryRows(chatId) {
   const rows = await prisma.message.findMany({
     where: { chatId: String(chatId) },
     orderBy: { createdAt: "desc" },
-    take: maxN,
+    take: golosHistoryMaxMessages(),
   });
   rows.reverse();
+  return rows;
+}
+
+/** История в формате ChatGPT: user/assistant по сообщениям в личке с ботом. */
+function rowsToGolosLlmHistory(rows, userUsername, currentMsg, currentUserText) {
   const out = [];
   for (const row of rows) {
     if (row.senderUsername === userUsername) {
@@ -743,6 +749,11 @@ async function buildGolosLlmHistory(chatId, userUsername, currentMsg, currentUse
   return out;
 }
 
+async function buildGolosLlmHistory(chatId, userUsername, currentMsg, currentUserText) {
+  const rows = await loadGolosHistoryRows(chatId);
+  return rowsToGolosLlmHistory(rows, userUsername, currentMsg, currentUserText);
+}
+
 async function processGolosAtonUserReply({ savedUserMsg, authorUsername }) {
   if (!userMessageToGolosAton(savedUserMsg, authorUsername)) {
     return;
@@ -762,15 +773,22 @@ async function processGolosAtonUserReply({ savedUserMsg, authorUsername }) {
   }
 
   let userText = "";
+  /** Заполнено на голосовом пути: история уже загружена параллельно с Whisper. */
+  let golosHistoryRowsPreloaded = null;
   if (isText) {
     userText = String(savedUserMsg.text).trim();
   } else {
-    try {
-      userText = await transcribeGolosAudioDataUrl(savedUserMsg.audioDataUrl);
-    } catch (e) {
-      console.error("transcribeGolosAudioDataUrl:", e);
-    }
-    userText = String(userText || "").trim();
+    const transcribePromise = (async () => {
+      try {
+        return await transcribeGolosAudioDataUrl(savedUserMsg.audioDataUrl);
+      } catch (e) {
+        console.error("transcribeGolosAudioDataUrl:", e);
+        return "";
+      }
+    })();
+    const [transcribed, historyRows] = await Promise.all([transcribePromise, loadGolosHistoryRows(chatId)]);
+    golosHistoryRowsPreloaded = historyRows;
+    userText = String(transcribed || "").trim();
     if (!userText) {
       await postGolosAtonMessage({
         type: "text",
@@ -780,8 +798,8 @@ async function processGolosAtonUserReply({ savedUserMsg, authorUsername }) {
       });
       return;
     }
-    /* Пауза после STT перед чатом: два запроса подряд к Groq часто дают 429 на бесплатном тарифе. */
-    const sttGap = parseInt(String(process.env.GOLOS_POST_STT_DELAY_MS || "500"), 10);
+    /* Опциональная пауза после STT перед чатом: на free Groq два запроса подряд чаще дают 429. По умолчанию выкл. */
+    const sttGap = parseInt(String(process.env.GOLOS_POST_STT_DELAY_MS || "0"), 10);
     if (Number.isFinite(sttGap) && sttGap > 0 && sttGap <= 15_000) {
       await new Promise((r) => setTimeout(r, sttGap));
     }
@@ -792,7 +810,9 @@ async function processGolosAtonUserReply({ savedUserMsg, authorUsername }) {
     replyText = GOLOS_IDENTITY_REPLY;
   } else {
     try {
-      const history = await buildGolosLlmHistory(chatId, authorUsername, savedUserMsg, userText);
+      const history = golosHistoryRowsPreloaded
+        ? rowsToGolosLlmHistory(golosHistoryRowsPreloaded, authorUsername, savedUserMsg, userText)
+        : await buildGolosLlmHistory(chatId, authorUsername, savedUserMsg, userText);
       replyText = await fetchGolosReply({
         history,
         fromVoice: Boolean(isAudio),
