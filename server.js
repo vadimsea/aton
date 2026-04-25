@@ -128,10 +128,18 @@ async function loadUsersByUsernameMap(ownerUsernames) {
   return map;
 }
 
-/** Макс. строк в ответе bootstrap-клиента (снижение RAM). Env: MESSAGES_BOOTSTRAP_MAX, по умолчанию 8000 */
+/**
+ * Лимит строк в GET /api/messages/all. 0 или не задано = без лимита (полная лента; иначе сайдбар
+ * теряет чаты, у которых все сообщения старее N «самых новых» глобально).
+ * Число ≥200 — только жёсткий потолок RAM (Render), напр. MESSAGES_BOOTSTRAP_MAX=50000.
+ */
 const MESSAGES_BOOTSTRAP_MAX = (() => {
-  const n = parseInt(String(process.env.MESSAGES_BOOTSTRAP_MAX || "8000"), 10);
-  if (Number.isNaN(n) || n < 200) return 8000;
+  const raw = process.env.MESSAGES_BOOTSTRAP_MAX;
+  if (raw === undefined || String(raw).trim() === "" || String(raw).trim() === "0") {
+    return null;
+  }
+  const n = parseInt(String(raw), 10);
+  if (Number.isNaN(n) || n < 200) return null;
   return Math.min(100_000, n);
 })();
 
@@ -236,7 +244,7 @@ app.get("/api/health", async (req, res) => {
     out.openaiTtsConfigured = Boolean(String(process.env.OPENAI_API_KEY || "").trim());
     out.golosMaxPerWindow = GOLOS_MAX_PER_WINDOW;
     out.golosRateUnlimited = GOLOS_MAX_PER_WINDOW <= 0;
-    out.messagesBootstrapMax = MESSAGES_BOOTSTRAP_MAX;
+    out.messagesBootstrapMax = MESSAGES_BOOTSTRAP_MAX == null ? "unlimited" : MESSAGES_BOOTSTRAP_MAX;
     out.nodeFetch = typeof globalThis.fetch === "function";
     out.nodeVersion = process.version;
     const golos = await prisma.user.findUnique({
@@ -2485,12 +2493,18 @@ app.get("/api/messages/all", authMiddleware, requireVerified, async (req, res) =
       { recipientUsername: username },
     ];
     if (inChats.length) orClause.push({ chatId: { in: inChats } });
-    const rows = await prisma.message.findMany({
+    const findArgs = {
       where: { OR: orClause },
-      orderBy: { createdAt: "desc" },
-      take: MESSAGES_BOOTSTRAP_MAX,
-    });
-    rows.reverse();
+      orderBy: { createdAt: "asc" },
+    };
+    if (MESSAGES_BOOTSTRAP_MAX != null) {
+      findArgs.orderBy = { createdAt: "desc" };
+      findArgs.take = MESSAGES_BOOTSTRAP_MAX;
+    }
+    const rows = await prisma.message.findMany(findArgs);
+    if (MESSAGES_BOOTSTRAP_MAX != null) {
+      rows.reverse();
+    }
     res.json(rows.map(messageFromPrismaRow));
   } catch (err) {
     console.error("GET /api/messages/all:", err);
