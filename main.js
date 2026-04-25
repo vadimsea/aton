@@ -1312,16 +1312,33 @@ function createApp() {
   let messageStatusDebounce = null;
   /** user прокрутил вверх — пришли новые, показываем кнопку «Новые сообщения» (как useRef+state в React). */
   let newMessagesArrivedOffBottom = false;
+  /**
+   * Нижняя граница ленты в кадре — только IntersectionObserver на sentinel, без гонок scrollHeight/scrollTop.
+   * @see isMessagesListAtBottom — отдельно, с порогом 50px (плашка «Новые сообщения»).
+   */
+  const messagesBottomSentinel = document.createElement("div");
+  messagesBottomSentinel.className = "aton-messages-bottom-sentinel";
+  messagesBottomSentinel.setAttribute("aria-hidden", "true");
+  let messagesBottomInView = true;
+  const messagesBottomIo = new IntersectionObserver(
+    (entries) => {
+      const e = entries[0];
+      if (!e) return;
+      messagesBottomInView = e.isIntersecting;
+    },
+    { root: messagesEl, rootMargin: "0px", threshold: 0 }
+  );
+  messagesBottomIo.observe(messagesBottomSentinel);
 
   /**
    * Прокрутка вниз в одном кадре (один rAF) — без синхронного scroll + второго кадра (дрожь UI).
-   * @param {boolean} onlyIfAtBottom — если true, в rAF не трогаем скролл, если пользователь читает историю (ResizeObserver).
+   * @param {boolean} onlyIfAtBottom — если true, в rAF не трогаем скролл, если низ вне кадра (рост картинок, ResizeObserver).
    */
   function scrollMessagesListToBottomRaf(onlyIfAtBottom) {
     if (!messagesEl) return;
     requestAnimationFrame(() => {
       if (!messagesEl) return;
-      if (onlyIfAtBottom && !isMessagesListAtBottom(messagesEl)) {
+      if (onlyIfAtBottom && !messagesBottomInView) {
         return;
       }
       messagesEl.scrollTop = Math.max(0, messagesEl.scrollHeight - messagesEl.clientHeight);
@@ -1332,23 +1349,33 @@ function createApp() {
     });
   }
 
-  /** Рост контента (картинки, шрифты): поджимаем вниз только если пользователь уже у низа */
+  /** Рост контента (картинки): вниз только если sentinel у низа виден (как в чат-лентах с «anchor»). */
   let messagesResizeRafId = 0;
   const messagesResizeObserver = new ResizeObserver(() => {
+    if (!messagesBottomInView) {
+      return;
+    }
     if (messageResizeRafId) {
       cancelAnimationFrame(messageResizeRafId);
     }
     messageResizeRafId = requestAnimationFrame(() => {
       messageResizeRafId = 0;
+      if (!messagesBottomInView) {
+        return;
+      }
       scrollMessagesListToBottomRaf(true);
     });
   });
   messagesResizeObserver.observe(messagesEl);
 
+  let newMessagesJumpVisible = null; // кэш: не дёргать hidden на каждом scroll
+
   function syncNewMessagesJumpUi() {
     if (!newMessagesJump) return;
     const show =
       newMessagesArrivedOffBottom && messagesEl && !isMessagesListAtBottom(messagesEl);
+    if (newMessagesJumpVisible === show) return;
+    newMessagesJumpVisible = show;
     if (show) newMessagesJump.removeAttribute("hidden");
     else newMessagesJump.setAttribute("hidden", "");
   }
@@ -1361,13 +1388,19 @@ function createApp() {
     });
   }
 
+  /* rAF: плашка «Новые сообщения»; «у низа» для плашки — isMessagesListAtBottom (порог 50px) */
+  let messagesScrollRaf = 0;
   messagesEl.addEventListener(
     "scroll",
     () => {
       if (isMessagesListAtBottom(messagesEl)) {
         newMessagesArrivedOffBottom = false;
       }
-      syncNewMessagesJumpUi();
+      if (messagesScrollRaf) return;
+      messagesScrollRaf = requestAnimationFrame(() => {
+        messagesScrollRaf = 0;
+        syncNewMessagesJumpUi();
+      });
     },
     { passive: true }
   );
@@ -3999,6 +4032,8 @@ function createApp() {
 
     try {
     messagesEl.innerHTML = "";
+    /* Sentinel вылетел из DOM — до IntersectionObserver сбрасываем, иначе RO с «устаревшим» true крутит вниз. */
+    messagesBottomInView = false;
     const current = currentUser;
     shell.classList.toggle("aton-shell--guest-landing", !current);
     shell.classList.toggle("aton-shell--no-chat", !currentChatId);
@@ -4346,6 +4381,7 @@ function createApp() {
     if (golosPendingReplies > 0 && isGolosAtonChat()) {
       messagesEl.appendChild(makeGolosPendingEl());
     }
+    messagesEl.appendChild(messagesBottomSentinel);
 
     {
       // Смена чата / первый показ / были у низа → автоприлипание вниз. Читали старые → только якорь, без autoscroll
@@ -4367,6 +4403,7 @@ function createApp() {
       } else if (!messagesEl || !messagesEl.querySelector(".aton-message-row")) {
         newMessagesArrivedOffBottom = false;
       }
+      newMessagesJumpVisible = null;
       syncNewMessagesJumpUi();
     }
   }

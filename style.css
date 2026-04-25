@@ -1952,7 +1952,25 @@ body {
   flex-direction: column;
   gap: var(--aton-msg-col-gap, 2px);
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+  /* optimizeLegibility тяжелее при длинных лентах */
+  text-rendering: auto;
+  /* Слой для композитинга (часто сглаживает скролл на слабых GPU) */
+  transform: translateZ(0);
+}
+
+/* Проверка «низ в кадре» для auto-scroll (IntersectionObserver), без зависимости от дрожа scrollHeight */
+.aton-messages-bottom-sentinel {
+  flex: 0 0 1px;
+  width: 100%;
+  height: 1px;
+  min-height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  align-self: stretch;
+  pointer-events: none;
+  visibility: hidden;
+  overflow: hidden;
 }
 
 .aton-message-row {
@@ -1961,6 +1979,8 @@ body {
   box-sizing: border-box;
   padding: 1px 0 3px;
   margin: 0;
+  /* content-visibility убран: при смене видимости строк scrollHeight/scrollTop «дрожат»,
+     из‑за чего лента при скролле вверх может визуально уезжать вниз. */
 }
 
 /* Личный чат 1:1: в треде только пузырь и время (как Telegram), без колонки аватара */
