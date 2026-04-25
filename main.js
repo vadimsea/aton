@@ -3940,8 +3940,7 @@ function createApp() {
       }
 
       const bubble = document.createElement("div");
-      bubble.className =
-        "aton-message-bubble aton-message-bubble-enter" + (isSelf ? " self" : "");
+      bubble.className = "aton-message-bubble" + (isSelf ? " self" : "");
       const text = document.createElement("div");
       text.className = "aton-message-text";
       if (msg.type === "audio" && msg.audioDataUrl) {

@@ -2241,20 +2241,9 @@ body {
   color: rgba(17, 24, 39, 0.55);
 }
 
-@keyframes aton-message-enter {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.aton-message-bubble-enter {
-  animation: aton-message-enter 0.18s ease-out;
-}
+/* Входные анимации отключены для полного рендера — иначе при pullChatReceipts/сокетах
+   все пузыри снова «въезжали» с opacity:0 (мигание/прыжки). Новое сообщение без отдельного
+   class-based enter — визуально стабильнее. */
 
 .aton-message-meta {
   text-align: right;
@@ -2295,6 +2284,28 @@ body {
 
 [data-theme="light"] .aton-message-ack--read .aton-message-ack-tick {
   color: #2563eb;
+}
+
+/* На своём пузыре (тёплый/зелёный фон) старый «бирюзовый» сливался; «прочитано» — явный синий, как в Telegram */
+.aton-message-bubble.self .aton-message-ack--read .aton-message-ack-tick {
+  color: #1d4ed8;
+  opacity: 1;
+}
+.aton-message-bubble.self .aton-message-ack--delivered .aton-message-ack-tick {
+  color: rgba(28, 25, 23, 0.42);
+  opacity: 0.95;
+}
+.aton-message-bubble.self
+  .aton-message-ack:not(.aton-message-ack--delivered):not(.aton-message-ack--read)
+  .aton-message-ack-tick {
+  color: rgba(28, 25, 23, 0.5);
+  opacity: 0.9;
+}
+[data-theme="light"] .aton-message-bubble.self .aton-message-ack--read .aton-message-ack-tick {
+  color: #1d4ed8;
+}
+[data-theme="light"] .aton-message-bubble.self .aton-message-ack--delivered .aton-message-ack-tick {
+  color: rgba(15, 23, 42, 0.45);
 }
 
 .aton-search-friend-ok {
@@ -4147,21 +4158,6 @@ body {
 /* ===== ANIMATIONS ===== */
 .aton-chat-item {
   transition: background 0.15s ease, transform 0.15s ease, opacity 0.2s ease;
-}
-
-.aton-message-inner {
-  animation: aton-msg-in 0.25s ease-out;
-}
-
-@keyframes aton-msg-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .aton-main {
