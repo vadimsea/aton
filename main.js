@@ -331,7 +331,10 @@ function isMessageFromSelf(msg, me, activeChatId) {
   return false;
 }
 
-/** Галочки доставки/прочтения (только исходящие). */
+/**
+ * Галочки исходящих в личке (как в Telegram): одна ✓ — отправлено; две ✓ серые — доставлено собеседнику
+ * (он синхронизировал чат); две ✓ синие — прочитано (он открыл чат и прошёл POST /read).
+ */
 function messageAckHtml(status) {
   const s = status === "delivered" || status === "read" || status === "sent" ? status : "sent";
   if (s === "sent") {
@@ -599,7 +602,7 @@ function createVoicePlayer(audioSrc, isSelf) {
 
   const audio = document.createElement("audio");
   audio.className = "aton-voice-audio";
-  audio.preload = "metadata";
+  audio.preload = "auto";
   audio.setAttribute("playsinline", "");
   audio.src = audioSrc;
 
@@ -1208,15 +1211,6 @@ function createApp() {
   golosVoiceBar.innerHTML = "";
 
   chat.appendChild(messagesEl);
-
-  const newMessagesJump = document.createElement("div");
-  newMessagesJump.className = "aton-messages-jump";
-  newMessagesJump.setAttribute("hidden", "");
-  newMessagesJump.setAttribute("aria-live", "polite");
-  newMessagesJump.innerHTML =
-    '<button type="button" class="aton-messages-jump-btn">Новые сообщения ↓</button>';
-
-  chat.appendChild(newMessagesJump);
   chat.appendChild(golosVoiceBar);
   chat.appendChild(compose);
 
@@ -1307,14 +1301,15 @@ function createApp() {
   let hasOnboardingAutoFocused = false;
   let bootstrapVersion = 0;
   let receiptsInFlight = null;
+  /** Свертка renderMessages после receipt-pull: иначе серия message:status снова дёргает ГС. */
+  let receiptsMessagesRenderTimer = 0;
   /** Стабилизация скролла: при смене чата — вниз; при мерже в том же чате — якорь, если смотрели историю. */
   let lastMessagesRenderChatId = null;
-  let messageStatusDebounce = null;
-  /** user прокрутил вверх — пришли новые, показываем кнопку «Новые сообщения» (как useRef+state в React). */
-  let newMessagesArrivedOffBottom = false;
+  /** Дебаунс pull по chatId — иначе при событиях в двух личках съедалось бы одно из них. */
+  const messageStatusPullTimers = new Map();
   /**
    * Нижняя граница ленты в кадре — только IntersectionObserver на sentinel, без гонок scrollHeight/scrollTop.
-   * @see isMessagesListAtBottom — отдельно, с порогом 50px (плашка «Новые сообщения»).
+   * @see isMessagesListAtBottom — отдельно, с порогом 50px (согласование с расчётом скролла).
    */
   const messagesBottomSentinel = document.createElement("div");
   messagesBottomSentinel.className = "aton-messages-bottom-sentinel";
@@ -1342,10 +1337,6 @@ function createApp() {
         return;
       }
       messagesEl.scrollTop = Math.max(0, messagesEl.scrollHeight - messagesEl.clientHeight);
-      if (!onlyIfAtBottom) {
-        newMessagesArrivedOffBottom = false;
-      }
-      syncNewMessagesJumpUi();
     });
   }
 
@@ -1367,43 +1358,6 @@ function createApp() {
     });
   });
   messagesResizeObserver.observe(messagesEl);
-
-  let newMessagesJumpVisible = null; // кэш: не дёргать hidden на каждом scroll
-
-  function syncNewMessagesJumpUi() {
-    if (!newMessagesJump) return;
-    const show =
-      newMessagesArrivedOffBottom && messagesEl && !isMessagesListAtBottom(messagesEl);
-    if (newMessagesJumpVisible === show) return;
-    newMessagesJumpVisible = show;
-    if (show) newMessagesJump.removeAttribute("hidden");
-    else newMessagesJump.setAttribute("hidden", "");
-  }
-
-  const newMessagesJumpBtn = newMessagesJump.querySelector("button");
-  if (newMessagesJumpBtn) {
-    newMessagesJumpBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      scrollMessagesListToBottomRaf(false);
-    });
-  }
-
-  /* rAF: плашка «Новые сообщения»; «у низа» для плашки — isMessagesListAtBottom (порог 50px) */
-  let messagesScrollRaf = 0;
-  messagesEl.addEventListener(
-    "scroll",
-    () => {
-      if (isMessagesListAtBottom(messagesEl)) {
-        newMessagesArrivedOffBottom = false;
-      }
-      if (messagesScrollRaf) return;
-      messagesScrollRaf = requestAnimationFrame(() => {
-        messagesScrollRaf = 0;
-        syncNewMessagesJumpUi();
-      });
-    },
-    { passive: true }
-  );
 
   function userFromContacts(username) {
     if (!username) return null;
@@ -1456,10 +1410,12 @@ function createApp() {
   }
 
   /**
-   * GET /messages (доставлено) + POST /read (прочитано) + мерж.
-   * Вызывать при открытии чата; in-flight токен защищает от гонок при смене комнаты.
+   * Личка: GET /messages обновляет статусы на сервере (чужие «sent» → «delivered» для вашей выборки).
+   * С markRead (открытие чата): затем POST /read — чужие «sent|delivered» → «read»; у собеседника ваши исходящие станут «прочитано».
+   * Без markRead: только GET — для сокета message:status, чтобы галочки обновлялись, пока вы в другом чате (без ложного read).
    */
-  async function pullChatReceipts(chatId) {
+  async function pullChatReceipts(chatId, opts = {}) {
+    const markRead = opts.markRead !== false;
     if (!chatId || !currentUser || !currentUser.verified) return;
     const token = chatId;
     receiptsInFlight = token;
@@ -1468,7 +1424,7 @@ function createApp() {
       if (receiptsInFlight !== token) return;
       if (!Array.isArray(list)) return;
       allMessages = applyMessagesForChatInAll(allMessages, chatId, list);
-      if (isPrivateDirectChat(chatId)) {
+      if (markRead && isPrivateDirectChat(chatId)) {
         const r = await api("/api/messages/read", {
           method: "POST",
           body: JSON.stringify({ chatId, userId: currentUser.id }),
@@ -1478,9 +1434,19 @@ function createApp() {
           allMessages = applyMessagesForChatInAll(allMessages, chatId, r.messages);
         }
       }
+      renderChatList();
       if (currentChatId === chatId) {
-        renderChatList();
-        renderMessages();
+        if (markRead) {
+          if (receiptsMessagesRenderTimer) clearTimeout(receiptsMessagesRenderTimer);
+          receiptsMessagesRenderTimer = 0;
+          renderMessages();
+        } else {
+          if (receiptsMessagesRenderTimer) clearTimeout(receiptsMessagesRenderTimer);
+          receiptsMessagesRenderTimer = setTimeout(() => {
+            receiptsMessagesRenderTimer = 0;
+            renderMessages({ deferIfVoice: true });
+          }, 80);
+        }
       }
     } catch (e) {
       console.warn("pullChatReceipts", e);
@@ -1661,30 +1627,38 @@ function createApp() {
       }
     }
     const isOpenThread = Boolean(currentChatId && messageBelongsToOpenChat(msg, currentChatId));
-    // До вставки в массив: знать, смотрел ли пользователь на низ (для кнопки «Новые сообщения»)
-    const atBottomBeforeInsert = isOpenThread && messagesEl && isMessagesListAtBottom(messagesEl);
     allMessages.push(msg);
     // Держим сообщения в хронологическом порядке
     allMessages.sort((a, b) => new Date(a.time) - new Date(b.time));
     // Список чатов должен обновляться всегда (для бейджей и порядка)
     renderChatList();
     if (isOpenThread) {
-      if (!atBottomBeforeInsert) {
-        newMessagesArrivedOffBottom = true;
-      }
-      renderMessages();
+      renderMessages({ deferIfVoice: true });
+    }
+  });
+
+  socket.on("golos:noreply", (p) => {
+    if (!p || !p.chatId || !currentUser) return;
+    const gid = chatIdForUsers(currentUser.username, GOLOS_ATON_USERNAME);
+    if (p.chatId !== gid) return;
+    golosPendingReplies = Math.max(0, golosPendingReplies - 1);
+    if (currentChatId === gid) {
+      renderMessages({ deferIfVoice: true });
     }
   });
 
   socket.on("message:status", (p) => {
     if (!p || !p.chatId) return;
-    if (messageStatusDebounce) clearTimeout(messageStatusDebounce);
-    messageStatusDebounce = setTimeout(() => {
-      messageStatusDebounce = null;
-      if (p.chatId === currentChatId) {
-        void pullChatReceipts(p.chatId);
-      }
-    }, 250);
+    const cid = p.chatId;
+    const prev = messageStatusPullTimers.get(cid);
+    if (prev) clearTimeout(prev);
+    messageStatusPullTimers.set(
+      cid,
+      setTimeout(() => {
+        messageStatusPullTimers.delete(cid);
+        void pullChatReceipts(cid, { markRead: false });
+      }, 250)
+    );
   });
 
   // При переподключении возвращаемся в активную комнату, если она есть
@@ -1968,15 +1942,40 @@ function createApp() {
     }
     if (inputMessage) {
       if (on) {
+        const narrowUi =
+          typeof window !== "undefined" &&
+          window.matchMedia &&
+          window.matchMedia("(max-width: 840px)").matches;
         inputMessage.setAttribute(
           "placeholder",
-          "Текст — Enter. Голос — удерживайте кнопку с микрофоном, отпустите для отправки"
+          narrowUi
+            ? "Текст — Enter · голос — удерживайте микрофон"
+            : "Текст — Enter. Голос — удерживайте кнопку с микрофоном, отпустите для отправки"
+        );
+        inputMessage.setAttribute(
+          "title",
+          "Текст: ввод и Enter. Голос: удерживайте круглую кнопку с микрофоном, отпустите — отправка."
         );
       } else {
         inputMessage.setAttribute("placeholder", "Сообщение…");
+        inputMessage.removeAttribute("title");
       }
     }
   }
+
+  let golosChromeResizeTimer = 0;
+  window.addEventListener(
+    "resize",
+    () => {
+      if (!isGolosAtonChat()) return;
+      if (golosChromeResizeTimer) clearTimeout(golosChromeResizeTimer);
+      golosChromeResizeTimer = setTimeout(() => {
+        golosChromeResizeTimer = 0;
+        updateGolosChatChrome();
+      }, 150);
+    },
+    { passive: true }
+  );
 
   function setComposeEnabled(enabled) {
     inputMessage.disabled = !enabled;
@@ -2210,7 +2209,7 @@ function createApp() {
       if (version !== bootstrapVersion) return;
       applyCurrentUserUI();
       renderChatList();
-      renderMessages();
+      renderMessages({ deferIfVoice: true });
       updateTopbarTitle();
       updateFriendsBadge();
       restoreLastOpenChatIfValid();
@@ -2219,10 +2218,20 @@ function createApp() {
       if (version !== bootstrapVersion) return;
       applyCurrentUserUI();
 
-      function paintBootstrap() {
+      /* Сайдбар без полного renderMessages — иначе при медленном /api/messages/all каждые
+         приходящие чаты/users/contacts пересоздают DOM ленты и сбрасывают воспроизведение ГС. */
+      function paintBootstrapSidebar() {
         if (version !== bootstrapVersion) return;
         renderChatList();
-        renderMessages();
+        updateTopbarTitle();
+        updateFriendsBadge();
+        renderContacts();
+      }
+
+      function paintBootstrapAfterMessages() {
+        if (version !== bootstrapVersion) return;
+        renderChatList();
+        renderMessages({ deferIfVoice: true });
         updateTopbarTitle();
         updateFriendsBadge();
         renderContacts();
@@ -2233,7 +2242,7 @@ function createApp() {
           if (version !== bootstrapVersion) return;
           allUsers = Array.isArray(list) ? list : [];
           applyCurrentUserUI();
-          paintBootstrap();
+          paintBootstrapSidebar();
         })
         .catch((err) => {
           console.error("GET /api/users (bootstrap):", err);
@@ -2250,7 +2259,7 @@ function createApp() {
           // Сеть/таймаут/5xx: не затирать allChats — оставляем тёплый кэш sessionStorage / прошлый успех
           throw e;
         }
-        paintBootstrap();
+        paintBootstrapSidebar();
       }
 
       async function loadMessagesForBootstrap() {
@@ -2264,7 +2273,7 @@ function createApp() {
           // Иначе при сбое API список диалогов «исчезал» — пользователь видел пустой сайдбар
           throw e;
         }
-        paintBootstrap();
+        paintBootstrapAfterMessages();
       }
 
       async function loadContactsForBootstrap() {
@@ -2278,7 +2287,7 @@ function createApp() {
           if (version !== bootstrapVersion) return;
           contacts = { friends: [], blocked: [], requestsIn: [], requestsOut: [] };
         }
-        paintBootstrap();
+        paintBootstrapSidebar();
       }
 
       async function loadDiscoverForBootstrap() {
@@ -2290,13 +2299,15 @@ function createApp() {
           if (version !== bootstrapVersion) return;
           discoverChats = [];
         }
-        paintBootstrap();
+        paintBootstrapSidebar();
       }
+
+      await loadContactsForBootstrap();
+      if (version !== bootstrapVersion) return;
 
       const settled = await Promise.allSettled([
         loadChatsForBootstrap(),
         loadMessagesForBootstrap(),
-        loadContactsForBootstrap(),
         loadDiscoverForBootstrap(),
       ]);
       if (version !== bootstrapVersion) return;
@@ -2582,7 +2593,7 @@ function createApp() {
       applyCurrentUserUI();
       renderContacts();
       renderChatList();
-      renderMessages();
+      renderMessages({ deferIfVoice: true });
       updateTopbarTitle();
     } catch (err) {
       hintEl.textContent = err.message;
@@ -2853,7 +2864,7 @@ function createApp() {
       try {
         await setPeerAlias(currentUser.username, peer, next);
         renderChatList();
-        renderMessages();
+        renderMessages({ deferIfVoice: true });
         updateTopbarTitle();
         updatePeerActionBar();
         showToast("Сохранено");
@@ -3037,6 +3048,26 @@ function createApp() {
     const privateChatIds = new Set(privateFromMessages);
     const golosDmId = chatIdForUsers(current.username, GOLOS_ATON_USERNAME);
     privateChatIds.add(golosDmId);
+
+    /* Лички из контактов и закрепов: иначе при лимите GET /api/messages/all (MESSAGES_BOOTSTRAP_MAX)
+       в ленте нет ни одного сообщения из диалога — и он пропадает из сайдбара. */
+    for (const f of contacts.friends || []) {
+      if (f && f.username && !sameAtonUsername(f.username, current.username)) {
+        privateChatIds.add(chatIdForUsers(current.username, f.username));
+      }
+    }
+    for (const pinId of pins) {
+      if (typeof pinId === "string" && isPrivateDirectChat(pinId)) {
+        const parts = pinId.split("|");
+        if (
+          parts.length === 2 &&
+          (sameAtonUsername(parts[0], current.username) ||
+            sameAtonUsername(parts[1], current.username))
+        ) {
+          privateChatIds.add(pinId);
+        }
+      }
+    }
 
     // Учитываем пин и непрочитанные для групп
     const sortedChats = [...chats].sort((a, b) => {
@@ -3796,8 +3827,8 @@ function createApp() {
             </div>
           </div>
           <h2 class="aton-golos-empty-gpt-title">Голос Атона</h2>
-          <p class="aton-golos-empty-gpt-lead">Помощник. Введите запрос в поле внизу — или удерживайте круглую кнопку с микрофоном, чтобы диктовать.</p>
-          <p class="aton-golos-empty-tiny aton-golos-empty-tiny--gpt">Ответ приходит в эту ленту обычным сообщением, не «эфиром» в реальном времени.</p>
+          <p class="aton-golos-empty-gpt-lead">Ниже — лента. Пиши в поле или удерживай круглую кнопку с микрофоном.</p>
+          <p class="aton-golos-empty-tiny aton-golos-empty-tiny--gpt">Ответы приходят сообщениями в ленту, не потоком в реальном времени.</p>
           <div class="aton-golos-empty-actions">
             <button type="button" class="aton-golos-empty-focus-btn" id="aton-golos-empty-focus-cta">Поле ввода</button>
           </div>
@@ -4010,22 +4041,82 @@ function createApp() {
     });
   }
 
-  function renderMessages() {
+  /** Пока играет ГС, полный renderMessages() сносит DOM и рвёт воспроизведение — откладываем. */
+  let renderMessagesDeferredPending = false;
+  let renderMessagesVoiceStopListener = null;
+
+  function isAnyVoiceNotePlaying() {
+    try {
+      for (const a of document.querySelectorAll("audio.aton-voice-audio")) {
+        if (a && !a.paused && !a.ended) return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  function clearRenderMessagesVoiceListener() {
+    if (!renderMessagesVoiceStopListener) return;
+    try {
+      const { audio, fn } = renderMessagesVoiceStopListener;
+      audio.removeEventListener("pause", fn);
+      audio.removeEventListener("ended", fn);
+    } catch (_) {}
+    renderMessagesVoiceStopListener = null;
+  }
+
+  function flushDeferredRenderMessages() {
+    if (!renderMessagesDeferredPending) return;
+    if (isAnyVoiceNotePlaying()) {
+      armRenderMessagesWhenVoiceStops();
+      return;
+    }
+    renderMessagesDeferredPending = false;
+    clearRenderMessagesVoiceListener();
+    renderMessages();
+  }
+
+  function armRenderMessagesWhenVoiceStops() {
+    if (renderMessagesVoiceStopListener) return;
+    const playing = Array.from(document.querySelectorAll("audio.aton-voice-audio")).find(
+      (a) => a && !a.paused && !a.ended
+    );
+    if (!playing) {
+      flushDeferredRenderMessages();
+      return;
+    }
+    const onStop = () => {
+      clearRenderMessagesVoiceListener();
+      requestAnimationFrame(() => flushDeferredRenderMessages());
+    };
+    renderMessagesVoiceStopListener = { audio: playing, fn: onStop };
+    playing.addEventListener("pause", onStop);
+    playing.addEventListener("ended", onStop);
+  }
+
+  function renderMessages(opts = {}) {
     if (!messagesEl || !compose) return;
+    if (opts.deferIfVoice && isAnyVoiceNotePlaying()) {
+      renderMessagesDeferredPending = true;
+      armRenderMessagesWhenVoiceStops();
+      return;
+    }
+    clearRenderMessagesVoiceListener();
+    renderMessagesDeferredPending = false;
     const privateDmUi = Boolean(
       currentUser && currentChatId && isPrivateDirectChat(currentChatId)
     );
     if (chat) chat.classList.toggle("aton-chat--private-dm", privateDmUi);
     const chatChangedForScroll = currentChatId !== lastMessagesRenderChatId;
-    if (chatChangedForScroll) {
-      newMessagesArrivedOffBottom = false;
-    }
-    // До innerHTML: «у низа» = только если это тот же тред, есть строки, и дистанция до низа < 50px
+    // До innerHTML: «приклеены к низу» только если низ ленты реально в кадре (sentinel + IO) и мало отступа до низа.
+    // Один лишь порог 50px по scrollTop давал ложное «у низа» и автопрокрутку при чтении середины истории.
     const hadMessageRows = Boolean(
       currentUser && currentChatId && messagesEl.querySelector(".aton-message-row")
     );
     const wasAtBottom =
-      !chatChangedForScroll && hadMessageRows && isMessagesListAtBottom(messagesEl);
+      !chatChangedForScroll &&
+      hadMessageRows &&
+      messagesBottomInView &&
+      isMessagesListAtBottom(messagesEl);
     const useScrollAnchor = !chatChangedForScroll && hadMessageRows && !wasAtBottom;
     const scrollSnapshot = useScrollAnchor ? captureMessagesScrollSnapshot(messagesEl) : null;
     const scrollRatioSnap = useScrollAnchor ? captureMessagesScrollRatio(messagesEl) : null;
@@ -4390,7 +4481,6 @@ function createApp() {
         scrollMessagesListToBottomRaf(false);
       } else {
         restoreMessagesScrollAfterRerender(messagesEl, scrollSnapshot, scrollRatioSnap);
-        syncNewMessagesJumpUi();
       }
     }
     // Для выбранного чата показываем поле ввода
@@ -4398,13 +4488,6 @@ function createApp() {
     compose.style.display = "flex";
     } finally {
       lastMessagesRenderChatId = currentUser && currentChatId ? currentChatId : null;
-      if (!currentUser || !currentChatId) {
-        newMessagesArrivedOffBottom = false;
-      } else if (!messagesEl || !messagesEl.querySelector(".aton-message-row")) {
-        newMessagesArrivedOffBottom = false;
-      }
-      newMessagesJumpVisible = null;
-      syncNewMessagesJumpUi();
     }
   }
 
@@ -5864,7 +5947,7 @@ function createApp() {
         if (Array.isArray(ulist)) allUsers = ulist;
         applyCurrentUserUI();
         renderChatList();
-        renderMessages();
+        renderMessages({ deferIfVoice: true });
         updateTopbarTitle();
         updateFriendsBadge();
         renderContacts();
@@ -5883,7 +5966,7 @@ function createApp() {
             if (!getToken() || !currentUser) return;
             applyCurrentUserUI();
             renderChatList();
-            renderMessages();
+            renderMessages({ deferIfVoice: true });
             updateTopbarTitle();
             updateFriendsBadge();
             renderContacts();
@@ -5906,7 +5989,7 @@ function createApp() {
           if (currentUser && !currentUser.verified) return;
           applyCurrentUserUI();
           renderChatList();
-          renderMessages();
+          renderMessages({ deferIfVoice: true });
           updateTopbarTitle();
           updateFriendsBadge();
           renderContacts();
@@ -5923,7 +6006,7 @@ function createApp() {
         try {
           applyCurrentUserUI();
           renderChatList();
-          renderMessages();
+          renderMessages({ deferIfVoice: true });
           updateTopbarTitle();
           updateFriendsBadge();
           renderContacts();
@@ -5961,7 +6044,7 @@ function createApp() {
       applyCurrentUserUI();
       renderContacts();
       renderChatList();
-      renderMessages();
+      renderMessages({ deferIfVoice: true });
       updateTopbarTitle();
     } catch (e) {
       console.error("Aton: init", e);

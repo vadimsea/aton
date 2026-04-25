@@ -1899,47 +1899,6 @@ body {
   overflow: hidden;
 }
 
-/* Плашка «Новые сообщения» — поверх ленты, над полем ввода (примерно) */
-.aton-messages-jump {
-  position: absolute;
-  left: 50%;
-  bottom: max(88px, calc(env(safe-area-inset-bottom, 0px) + 72px));
-  transform: translateX(-50%);
-  z-index: 6;
-  pointer-events: none;
-}
-
-.aton-messages-jump-btn {
-  pointer-events: auto;
-  appearance: none;
-  border: 1px solid rgba(56, 189, 248, 0.45);
-  background: rgba(15, 23, 42, 0.92);
-  color: #e0f2fe;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 8px 16px;
-  border-radius: 999px;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.aton-messages-jump-btn:hover {
-  background: rgba(15, 23, 42, 1);
-  border-color: #38bdf8;
-}
-
-.aton-messages-jump[hidden] {
-  display: none !important;
-}
-
-[data-theme="light"] .aton-messages-jump-btn {
-  background: rgba(255, 255, 255, 0.95);
-  color: #1e3a5f;
-  border-color: rgba(37, 99, 235, 0.4);
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
-}
-
 .aton-messages {
   flex: 1;
   min-height: 0;
@@ -1988,9 +1947,9 @@ body {
   gap: 0;
 }
 
-/* Личка: тот же потолок ширины, что и в группах (Telegram-like) */
+/* Личка: пузырь до ~85% ширины треда (на широких экранах не остаётся огромной полосы справа, как у Telegram) */
 .aton-message-row--private-dm .aton-message-bubble {
-  max-width: min(96%, 1000px);
+  max-width: min(85%, 1080px);
 }
 
 /* личка + голос: тот же ползунок, что и в группе */
@@ -1999,6 +1958,12 @@ body {
   max-width: min(360px, 58%);
   min-width: 0;
   box-sizing: border-box;
+}
+
+/* Как у голоса без текста: иначе входящие «ГС+текст» растягиваются до 85%/1080px, исходящие ГС остаются ~360px */
+.aton-message-row--private-dm .aton-message-bubble--voice:has(.aton-message-text-body) {
+  width: min(360px, 58%);
+  max-width: min(360px, 58%);
 }
 
 /* Страховка: в личке не показываем строки имён, даже при старом кэше main.js */
@@ -2116,6 +2081,12 @@ body {
   max-width: min(360px, 58%);
   min-width: 0;
   box-sizing: border-box;
+}
+
+/* Голос + текст: та же ширина полосы, что и у чистого ГС; текст переносится внутри пузыря */
+.aton-message-bubble--voice:has(.aton-message-text-body) {
+  width: min(360px, 58%);
+  max-width: min(360px, 58%);
 }
 
 .aton-message-text--media.aton-message-text--voice {
@@ -2795,18 +2766,18 @@ body {
   margin-top: 0;
 }
 
-/* ——— Голос Атона: режим «как ChatGPT» — одна полоса ввода, без второй панели сверху ——— */
+/* ——— Голос Атона: фон и поле ввода под голос; лента и композ на всю ширину чата (как обычная личка, без центрированной «колонки ChatGPT»). ——— */
 .aton-main--golos {
   background: var(--aton-bg-soft);
 }
 
+/* Явно: лента и низ не сужаются (на случай кэша старого CSS или сторонних правил). */
 .aton-chat--golos .aton-messages {
-  max-width: 42rem;
+  max-width: none;
   width: 100%;
-  margin: 0 auto;
-  padding-left: 12px;
-  padding-right: 16px;
-  box-sizing: border-box;
+  margin-left: 0;
+  margin-right: 0;
+  align-self: stretch;
 }
 
 .aton-compose--golos {
@@ -2828,8 +2799,6 @@ body {
   border: 1px solid var(--golos-stroke);
   background: var(--golos-surface);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
-  max-width: 48rem;
-  margin: 0 auto;
   width: 100%;
   box-sizing: border-box;
 }
@@ -2901,8 +2870,6 @@ body {
 }
 
 .aton-compose--golos .aton-voice-preview {
-  max-width: 48rem;
-  margin: 0 auto;
   width: 100%;
   box-sizing: border-box;
 }
@@ -4824,6 +4791,15 @@ body {
     max-width: min(360px, 58%);
     min-width: 0;
     box-sizing: border-box;
+  }
+
+  .aton-message-bubble--voice:has(.aton-message-text-body) {
+    width: max-content;
+    max-width: min(85%, 1080px);
+  }
+
+  .aton-message-row--private-dm .aton-message-bubble--voice:has(.aton-message-text-body) {
+    max-width: min(85%, 1080px);
   }
 
   .aton-message-text--media {

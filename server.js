@@ -18,6 +18,12 @@ const {
   generateUniquePublicId,
 } = require("./lib/aton-mappers");
 const { fetchGolosReply, transcribeGolosAudioDataUrl, buildGolosBotReplyContent } = require("./lib/golos-groq");
+const {
+  GOLOS_INTRO_FIRST_MESSAGE,
+  GOLOS_IDENTITY_REPLY,
+  isGolosStrictIdentityQuestion,
+  isGolosSilenceReply,
+} = require("./lib/golos-persona");
 
 /** Ключ в peerAliases — точный username из БД; peerUsername в запросе может отличаться регистром. */
 async function findCanonicalUsernameForPeerAlias(peerUsername) {
@@ -603,6 +609,44 @@ async function postGolosAtonMessage({ text, toUsername, chatId, type = "text", a
   );
 }
 
+/** Первое сообщение в пустой личке с Голосом Атона — фиксированный текст, один раз; без почты. */
+async function ensureGolosIntroIfEmpty(chatId, viewerUsername) {
+  if (!chatId || !viewerUsername) return;
+  if (dmPeerFromChatId(String(chatId), viewerUsername) !== GOLOS_ATON_USERNAME) return;
+  const cid = String(chatId);
+  const createdRow = await prisma.$transaction(async (tx) => {
+    const n = await tx.message.count({ where: { chatId: cid } });
+    if (n > 0) return null;
+    const msgId = generateToken();
+    const now = new Date();
+    return tx.message.create({
+      data: {
+        id: msgId,
+        chatId: cid,
+        senderUsername: GOLOS_ATON_USERNAME,
+        recipientUsername: viewerUsername,
+        type: "text",
+        text: GOLOS_INTRO_FIRST_MESSAGE,
+        imageDataUrl: null,
+        audioDataUrl: null,
+        createdAt: now,
+        editedAt: null,
+        replyTo: null,
+        pinned: false,
+        reactions: [],
+        status: "sent",
+      },
+    });
+  });
+  if (!createdRow) return;
+  const msg = messageFromPrismaRow(createdRow);
+  io.to(msg.chatId).emit("message:new", msg);
+  if (msg.to) {
+    io.to(`user:${msg.to}`).emit("message:new", msg);
+    io.to(`user:${msg.from}`).emit("message:new", msg);
+  }
+}
+
 function userMessageToGolosAton(saved, authorUsername) {
   if (saved && saved.to === GOLOS_ATON_USERNAME) return true;
   if (!saved || !authorUsername) return false;
@@ -647,7 +691,7 @@ async function buildGolosLlmHistory(chatId, userUsername, currentMsg, currentUse
   return out;
 }
 
-async function processGolosAtonUserReply({ savedUserMsg, authorUsername, authorId }) {
+async function processGolosAtonUserReply({ savedUserMsg, authorUsername }) {
   if (!userMessageToGolosAton(savedUserMsg, authorUsername)) {
     return;
   }
@@ -658,14 +702,12 @@ async function processGolosAtonUserReply({ savedUserMsg, authorUsername, authorI
   const chatId = savedUserMsg.chatId || dmChatIdForUsernames(authorUsername, GOLOS_ATON_USERNAME);
   if (!golosRateAllow(authorUsername)) {
     await postGolosAtonMessage({
-      text: "Вы достигли лимита сообщений к помощнику на этот час. Попробуйте позже.",
+      text: "Предел на этот час. Позже.",
       toUsername: authorUsername,
       chatId,
     });
     return;
   }
-  const authorRow = await prisma.user.findUnique({ where: { id: authorId } });
-  const u = authorRow ? userFromPrismaRow(authorRow) : { username: authorUsername, displayName: authorUsername };
 
   let userText = "";
   if (isText) {
@@ -680,7 +722,7 @@ async function processGolosAtonUserReply({ savedUserMsg, authorUsername, authorI
     if (!userText) {
       await postGolosAtonMessage({
         type: "text",
-        text: "Не разобрал голосовое сообщение. Скажите, пожалуйста, ещё раз или напишите текстом.",
+        text: "Не разобрал. Повтори или текстом.",
         toUsername: authorUsername,
         chatId,
       });
@@ -689,17 +731,24 @@ async function processGolosAtonUserReply({ savedUserMsg, authorUsername, authorI
   }
 
   let replyText;
-  try {
-    const history = await buildGolosLlmHistory(chatId, authorUsername, savedUserMsg, userText);
-    replyText = await fetchGolosReply({
-      history,
-      username: u.username,
-      displayName: u.displayName,
-      fromVoice: Boolean(isAudio),
-    });
-  } catch (e) {
-    console.error("fetchGolosReply:", e);
-    replyText = "Произошла ошибка. Попробуйте позже.";
+  if (isGolosStrictIdentityQuestion(userText)) {
+    replyText = GOLOS_IDENTITY_REPLY;
+  } else {
+    try {
+      const history = await buildGolosLlmHistory(chatId, authorUsername, savedUserMsg, userText);
+      replyText = await fetchGolosReply({
+        history,
+        fromVoice: Boolean(isAudio),
+      });
+    } catch (e) {
+      console.error("fetchGolosReply:", e);
+      replyText = "Сбой. Позже.";
+    }
+  }
+
+  if (isGolosSilenceReply(replyText)) {
+    io.to(`user:${authorUsername}`).emit("golos:noreply", { chatId });
+    return;
   }
 
   const body = await buildGolosBotReplyContent(replyText, { asVoice: Boolean(isAudio) });
@@ -728,7 +777,7 @@ async function ensureGolosAtonUser() {
         displayName: "Голос Атона",
         passwordHash,
         publicId,
-        bio: "Помощник в мессенджере «Атон».",
+        bio: "Голос Атона.",
         avatarDataUrl: null,
         sessionToken: null,
         lastSeen: new Date(),
@@ -2361,6 +2410,9 @@ app.get("/api/messages", authMiddleware, requireVerified, async (req, res) => {
     if (!ac.ok) {
       return res.status(ac.error === "Чат не найден" ? 404 : 403).json({ error: ac.error });
     }
+    if (isDirectMessageChatId(String(chatId)) && dmPeerFromChatId(String(chatId), me) === GOLOS_ATON_USERNAME) {
+      await ensureGolosIntroIfEmpty(String(chatId), me);
+    }
     if (isDirectMessageChatId(chatId)) {
       await prisma.message.updateMany({
         where: {
@@ -2402,6 +2454,9 @@ app.post("/api/messages/read", authMiddleware, requireVerified, async (req, res)
     const ac = await assertUserCanAccessChat(req, chatId);
     if (!ac.ok) {
       return res.status(ac.error === "Чат не найден" ? 404 : 403).json({ error: ac.error });
+    }
+    if (isDirectMessageChatId(String(chatId)) && dmPeerFromChatId(String(chatId), me) === GOLOS_ATON_USERNAME) {
+      await ensureGolosIntroIfEmpty(String(chatId), me);
     }
     if (isDirectMessageChatId(chatId)) {
       await prisma.message.updateMany({
@@ -2473,6 +2528,7 @@ app.get("/api/messages/all", authMiddleware, requireVerified, async (req, res) =
   const username = req.user.username;
   const userId = req.user.id;
   try {
+    await ensureGolosIntroIfEmpty(dmChatIdForUsernames(username, GOLOS_ATON_USERNAME), username);
     const chatRows = await prisma.chat.findMany();
     const ownerNameList = [];
     for (const raw of chatRows) {
@@ -2591,6 +2647,12 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
   const msgId = generateToken();
   const now = new Date();
   try {
+    if (
+      isDirectMessageChatId(String(chatId)) &&
+      dmPeerFromChatId(String(chatId), myUsername) === GOLOS_ATON_USERNAME
+    ) {
+      await ensureGolosIntroIfEmpty(String(chatId), myUsername);
+    }
     const row = await prisma.message.create({
       data: {
         id: msgId,
@@ -2624,7 +2686,6 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
       void processGolosAtonUserReply({
         savedUserMsg: msg,
         authorUsername: req.user.username,
-        authorId: req.user.id,
       }).catch((e) => console.error("processGolosAtonUserReply:", e));
     }
 
