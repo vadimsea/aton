@@ -405,9 +405,37 @@ ${analysis}
 
 *Сгенерировано: qa-bots/social-daily.mjs (см. токены или QA_EMAIL+QA_PASSWORD / QA_BOT2_*)*
 `;
-  await writeFile(path.join(OUT, `${safeName}.md`), md, "utf8");
+  const mdPath = path.join(OUT, `${safeName}.md`);
+  // BOM — часть веб‑серверов отдаёт .md без charset; UTF-8 BOM помогает браузеру.
+  await writeFile(mdPath, `\ufeff${md}`, "utf8");
+
+  const esc = (s) =>
+    String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  const htmlReport = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${esc(`${titleOk} Соц QA — ${dateStr}`)}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 56rem; margin: 1.5rem auto; padding: 0 1rem; background: #0f172a; color: #e2e8f0; }
+    pre { white-space: pre-wrap; word-break: break-word; font-size: 13px; line-height: 1.5; }
+    p.note { color: #94a3b8; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <p class="note">Тот же отчёт, что <code>${esc(`${safeName}.md`)}</code> — в HTML с явной кодировкой (если .md в браузере крякозябры, откройте этот файл).</p>
+  <pre>${esc(md)}</pre>
+</body>
+</html>
+`;
+  await writeFile(path.join(OUT, `${safeName}.html`), htmlReport, "utf8");
+
   await writeMergedQaIndex(OUT);
-  console.log("OK:", path.join(OUT, `${safeName}.md`));
+  console.log("OK:", mdPath, path.join(OUT, `${safeName}.html`));
 
   if (process.env.FTP_HOST && process.env.FTP_USER && process.env.FTP_PASS) {
     try {

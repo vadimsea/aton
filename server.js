@@ -125,6 +125,22 @@ const io = new Server(server, {
   cors: { origin: "*" },
 });
 
+/**
+ * Статусы доставки/прочтения. Для личек — только `user:username` (оба участника
+ * в этих комнатах с момента connect; иначе дубли с `io.to(chatId)`). Для global/групп — room чата.
+ */
+function emitMessageStatusForChat(chatId, payload) {
+  if (isDirectMessageChatId(chatId)) {
+    const parts = String(chatId).split("|");
+    if (parts.length === 2 && parts[0] && parts[1]) {
+      io.to(`user:${parts[0]}`).emit("message:status", payload);
+      io.to(`user:${parts[1]}`).emit("message:status", payload);
+      return;
+    }
+  }
+  io.to(chatId).emit("message:status", payload);
+}
+
 // Rate limiting — защита от brute-force
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 минут
@@ -2326,7 +2342,7 @@ app.get("/api/messages", authMiddleware, requireVerified, async (req, res) => {
         },
         data: { status: "delivered" },
       });
-      io.to(chatId).emit("message:status", {
+      emitMessageStatusForChat(chatId, {
         chatId,
         kind: "delivered",
         viewer: me,
@@ -2368,7 +2384,7 @@ app.post("/api/messages/read", authMiddleware, requireVerified, async (req, res)
         },
         data: { status: "read" },
       });
-      io.to(chatId).emit("message:status", {
+      emitMessageStatusForChat(chatId, {
         chatId,
         kind: "read",
         reader: me,
