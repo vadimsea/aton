@@ -368,7 +368,13 @@ function captureMessagesScrollSnapshot(el) {
     if (!id) continue;
     const br = row.getBoundingClientRect();
     if (br.bottom > mRect.top + 2) {
-      return { kind: "anchor", id, offsetInView: br.top - mRect.top };
+      return {
+        kind: "anchor",
+        id,
+        offsetInView: br.top - mRect.top,
+        scrollTop,
+        scrollHeight,
+      };
     }
   }
   return { kind: "bottom" };
@@ -385,11 +391,18 @@ function applyMessagesScrollSnapshot(el, snap) {
     el.scrollTop = el.scrollHeight;
     return;
   }
-  // Не полагаемся на offsetTop (flex) — сравниваем видимый отступ с тем, что был до перерисовки.
-  const mRect = el.getBoundingClientRect();
-  const rRect = row.getBoundingClientRect();
-  const vNow = rRect.top - mRect.top;
-  el.scrollTop = Math.max(0, vNow - snap.offsetInView);
+  const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
+  // Цель: верх якоря на прежней высоте в окне. offsetTop — относительно messagesEl (строка — прямой ребёнок).
+  const targetFromAnchor = row.offsetTop - snap.offsetInView;
+  let nextTop = targetFromAnchor;
+  // Если макет/список сдвинулся (vNow < offsetInView в старой формуле → «в ноль»), не прыгать в начало —
+  // масштабируем прошлую прокрутку по длине контента.
+  if (nextTop < 0) {
+    const oldMax = Math.max(1, (snap.scrollHeight || el.scrollHeight) - el.clientHeight);
+    const prev = typeof snap.scrollTop === "number" ? snap.scrollTop : 0;
+    nextTop = (prev / oldMax) * maxScroll;
+  }
+  el.scrollTop = Math.min(maxScroll, Math.max(0, nextTop));
 }
 
 function lastActivityAtForDmChatId(dmId, messages) {
