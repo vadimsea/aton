@@ -780,6 +780,11 @@ async function processGolosAtonUserReply({ savedUserMsg, authorUsername }) {
       });
       return;
     }
+    /* Пауза после STT перед чатом: два запроса подряд к Groq часто дают 429 на бесплатном тарифе. */
+    const sttGap = parseInt(String(process.env.GOLOS_POST_STT_DELAY_MS || "500"), 10);
+    if (Number.isFinite(sttGap) && sttGap > 0 && sttGap <= 15_000) {
+      await new Promise((r) => setTimeout(r, sttGap));
+    }
   }
 
   let replyText;
