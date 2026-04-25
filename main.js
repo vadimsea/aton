@@ -350,18 +350,13 @@ function safeDataMessageIdForSelector(id) {
 }
 
 /**
- * Сохраняет позицию прокрутки при дозагрузке/мерже, если пользователь смотрит историю (не внизу).
+ * Якорь для восстановления позиции после полной перерисовки ленты (без автоскролла вниз).
  */
 function captureMessagesScrollSnapshot(el) {
   if (!el || !el.querySelector(".aton-message-row")) {
-    return { kind: "bottom" };
+    return null;
   }
-  const threshold = 100;
-  const { scrollTop, scrollHeight, clientHeight } = el;
-  const fromBottom = scrollHeight - scrollTop - clientHeight;
-  if (fromBottom <= threshold) {
-    return { kind: "bottom" };
-  }
+  const { scrollTop, scrollHeight } = el;
   const mRect = el.getBoundingClientRect();
   for (const row of el.querySelectorAll(".aton-message-row")) {
     const id = row.getAttribute("data-message-id");
@@ -377,26 +372,21 @@ function captureMessagesScrollSnapshot(el) {
       };
     }
   }
-  return { kind: "bottom" };
+  return null;
 }
 
 function applyMessagesScrollSnapshot(el, snap) {
   if (!el) return;
-  if (!snap || snap.kind === "bottom") {
-    el.scrollTop = el.scrollHeight;
+  if (!snap || snap.kind !== "anchor" || !snap.id) {
     return;
   }
   const row = el.querySelector(`[data-message-id="${safeDataMessageIdForSelector(snap.id)}"]`);
   if (!row) {
-    el.scrollTop = el.scrollHeight;
     return;
   }
   const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
-  // Цель: верх якоря на прежней высоте в окне. offsetTop — относительно messagesEl (строка — прямой ребёнок).
   const targetFromAnchor = row.offsetTop - snap.offsetInView;
   let nextTop = targetFromAnchor;
-  // Если макет/список сдвинулся (vNow < offsetInView в старой формуле → «в ноль»), не прыгать в начало —
-  // масштабируем прошлую прокрутку по длине контента.
   if (nextTop < 0) {
     const oldMax = Math.max(1, (snap.scrollHeight || el.scrollHeight) - el.clientHeight);
     const prev = typeof snap.scrollTop === "number" ? snap.scrollTop : 0;
