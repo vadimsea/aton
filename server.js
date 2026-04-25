@@ -74,6 +74,50 @@ function dmPeerFromChatId(chatId, myUsername) {
   if (b === myUsername) return a;
   return null;
 }
+
+/** Личка `user|user` — для неё считаем delivered/read; в global/группах поле status не меняем по этой логике. */
+function isDirectMessageChatId(chatId) {
+  return (
+    typeof chatId === "string" &&
+    chatId.includes("|") &&
+    !chatId.startsWith("group:") &&
+    !chatId.startsWith("channel:")
+  );
+}
+
+/** Просмотр списка сообщений: только участник global / лички / группы. */
+async function assertUserCanAccessChat(req, chatId) {
+  const uid = req.user.id;
+  const uname = req.user.username;
+  if (!chatId || typeof chatId !== "string") {
+    return { ok: false, error: "Некорректный чат" };
+  }
+  if (chatId === "global") {
+    return { ok: true };
+  }
+  if (chatId.startsWith("group:") || chatId.startsWith("channel:")) {
+    const raw = await prisma.chat.findUnique({ where: { id: chatId } });
+    if (!raw) return { ok: false, error: "Чат не найден" };
+    const userRows = await prisma.user.findMany();
+    const usersByUsername = {};
+    for (const row of userRows) {
+      const u = userFromPrismaRow(row);
+      if (u.username) usersByUsername[u.username] = u;
+    }
+    const chat = ensureChatFields(chatFromPrismaRow(raw), usersByUsername);
+    const members = Array.isArray(chat.members) ? chat.members : [];
+    if (!members.includes(uid)) {
+      return { ok: false, error: "Нет доступа к чату" };
+    }
+    return { ok: true };
+  }
+  const peer = dmPeerFromChatId(chatId, uname);
+  if (!peer) {
+    return { ok: false, error: "Некорректный чат" };
+  }
+  return { ok: true };
+}
+
 const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
 
@@ -471,8 +515,11 @@ async function postGolosAtonMessage({ text, toUsername, chatId, type = "text", a
       imageDataUrl: null,
       audioDataUrl: msgType === "audio" && audioDataUrl ? audioDataUrl : null,
       createdAt: now,
+      editedAt: null,
+      replyTo: null,
       pinned: false,
       reactions: [],
+      status: "sent",
     },
   });
   const msg = messageFromPrismaRow(row);
@@ -2264,7 +2311,27 @@ app.post("/api/chats/:id/join", authMiddleware, requireVerified, async (req, res
 // Сообщения
 app.get("/api/messages", authMiddleware, requireVerified, async (req, res) => {
   const { chatId = "global" } = req.query;
+  const me = req.user.username;
   try {
+    const ac = await assertUserCanAccessChat(req, chatId);
+    if (!ac.ok) {
+      return res.status(ac.error === "Чат не найден" ? 404 : 403).json({ error: ac.error });
+    }
+    if (isDirectMessageChatId(chatId)) {
+      await prisma.message.updateMany({
+        where: {
+          chatId,
+          senderUsername: { not: me },
+          status: "sent",
+        },
+        data: { status: "delivered" },
+      });
+      io.to(chatId).emit("message:status", {
+        chatId,
+        kind: "delivered",
+        viewer: me,
+      });
+    }
     const rows = await prisma.message.findMany({
       where: { chatId },
       orderBy: { createdAt: "asc" },
@@ -2272,6 +2339,86 @@ app.get("/api/messages", authMiddleware, requireVerified, async (req, res) => {
     res.json(rows.map(messageFromPrismaRow));
   } catch (err) {
     console.error("GET /api/messages:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+// Прочитано: входящие в чате → read; ответ — актуальный список сообщений чата
+app.post("/api/messages/read", authMiddleware, requireVerified, async (req, res) => {
+  const { chatId, userId } = req.body || {};
+  const bodyUser = userId != null ? String(userId).trim() : "";
+  if (!chatId || typeof chatId !== "string") {
+    return res.status(400).json({ error: "chatId обязателен" });
+  }
+  if (bodyUser && bodyUser !== req.user.id) {
+    return res.status(403).json({ error: "Несоответствие пользователя" });
+  }
+  const me = req.user.username;
+  try {
+    const ac = await assertUserCanAccessChat(req, chatId);
+    if (!ac.ok) {
+      return res.status(ac.error === "Чат не найден" ? 404 : 403).json({ error: ac.error });
+    }
+    if (isDirectMessageChatId(chatId)) {
+      await prisma.message.updateMany({
+        where: {
+          chatId,
+          senderUsername: { not: me },
+          status: { in: ["sent", "delivered"] },
+        },
+        data: { status: "read" },
+      });
+      io.to(chatId).emit("message:status", {
+        chatId,
+        kind: "read",
+        reader: me,
+      });
+    }
+    const rows = await prisma.message.findMany({
+      where: { chatId },
+      orderBy: { createdAt: "asc" },
+    });
+    const list = rows.map(messageFromPrismaRow);
+    res.json({ ok: true, messages: list });
+  } catch (err) {
+    console.error("POST /api/messages/read:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+// Статус дружбы с пользователем (для поиска / кнопок)
+app.get("/api/friendship-status", authMiddleware, requireVerified, async (req, res) => {
+  const userId = req.query.userId != null ? String(req.query.userId).trim() : "";
+  if (!userId) {
+    return res.status(400).json({ error: "userId обязателен" });
+  }
+  try {
+    const target = await prisma.user.findUnique({ where: { id: userId } });
+    if (!target) {
+      return res.status(404).json({ error: "Пользователь не найден" });
+    }
+    if (target.id === req.user.id) {
+      return res.json({ status: "accepted" });
+    }
+    const meRow = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!meRow) {
+      return res.status(404).json({ error: "Пользователь не найден" });
+    }
+    const me = userFromPrismaRow(meRow);
+    ensureLists(me);
+    const tu = target.username;
+    if ((me.friends || []).includes(tu)) {
+      return res.json({ status: "accepted" });
+    }
+    if ((me.friendRequestsIn || []).includes(tu)) {
+      return res.json({ status: "pending", direction: "in" });
+    }
+    if ((me.friendRequestsOut || []).includes(tu)) {
+      return res.json({ status: "pending", direction: "out" });
+    }
+    return res.json({ status: "none" });
+  } catch (err) {
+    console.error("GET /api/friendship-status:", err);
     res.status(500).json({ error: "Ошибка сервера" });
   }
 });
@@ -2422,6 +2569,7 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
         replyTo: replyTo == null ? undefined : replyTo,
         pinned: Boolean(pinned),
         reactions: [],
+        status: "sent",
       },
     });
     const msg = messageFromPrismaRow(row);

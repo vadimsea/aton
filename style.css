@@ -26,6 +26,14 @@
   --golos-stroke: rgba(148, 163, 184, 0.18);
   --golos-stroke-bright: rgba(56, 189, 248, 0.28);
   --golos-text2: #cbd5e1;
+  /* UI rhythm / Telegram-like */
+  --aton-separator: rgba(148, 163, 184, 0.14);
+  --aton-bubble-incoming: #2b3039;
+  --aton-bubble-incoming-border: rgba(255, 255, 255, 0.08);
+  --aton-avatar-border: rgba(255, 255, 255, 0.1);
+  --aton-msg-col-gap: 2px;
+  --aton-compose-pad-y: 10px;
+  --aton-control-btn-size: 40px;
 }
 
 [data-theme="light"] {
@@ -49,6 +57,10 @@
   --golos-stroke: rgba(15, 23, 42, 0.08);
   --golos-stroke-bright: rgba(37, 99, 235, 0.2);
   --golos-text2: #64748b;
+  --aton-separator: rgba(0, 0, 0, 0.07);
+  --aton-bubble-incoming: #e8edf2;
+  --aton-bubble-incoming-border: rgba(0, 0, 0, 0.1);
+  --aton-avatar-border: rgba(0, 0, 0, 0.08);
 }
 
 html,
@@ -861,6 +873,28 @@ body {
   white-space: nowrap;
 }
 
+.aton-peer-action-inner--toolbar-only {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  justify-content: flex-start;
+}
+
+.aton-peer-action-inner--toolbar-only .aton-peer-action-btns {
+  width: 100%;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.aton-peer-rename-local--icon {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 10px;
+  justify-content: center;
+}
+
 @media (max-width: 400px) {
   .aton-peer-rename-local-text {
     white-space: normal;
@@ -1214,8 +1248,8 @@ body {
 
 .aton-chat-list {
   margin-top: 4px;
-  padding: 2px 0;
-  border-radius: 10px;
+  padding: 4px 6px 8px;
+  border-radius: 0;
   background: transparent;
   border: none;
   display: flex;
@@ -1304,26 +1338,48 @@ body {
 }
 
 .aton-chat-item {
-  border-radius: 0;
+  position: relative;
+  border-radius: 10px;
   border: none;
-  padding: 6px 10px;
+  margin: 0 0 1px;
+  padding: 10px 10px 10px 8px;
+  min-height: 64px;
   background: transparent;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   cursor: pointer;
-  transition: background 0.15s ease-out;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.95);
+  transition: background 0.12s ease-out;
+  box-sizing: border-box;
+}
+
+.aton-chat-item::after {
+  content: "";
+  position: absolute;
+  left: 58px;
+  right: 10px;
+  bottom: 0;
+  height: 1px;
+  background: var(--aton-separator);
+  pointer-events: none;
+}
+
+.aton-chat-list .aton-chat-item:last-child::after {
+  display: none;
 }
 
 .aton-chat-item-title {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
 }
 
 .aton-chat-item-subtitle {
-  font-size: 10px;
+  font-size: 12px;
+  line-height: 1.2;
   color: var(--aton-text-muted);
+  opacity: 0.9;
 }
 
 .aton-chat-item-preview {
@@ -1332,14 +1388,19 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--aton-text-muted);
+  margin-top: 2px;
 }
 
 .aton-chat-item.active {
-  background: radial-gradient(circle at left, rgba(56, 189, 248, 0.22), transparent 60%);
+  background: rgba(56, 189, 248, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.22);
 }
 
 .aton-chat-item:not(.active):hover {
-  background: rgba(15, 23, 42, 0.95);
+  background: rgba(15, 23, 42, 0.55);
 }
 
 .aton-chat-item-main {
@@ -1466,8 +1527,8 @@ body {
 }
 
 .aton-chat-avatar {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   border-radius: 999px;
   overflow: hidden;
   flex-shrink: 0;
@@ -1475,8 +1536,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 15px;
+  font-weight: 600;
   color: #111827;
+  box-shadow: 0 0 0 1px var(--aton-avatar-border) inset;
 }
 
 .aton-chat-avatar img {
@@ -1601,13 +1664,15 @@ body {
   flex-shrink: 0;
   position: relative;
   z-index: 20;
-  min-height: 52px;
+  min-height: 48px;
   height: auto;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  border-bottom: 1px solid var(--aton-border-soft);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 18px;
+  gap: 8px;
+  padding: 6px max(12px, env(safe-area-inset-right, 0px)) 6px max(12px, env(safe-area-inset-left, 0px));
+  padding-top: max(6px, env(safe-area-inset-top, 0px));
   background: var(--aton-bg-elevated);
 }
 
@@ -1630,11 +1695,18 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  flex: 1;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+  padding: 0 4px 0 0;
 }
 
 .aton-topbar-left {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  flex: 1;
 }
 
 .aton-topbar-right {
@@ -1644,8 +1716,14 @@ body {
 }
 
 .aton-topbar-title {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .aton-topbar-title-inner {
@@ -1674,11 +1752,15 @@ body {
 }
 
 .aton-topbar-status {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--aton-text-muted);
-  line-height: 1.35;
-  max-width: min(100%, 42ch);
-  word-wrap: break-word;
+  line-height: 1.25;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.88;
+  margin-top: 2px;
 }
 
 .aton-topbar-status--online {
@@ -1690,22 +1772,51 @@ body {
   font-weight: 600;
 }
 
+.aton-topbar--guest .aton-topbar-title {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .aton-topbar--guest .aton-topbar-status {
-  max-width: 220px;
+  max-width: 100%;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .aton-topbar-icon {
   position: relative;
   border: none;
-  border-radius: 999px;
-  padding: 4px 8px;
-  background: rgba(15, 23, 42, 0.85);
+  border-radius: 10px;
+  width: var(--aton-control-btn-size, 40px);
+  height: var(--aton-control-btn-size, 40px);
+  min-width: var(--aton-control-btn-size, 40px);
+  min-height: var(--aton-control-btn-size, 40px);
+  padding: 0;
+  background: rgba(15, 23, 42, 0.55);
   color: #e5e7eb;
   cursor: pointer;
-  font-size: 15px;
+  font-size: 18px;
+  line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.18) inset;
+  transition: background 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
+}
+
+.aton-topbar-icon:hover {
+  background: rgba(15, 23, 42, 0.85);
+}
+
+.aton-topbar-icon:active {
+  transform: scale(0.97);
 }
 
 .aton-topbar-icon-badge {
@@ -1781,8 +1892,9 @@ body {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 12px 16px 14px;
-  gap: 8px;
+  padding: 8px max(12px, env(safe-area-inset-left, 0px)) 6px
+    max(12px, env(safe-area-inset-right, 0px));
+  gap: 6px;
   overflow: hidden;
 }
 
@@ -1791,25 +1903,67 @@ body {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding-right: 4px;
+  padding: 4px 6px 8px 2px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--aton-msg-col-gap, 2px);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 .aton-message-row {
   display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 1px 0 3px;
+  margin: 0;
+}
+
+/* Личный чат 1:1: в треде только пузырь и время (как Telegram), без колонки аватара */
+.aton-chat--private-dm .aton-message-inner {
+  gap: 0;
+}
+
+/* Личка: тот же потолок ширины, что и в группах */
+.aton-message-row--private-dm .aton-message-bubble {
+  max-width: min(96%, 1000px);
+}
+
+/* голос: длинный трек, но не edge-to-edge (98% — перебор) */
+.aton-message-row--private-dm .aton-message-bubble--voice {
+  width: min(360px, 58%);
+  max-width: min(360px, 58%);
+}
+
+/* Страховка: в личке не показываем строки имён, даже при старом кэше main.js */
+.aton-chat--private-dm .aton-message-sender,
+.aton-chat--private-dm .aton-message-sender--self {
+  display: none !important;
+}
+
+.aton-chat--private-dm .aton-message-row:not(.self) {
+  justify-content: flex-start;
+  align-self: stretch;
+}
+
+.aton-chat--private-dm .aton-message-row.self {
+  justify-content: flex-end;
+  align-self: stretch;
 }
 
 .aton-message-row.self {
   justify-content: flex-end;
 }
 
+/* width: 100% — иначе inner сжат под пузырь и 96% в max-width пузыря = цикл → «узкий» пузырь и лишние переносы короткого текста */
 .aton-message-inner {
   display: flex;
   align-items: flex-end;
-  gap: 8px;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
+  box-sizing: border-box;
 }
 
 .aton-message-row.self .aton-message-inner {
@@ -1817,8 +1971,8 @@ body {
 }
 
 .aton-message-avatar {
-  width: 22px;
-  height: 22px;
+  width: 32px;
+  height: 32px;
   border-radius: 999px;
   overflow: hidden;
   flex-shrink: 0;
@@ -1826,9 +1980,11 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: #fff;
+  box-shadow: 0 0 0 1px var(--aton-avatar-border) inset;
+  align-self: flex-end;
 }
 
 .aton-message-avatar img {
@@ -1838,26 +1994,23 @@ body {
   display: block;
 }
 
+/* max-width % теперь от полноширинного .aton-message-inner, не от shrink-wrap. width: max-content — одна строка по смыслу, пока влезает в max-width */
 .aton-message-bubble {
-  flex: 0 0 auto;
-  flex-shrink: 0;
-  /* inline-flex даёт ширину по max-content дочерних блоков; flex + fit-content давали узкую колонку и переносы */
-  display: inline-flex;
-  flex-direction: column;
-  align-items: stretch;
-  vertical-align: bottom;
-  max-width: min(92%, 680px);
+  display: block;
+  flex: 0 1 auto;
+  width: max-content;
+  max-width: min(96%, 1000px);
   min-width: 0;
-  padding: 10px 16px 8px;
-  border-radius: 16px 16px 16px 6px;
-  font-size: 14px;
+  padding: 8px 12px 7px 12px;
+  border-radius: 12px 12px 12px 4px;
+  font-size: 15px;
   line-height: 1.5;
   overflow-wrap: break-word;
   word-break: normal;
-  background: #2b3039;
-  border: none;
-  color: #e5e7eb;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  background: var(--aton-bubble-incoming, #2b3039);
+  border: 1px solid var(--aton-bubble-incoming-border, rgba(255, 255, 255, 0.1));
+  color: #f3f4f6;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12) inset, 0 1px 2px rgba(0, 0, 0, 0.15);
   position: relative;
   overflow: hidden;
   box-sizing: border-box;
@@ -1868,22 +2021,36 @@ body {
   overflow-wrap: break-word;
   word-break: normal;
   max-width: 100%;
+  min-width: 0;
 }
 
-/* Строка текста не растягивается на всю «ошибочно» узкую ширину родителя */
+/* Ширина текста = ширина пузыря (а не max-content, иначе узкая «колонка») */
 .aton-message-text-body {
-  display: inline-block;
-  width: max-content;
-  max-width: 100%;
-  vertical-align: top;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   /* Иначе \n в сообщении (боты, длинные отчёты) схлопываются в один абзац */
   white-space: pre-wrap;
 }
 
 .aton-message-text--media {
   min-width: 0;
-  width: min(360px, 100%);
-  max-width: min(360px, calc(100vw - 56px));
+  width: min(520px, 100%);
+  max-width: min(520px, calc(100vw - 32px));
+}
+
+/* Голос: без max-content на пузыре 100% у блока схлопывается — полоса остаётся у кнопки. Явная ширина пузыря, блок на всю ширину */
+.aton-message-bubble--voice {
+  width: min(360px, 58%);
+  max-width: min(360px, 58%);
+}
+
+.aton-message-text--media.aton-message-text--voice {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 /* Скрытый audio (управление из кастомного UI) */
@@ -2039,9 +2206,9 @@ body {
 .aton-message-bubble.self {
   background: linear-gradient(155deg, #f59e0b 0%, #fbbf24 45%, #fde68a 100%);
   color: #1c1917;
-  border-color: transparent;
-  border-radius: 16px 16px 6px 16px;
-  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.35), 0 1px 0 rgba(255, 255, 255, 0.35) inset;
+  border: 1px solid rgba(180, 83, 9, 0.35);
+  border-radius: 12px 12px 4px 12px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.45) inset, 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .aton-message-bubble.self .aton-message-text {
@@ -2094,10 +2261,55 @@ body {
   margin-top: 1px;
 }
 
-.aton-message-time {
-  font-size: 11px;
-  opacity: 0.5;
+.aton-message-meta--self {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 3px 6px;
+}
+
+.aton-message-ack {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 1;
+  user-select: none;
+}
+
+.aton-message-ack-tick {
+  display: inline-block;
+  margin-left: -0.1em;
+  opacity: 0.88;
+}
+
+.aton-message-ack--delivered .aton-message-ack-tick {
+  opacity: 0.72;
+}
+
+.aton-message-ack--read .aton-message-ack-tick {
+  color: #67e8f9;
+  opacity: 1;
+}
+
+[data-theme="light"] .aton-message-ack--read .aton-message-ack-tick {
+  color: #2563eb;
+}
+
+.aton-search-friend-ok {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--aton-text-muted, #9ca3af);
+  padding: 4px 0;
   white-space: nowrap;
+}
+
+.aton-message-time {
+  font-size: 12px;
+  opacity: 0.65;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .aton-message-actions {
@@ -2667,20 +2879,27 @@ body {
 }
 
 .aton-compose {
-  border-top: 1px solid rgba(148, 163, 184, 0.35);
-  padding: 8px 10px;
+  border-top: 1px solid var(--aton-border-soft);
+  padding: var(--aton-compose-pad-y, 10px) max(12px, env(safe-area-inset-right, 0px))
+    max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 6px;
   flex-shrink: 0;
+  background: var(--aton-bg-elevated);
 }
 
 .aton-compose-row {
   display: flex;
   align-items: flex-end;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
+  padding: 5px 6px 5px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--aton-border-soft);
+  background: rgba(15, 23, 42, 0.45);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
 }
 
 .aton-compose-record-hint {
@@ -2851,14 +3070,14 @@ body {
   flex: 1 1 0%;
   min-width: 0;
   width: 0;
-  min-height: 38px;
+  min-height: 40px;
   max-height: min(40vh, 200px);
-  padding: 8px 10px;
-  border-radius: 16px;
-  border: 1px solid rgba(55, 65, 81, 0.9);
-  background: rgba(15, 23, 42, 0.9);
+  padding: 8px 4px 8px 2px;
+  border-radius: 0;
+  border: none;
+  background: transparent;
   color: #e5e7eb;
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.45;
   font-family: inherit;
   white-space: pre-wrap;
@@ -2871,24 +3090,33 @@ body {
 
 .aton-compose-input:focus {
   outline: none;
-  border-color: var(--aton-accent-blue);
-  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.5);
+  box-shadow: none;
+}
+
+.aton-compose-row:focus-within {
+  border-color: rgba(56, 189, 248, 0.55);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.28);
 }
 
 .aton-send-button {
   border-radius: 999px;
   border: none;
-  padding: 7px 11px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 8px 12px;
   background: radial-gradient(circle at top, var(--aton-accent-blue), var(--aton-accent-blue-deep));
   color: #020617;
   cursor: pointer;
-  font-size: 11px;
-  letter-spacing: 0.14em;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 
 .aton-send-icon {
@@ -2901,10 +3129,14 @@ body {
 
 .aton-mic-button,
 .aton-attach-button {
+  width: var(--aton-control-btn-size, 40px);
+  height: var(--aton-control-btn-size, 40px);
+  min-width: var(--aton-control-btn-size, 40px);
+  min-height: var(--aton-control-btn-size, 40px);
   border-radius: 999px;
   border: none;
-  padding: 6px;
-  background: rgba(15, 23, 42, 0.95);
+  padding: 0;
+  background: rgba(30, 41, 59, 0.95);
   color: #e5e7eb;
   cursor: pointer;
   display: inline-flex;
@@ -2914,11 +3146,18 @@ body {
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.2) inset;
+  transition: background 0.12s ease, transform 0.12s ease;
 }
 
 .aton-mic-button:hover,
 .aton-attach-button:hover {
-  background: rgba(17, 24, 39, 0.95);
+  background: rgba(51, 65, 85, 0.98);
+}
+
+.aton-mic-button:active,
+.aton-attach-button:active {
+  transform: scale(0.97);
 }
 
 .aton-mic-button.recording {
@@ -3249,6 +3488,22 @@ body {
   color: #059669;
 }
 
+[data-theme="light"] .aton-topbar-icon {
+  background: #f1f5f9;
+  color: #334155;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06) inset;
+}
+
+[data-theme="light"] .aton-topbar-icon:hover {
+  background: #e2e8f0;
+}
+
+[data-theme="light"] .aton-topbar-icon.active {
+  background: var(--aton-accent-blue);
+  color: #ffffff;
+  box-shadow: none;
+}
+
 [data-theme="light"] .aton-back-button {
   color: var(--aton-accent-blue);
 }
@@ -3263,12 +3518,13 @@ body {
 
 [data-theme="light"] .aton-chat-item.active {
   background: #e0e7ff;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.28);
 }
 
 [data-theme="light"] .aton-chat-avatar {
   background: linear-gradient(135deg, #e0e7ff, #dbeafe);
-  border-color: rgba(37, 99, 235, 0.15);
   color: #3b82f6;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08) inset;
 }
 
 [data-theme="light"] .aton-chat-item-title {
@@ -3280,16 +3536,17 @@ body {
 }
 
 [data-theme="light"] .aton-message-bubble {
-  background: #f0f2f5;
-  color: #1a1a2e;
-  border: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  background: var(--aton-bubble-incoming, #e8edf2);
+  color: #0f172a;
+  border: 1px solid var(--aton-bubble-incoming-border, rgba(0, 0, 0, 0.1));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 [data-theme="light"] .aton-message-bubble.self {
-  background: #dcf8c6;
-  color: #111827;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  background: #c8e6b4;
+  color: #0f172a;
+  border: 1px solid rgba(22, 101, 52, 0.28);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset, 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
 [data-theme="light"] .aton-message-sender {
@@ -3440,10 +3697,33 @@ body {
   border-top: 1px solid var(--aton-border-soft);
 }
 
+[data-theme="light"] .aton-compose-row {
+  background: #f0f2f5;
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+[data-theme="light"] .aton-compose-row:focus-within {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.18);
+}
+
 [data-theme="light"] .aton-compose-input {
-  background: #f4f6f8;
-  color: #1a1a2e;
-  border-color: rgba(0, 0, 0, 0.08);
+  background: transparent;
+  color: #0f172a;
+  border: none;
+}
+
+[data-theme="light"] .aton-mic-button,
+[data-theme="light"] .aton-attach-button {
+  background: #ffffff;
+  color: #475569;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08) inset;
+}
+
+[data-theme="light"] .aton-mic-button:hover,
+[data-theme="light"] .aton-attach-button:hover {
+  background: #e8ecf0;
 }
 
 [data-theme="light"] .aton-compose-record-hint {
@@ -3511,29 +3791,10 @@ body {
   border-color: rgba(0, 0, 0, 0.08);
 }
 
-[data-theme="light"] .aton-topbar-icon {
-  background: #f4f6f8;
-  color: #6b7280;
-}
-
-[data-theme="light"] .aton-topbar-icon:hover {
-  background: #e0e7ff;
-  color: #2563eb;
-}
-
-[data-theme="light"] .aton-topbar-icon.active {
-  background: #2563eb;
-  color: #ffffff;
-}
-
 [data-theme="light"] .aton-user-pill {
   background: #f4f6f8;
   border-color: rgba(0, 0, 0, 0.08);
   color: #1a1a2e;
-}
-
-[data-theme="light"] .aton-chat-item {
-  border-bottom-color: rgba(0, 0, 0, 0.04);
 }
 
 [data-theme="light"] .aton-chat-menu-btn {
@@ -3916,8 +4177,9 @@ body {
 .aton-message-bubble,
 .aton-input,
 .aton-search-input,
-.aton-compose-input {
-  transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+.aton-compose-input,
+.aton-compose-row {
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
 @media (max-width: 840px) {
@@ -4473,10 +4735,10 @@ body {
   }
 
   .aton-message-bubble {
-    flex-shrink: 0;
-    display: inline-flex;
-    vertical-align: bottom;
-    max-width: min(92%, 680px);
+    display: block;
+    flex: 0 1 auto;
+    width: max-content;
+    max-width: min(96%, 1000px);
     min-width: 0;
     padding: 10px 14px 8px;
     border-radius: 16px 16px 16px 6px;
@@ -4488,9 +4750,20 @@ body {
     border-radius: 16px 16px 6px 16px;
   }
 
+  /* иначе правило .aton-message-bubble { width: max-content } выше в этом @media снова сжимает голос */
+  .aton-message-bubble--voice {
+    width: min(360px, 58%);
+    max-width: min(360px, 58%);
+  }
+
   .aton-message-text--media {
     width: min(320px, calc(100vw - 72px));
     max-width: min(320px, 90vw);
+  }
+
+  .aton-message-text--media.aton-message-text--voice {
+    width: 100%;
+    max-width: 100%;
   }
 
   .aton-message-time {

@@ -36,9 +36,38 @@ function readSessionSnapshot() {
   }
 }
 
+/** Снимок чатов + сообщений для мгновенного списка при F5 (потом подменяется API). */
+const LIST_BOOTSTRAP_CACHE_KEY = "aton_list_bootstrap_v1";
+
+function readListBootstrapCache(username) {
+  if (!username) return null;
+  try {
+    const raw = sessionStorage.getItem(LIST_BOOTSTRAP_CACHE_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || o.u !== username || !Array.isArray(o.c) || !Array.isArray(o.m)) return null;
+    return { chats: o.c, messages: o.m };
+  } catch {
+    return null;
+  }
+}
+
+function persistListBootstrapCache(username, chats, messages) {
+  if (!username) return;
+  try {
+    sessionStorage.setItem(
+      LIST_BOOTSTRAP_CACHE_KEY,
+      JSON.stringify({ u: username, c: chats, m: messages, at: Date.now() })
+    );
+  } catch (e) {
+    console.warn("list bootstrap cache:", e?.message || e);
+  }
+}
+
 function clearSessionSnapshot() {
   try {
     sessionStorage.removeItem(SESSION_ME_CACHE_KEY);
+    sessionStorage.removeItem(LIST_BOOTSTRAP_CACHE_KEY);
   } catch (_) {}
 }
 
@@ -234,12 +263,56 @@ function chatIdForUsers(a, b) {
   return arr.join("|");
 }
 
+/** Личный диалог 1:1 (`userA|userB`), не группа/канал/global — в треде как в Telegram: без имён и аватаров в пузырях. */
+function isPrivateDirectChat(chatId) {
+  if (!chatId || typeof chatId !== "string") return false;
+  if (chatId === "global") return false;
+  if (chatId.startsWith("group:") || chatId.startsWith("channel:")) return false;
+  return chatId.includes("|");
+}
+
 /** Сообщение относится к личному чату user|user (учёт рассинхрона chatId в БД). */
 function messageBelongsToDmId(msg, dmId) {
   if (!dmId || typeof dmId !== "string" || !dmId.includes("|")) return false;
   if (msg.chatId === dmId) return true;
   if (msg.to && chatIdForUsers(msg.from, msg.to) === dmId) return true;
   return false;
+}
+
+/** Сравнение login без регистра/пробелов — иначе «свои»/«чужие» пузыри в треде путаются */
+function sameAtonUsername(a, b) {
+  return String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+}
+
+/** Своё сообщение: в личке при совпадении from с id второго участника ветки — жёстко «входящее» */
+function isMessageFromSelf(msg, me, activeChatId) {
+  if (!me) return false;
+  if (sameAtonUsername(msg.from, me.username)) return true;
+  if (isPrivateDirectChat(activeChatId)) {
+    const parts = String(activeChatId).split("|");
+    if (parts.length === 2) {
+      const a = parts[0];
+      const b = parts[1];
+      const inPair = sameAtonUsername(a, me.username) || sameAtonUsername(b, me.username);
+      if (inPair) {
+        const other = sameAtonUsername(a, me.username) ? b : a;
+        if (sameAtonUsername(msg.from, other)) return false;
+      }
+    }
+  }
+  return false;
+}
+
+/** Галочки доставки/прочтения (только исходящие). */
+function messageAckHtml(status) {
+  const s = status === "delivered" || status === "read" || status === "sent" ? status : "sent";
+  if (s === "sent") {
+    return '<span class="aton-message-ack" title="Отправлено" aria-label="Отправлено"><span class="aton-message-ack-tick" aria-hidden="true">✓</span></span>';
+  }
+  if (s === "delivered") {
+    return '<span class="aton-message-ack aton-message-ack--delivered" title="Доставлено" aria-label="Доставлено"><span class="aton-message-ack-tick" aria-hidden="true">✓</span><span class="aton-message-ack-tick" aria-hidden="true">✓</span></span>';
+  }
+  return '<span class="aton-message-ack aton-message-ack--read" title="Прочитано" aria-label="Прочитано"><span class="aton-message-ack-tick" aria-hidden="true">✓</span><span class="aton-message-ack-tick" aria-hidden="true">✓</span></span>';
 }
 
 function lastActivityAtForDmChatId(dmId, messages) {
@@ -1101,6 +1174,8 @@ function createApp() {
   let currentSocketChat = null;
   let hasOnboardingAutoFocused = false;
   let bootstrapVersion = 0;
+  let receiptsInFlight = null;
+  let messageStatusDebounce = null;
 
   function userFromContacts(username) {
     if (!username) return null;
@@ -1152,6 +1227,49 @@ function createApp() {
     }
   }
 
+  /**
+   * GET /messages (доставлено) + POST /read (прочитано) + мерж.
+   * Вызывать при открытии чата; in-flight токен защищает от гонок при смене комнаты.
+   */
+  async function pullChatReceipts(chatId) {
+    if (!chatId || !currentUser || !currentUser.verified) return;
+    const token = chatId;
+    receiptsInFlight = token;
+    try {
+      const list = await api(`/api/messages?chatId=${encodeURIComponent(chatId)}`);
+      if (receiptsInFlight !== token) return;
+      if (!Array.isArray(list)) return;
+      const byId = new Map(allMessages.map((m) => [m.id, m]));
+      for (const m of list) {
+        byId.set(m.id, m);
+      }
+      allMessages = Array.from(byId.values());
+      allMessages.sort((a, b) => new Date(a.time) - new Date(b.time));
+      if (isPrivateDirectChat(chatId)) {
+        const r = await api("/api/messages/read", {
+          method: "POST",
+          body: JSON.stringify({ chatId, userId: currentUser.id }),
+        });
+        if (receiptsInFlight !== token) return;
+        if (r && Array.isArray(r.messages)) {
+          for (const m of r.messages) {
+            byId.set(m.id, m);
+          }
+          allMessages = Array.from(byId.values());
+          allMessages.sort((a, b) => new Date(a.time) - new Date(b.time));
+        }
+      }
+      if (currentChatId === chatId) {
+        renderChatList();
+        renderMessages();
+      }
+    } catch (e) {
+      console.warn("pullChatReceipts", e);
+    } finally {
+      if (receiptsInFlight === token) receiptsInFlight = null;
+    }
+  }
+
   function getPeerFromDmChatId(chatId) {
     if (!chatId || !String(chatId).includes("|") || !currentUser) return null;
     const [a, b] = chatId.split("|");
@@ -1190,6 +1308,7 @@ function createApp() {
     renderChatList();
     renderMessages();
     updateTopbarTitle();
+    void pullChatReceipts(chatId);
   }
 
   /** После F5: открываем тот же чат, что и до перезагрузки (если он ещё доступен). */
@@ -1213,6 +1332,7 @@ function createApp() {
     }
     currentChatId = saved;
     switchSocketChat(saved);
+    void pullChatReceipts(saved);
   }
 
   function ensureToastStack() {
@@ -1332,30 +1452,22 @@ function createApp() {
     }
   });
 
+  socket.on("message:status", (p) => {
+    if (!p || !p.chatId) return;
+    if (messageStatusDebounce) clearTimeout(messageStatusDebounce);
+    messageStatusDebounce = setTimeout(() => {
+      messageStatusDebounce = null;
+      if (p.chatId === currentChatId) {
+        void pullChatReceipts(p.chatId);
+      }
+    }, 250);
+  });
+
   // При переподключении возвращаемся в активную комнату, если она есть
   socket.on("connect", () => {
     if (currentSocketChat) {
       socket.emit("join_chat", currentSocketChat);
-      // После переподключения подгружаем актуальные сообщения активного чата,
-      // чтобы не терять события, пришедшие во время оффлайна.
-      api(`/api/messages?chatId=${encodeURIComponent(currentSocketChat)}`)
-        .then((msgs) => {
-          if (!Array.isArray(msgs)) return;
-          // Мержим по id + пересортировка
-          const byId = new Map(allMessages.map((m) => [m.id, m]));
-          msgs.forEach((m) => {
-            byId.set(m.id, m);
-          });
-          allMessages = Array.from(byId.values());
-          allMessages.sort((a, b) => new Date(a.time) - new Date(b.time));
-          renderChatList();
-          if (currentChatId === currentSocketChat) {
-            renderMessages();
-          }
-        })
-        .catch(() => {
-          // тихо игнорируем сетевые ошибки — UI не должен падать
-        });
+      void pullChatReceipts(currentSocketChat);
     }
   });
 
@@ -1434,7 +1546,10 @@ function createApp() {
       loggedStatusEl.textContent = "";
     }
     if (statusEl) {
-      statusEl.textContent = "Восстанавливаем сессию…";
+      statusEl.textContent =
+        snap0 && snap0.verified
+          ? "Загружаем переписку…"
+          : "Проверяем сессию…";
     }
   }
 
@@ -1862,25 +1977,106 @@ function createApp() {
 
       if (!currentUser.verified) return;
 
+      const listWarm = readListBootstrapCache(currentUser.username);
+      if (listWarm) {
+        allChats = listWarm.chats;
+        allMessages = listWarm.messages;
+      }
+
+      if (version !== bootstrapVersion) return;
+      applyCurrentUserUI();
+      renderChatList();
+      renderMessages();
+      updateTopbarTitle();
+      updateFriendsBadge();
+      restoreLastOpenChatIfValid();
+
       await maybeMergeLocalPeerAliasesOnce();
+      if (version !== bootstrapVersion) return;
+      applyCurrentUserUI();
+
+      function paintBootstrap() {
+        if (version !== bootstrapVersion) return;
+        renderChatList();
+        renderMessages();
+        updateTopbarTitle();
+        updateFriendsBadge();
+        renderContacts();
+      }
+
+      void api("/api/users")
+        .then((list) => {
+          if (version !== bootstrapVersion) return;
+          allUsers = Array.isArray(list) ? list : [];
+          applyCurrentUserUI();
+          paintBootstrap();
+        })
+        .catch((err) => {
+          console.error("GET /api/users (bootstrap):", err);
+        });
+
+      async function loadChatsForBootstrap() {
+        try {
+          const v = await api("/api/chats");
+          if (version !== bootstrapVersion) return;
+          allChats = Array.isArray(v) ? v : [];
+        } catch (e) {
+          if (version !== bootstrapVersion) return;
+          allChats = [];
+          throw e;
+        }
+        paintBootstrap();
+      }
+
+      async function loadMessagesForBootstrap() {
+        try {
+          const v = await api("/api/messages/all");
+          if (version !== bootstrapVersion) return;
+          allMessages = Array.isArray(v) ? v : [];
+        } catch (e) {
+          if (version !== bootstrapVersion) return;
+          allMessages = [];
+          throw e;
+        }
+        paintBootstrap();
+      }
+
+      async function loadContactsForBootstrap() {
+        try {
+          const v = await api("/api/contacts");
+          if (version !== bootstrapVersion) return;
+          contacts = v;
+          if (!contacts.requestsIn) contacts.requestsIn = [];
+          if (!contacts.requestsOut) contacts.requestsOut = [];
+        } catch {
+          if (version !== bootstrapVersion) return;
+          contacts = { friends: [], blocked: [], requestsIn: [], requestsOut: [] };
+        }
+        paintBootstrap();
+      }
+
+      async function loadDiscoverForBootstrap() {
+        try {
+          const v = await api("/api/chats/discover");
+          if (version !== bootstrapVersion) return;
+          discoverChats = Array.isArray(v) ? v : [];
+        } catch {
+          if (version !== bootstrapVersion) return;
+          discoverChats = [];
+        }
+        paintBootstrap();
+      }
 
       const settled = await Promise.allSettled([
-        api("/api/chats"),
-        api("/api/messages/all"),
-        api("/api/contacts").catch(() => ({
-          friends: [],
-          blocked: [],
-          requestsIn: [],
-          requestsOut: [],
-        })),
-        api("/api/chats/discover").catch(() => []),
+        loadChatsForBootstrap(),
+        loadMessagesForBootstrap(),
+        loadContactsForBootstrap(),
+        loadDiscoverForBootstrap(),
       ]);
       if (version !== bootstrapVersion) return;
 
       const chatsRes = settled[0];
       const msgRes = settled[1];
-      const contRes = settled[2];
-      const discRes = settled[3];
 
       if (chatsRes.status === "rejected" && msgRes.status === "rejected") {
         throw chatsRes.reason;
@@ -1889,34 +2085,11 @@ function createApp() {
         sessionBootstrapNeedsRetry = true;
       }
 
-      allUsers = [];
-      allChats = chatsRes.status === "fulfilled" ? chatsRes.value : [];
-      allMessages = msgRes.status === "fulfilled" ? msgRes.value : [];
-      contacts =
-        contRes.status === "fulfilled"
-          ? contRes.value
-          : { friends: [], blocked: [], requestsIn: [], requestsOut: [] };
-      discoverChats = discRes.status === "fulfilled" && Array.isArray(discRes.value) ? discRes.value : [];
-      if (!contacts.requestsIn) contacts.requestsIn = [];
-      if (!contacts.requestsOut) contacts.requestsOut = [];
+      if (getToken() === tokenAtStart && currentUser && currentUser.username) {
+        persistListBootstrapCache(currentUser.username, allChats, allMessages);
+      }
 
       restoreLastOpenChatIfValid();
-
-      (async function loadUsersDirectory() {
-        try {
-          const nextAllUsers = await api("/api/users");
-          if (version !== bootstrapVersion) return;
-          allUsers = Array.isArray(nextAllUsers) ? nextAllUsers : [];
-          applyCurrentUserUI();
-          renderChatList();
-          renderMessages();
-          updateTopbarTitle();
-          updateFriendsBadge();
-          renderContacts();
-        } catch (err) {
-          console.error("GET /api/users (bootstrap):", err);
-        }
-      })();
     } catch (err) {
       console.error(err);
 
@@ -2370,15 +2543,12 @@ function createApp() {
     const isBlocked = st === "blocked";
     const peerUser = userByUsername(peer);
     const name = displayNameForPeer(currentUser.username, peer, peerUser);
-    let html = `<div class="aton-peer-action-inner">
-      <div class="aton-peer-action-row aton-peer-action-row--head">
-        <span class="aton-peer-action-label">${escHtml(name)}</span>
-        <button type="button" class="aton-peer-rename-local" data-peer="${escHtml(peer)}" title="Только на этом устройстве, для других не меняется">
-          <svg class="aton-peer-rename-local-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          <span class="aton-peer-rename-local-text">Изменить имя собеседника</span>
-        </button>
-      </div>
+    /* Имя уже в шапке чата — здесь только действия, как в Telegram */
+    let html = `<div class="aton-peer-action-inner aton-peer-action-inner--toolbar-only">
       <div class="aton-peer-action-btns">`;
+    html += `<button type="button" class="aton-peer-rename-local aton-peer-rename-local--icon" data-peer="${escHtml(peer)}" title="Показываемое имя (${escHtml(name)}) — изменить в вашем списке" aria-label="Изменить отображаемое имя собеседника">
+        <svg class="aton-peer-rename-local-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>`;
     if (isBlocked) {
       html += `<button type="button" class="aton-peer-btn aton-peer-unblock" data-peer="${escHtml(peer)}">Разблокировать</button>`;
     } else {
@@ -2743,6 +2913,7 @@ function createApp() {
         renderChatList();
         renderMessages();
         updateTopbarTitle();
+        void pullChatReceipts(dmId);
       });
       chatListEl.appendChild(item);
     }
@@ -2776,6 +2947,7 @@ function createApp() {
         renderChatList();
         renderMessages();
         updateTopbarTitle();
+        void pullChatReceipts(chatMeta.id);
       };
 
       const item = document.createElement("button");
@@ -3586,6 +3758,7 @@ function createApp() {
         renderMessages();
         updateTopbarTitle();
         showToast("Вы вступили в чат");
+        void pullChatReceipts(cid);
       } catch (err) {
         joinBtn.disabled = false;
         joinBtn.textContent = `Вступить в ${chatType}`;
@@ -3597,6 +3770,10 @@ function createApp() {
 
   function renderMessages() {
     if (!messagesEl || !compose) return;
+    const privateDmUi = Boolean(
+      currentUser && currentChatId && isPrivateDirectChat(currentChatId)
+    );
+    if (chat) chat.classList.toggle("aton-chat--private-dm", privateDmUi);
     messagesEl.innerHTML = "";
     const current = currentUser;
     shell.classList.toggle("aton-shell--guest-landing", !current);
@@ -3636,6 +3813,9 @@ function createApp() {
     const filtered = allMessages.filter((msg) => {
       if (!user) return false;
       if (currentChatId.startsWith("group:")) return msg.chatId === currentChatId;
+      if (isPrivateDirectChat(currentChatId)) {
+        return messageBelongsToDmId(msg, currentChatId);
+      }
       return msg.chatId === currentChatId;
     });
 
@@ -3654,23 +3834,29 @@ function createApp() {
     }
 
     filtered.forEach((msg) => {
-      const isSelf = current && current.username === msg.from;
+      const isSelf = isMessageFromSelf(msg, current, currentChatId);
 
       const row = document.createElement("div");
-      row.className = "aton-message-row" + (isSelf ? " self" : "");
+      row.className =
+        "aton-message-row" +
+        (isSelf ? " self" : "") +
+        (privateDmUi ? " aton-message-row--private-dm" : "");
 
       const inner = document.createElement("div");
       inner.className = "aton-message-inner";
 
-      const avatarWrap = document.createElement("div");
-      avatarWrap.className = "aton-message-avatar";
       const author = userByUsername(msg.from);
-      if (author?.avatarDataUrl) {
-        const img = document.createElement("img");
-        img.src = author.avatarDataUrl;
-        avatarWrap.appendChild(img);
-      } else {
-        avatarWrap.textContent = (msg.from || "?").slice(0, 1).toUpperCase();
+      let avatarWrap = null;
+      if (!privateDmUi) {
+        avatarWrap = document.createElement("div");
+        avatarWrap.className = "aton-message-avatar";
+        if (author?.avatarDataUrl) {
+          const img = document.createElement("img");
+          img.src = author.avatarDataUrl;
+          avatarWrap.appendChild(img);
+        } else {
+          avatarWrap.textContent = (msg.from || "?").slice(0, 1).toUpperCase();
+        }
       }
 
       const bubble = document.createElement("div");
@@ -3679,7 +3865,8 @@ function createApp() {
       const text = document.createElement("div");
       text.className = "aton-message-text";
       if (msg.type === "audio" && msg.audioDataUrl) {
-        text.classList.add("aton-message-text--media");
+        text.classList.add("aton-message-text--media", "aton-message-text--voice");
+        bubble.classList.add("aton-message-bubble--voice");
         text.appendChild(createVoicePlayer(msg.audioDataUrl, isSelf));
       } else if (msg.type === "image" && msg.imageDataUrl) {
         text.classList.add("aton-message-text--media");
@@ -3702,14 +3889,19 @@ function createApp() {
         if (replied) {
           const replyPreview = document.createElement("div");
           replyPreview.className = "aton-message-reply-preview";
-          const replyWho = displayNameForPeer(
-            current.username,
-            replied.from,
-            userByUsername(replied.from)
-          );
-          replyPreview.textContent = `${replyWho}: ${replied.text.slice(0, 60)}${
-            replied.text.length > 60 ? "…" : ""
-          }`;
+          if (privateDmUi) {
+            const t = replied.text || "";
+            replyPreview.textContent = `${t.slice(0, 80)}${t.length > 80 ? "…" : ""}`;
+          } else {
+            const replyWho = displayNameForPeer(
+              current.username,
+              replied.from,
+              userByUsername(replied.from)
+            );
+            replyPreview.textContent = `${replyWho}: ${replied.text.slice(0, 60)}${
+              replied.text.length > 60 ? "…" : ""
+            }`;
+          }
           bubble.appendChild(replyPreview);
         }
       }
@@ -3719,60 +3911,67 @@ function createApp() {
       const editedLabel = msg.editedAt ? " · изм." : "";
       const pinnedLabel = msg.pinned ? " 📌" : "";
 
-      if (!isSelf) {
-        const senderEl = document.createElement("div");
-        senderEl.className = "aton-message-sender";
-        const nameText = displayNameForPeer(current.username, msg.from, author);
-        senderEl.textContent = nameText;
-        if (authorIsVerified) {
-          const badge = document.createElement("span");
-          badge.className = "aton-message-sender-badge";
-          badge.textContent = " ✔";
-          senderEl.appendChild(badge);
-        }
-        if (canAdmin && author && author.id && !authorIsVerified) {
-          const verifyUserBtn = document.createElement("button");
-          verifyUserBtn.type = "button";
-          verifyUserBtn.className = "aton-user-verify-button";
-          verifyUserBtn.textContent = "⋮";
-          verifyUserBtn.title = "Верифицировать пользователя";
-          verifyUserBtn.addEventListener("click", async (event) => {
-            event.stopPropagation();
-            try {
-              await api(`/api/users/${author.id}/verify`, { method: "POST" });
-              author.isVerified = true;
-              if (currentUser && currentUser.id === author.id) {
-                currentUser.isVerified = true;
+      if (!privateDmUi) {
+        if (!isSelf) {
+          const senderEl = document.createElement("div");
+          senderEl.className = "aton-message-sender";
+          const nameText = displayNameForPeer(current.username, msg.from, author);
+          senderEl.textContent = nameText;
+          if (authorIsVerified) {
+            const badge = document.createElement("span");
+            badge.className = "aton-message-sender-badge";
+            badge.textContent = " ✔";
+            senderEl.appendChild(badge);
+          }
+          if (canAdmin && author && author.id && !authorIsVerified) {
+            const verifyUserBtn = document.createElement("button");
+            verifyUserBtn.type = "button";
+            verifyUserBtn.className = "aton-user-verify-button";
+            verifyUserBtn.textContent = "⋮";
+            verifyUserBtn.title = "Верифицировать пользователя";
+            verifyUserBtn.addEventListener("click", async (event) => {
+              event.stopPropagation();
+              try {
+                await api(`/api/users/${author.id}/verify`, { method: "POST" });
+                author.isVerified = true;
+                if (currentUser && currentUser.id === author.id) {
+                  currentUser.isVerified = true;
+                }
+                renderMessages();
+                updateTopbarTitle();
+              } catch (err) {
+                alert(err.message);
               }
-              renderMessages();
-              updateTopbarTitle();
-            } catch (err) {
-              alert(err.message);
-            }
-          });
-          senderEl.appendChild(verifyUserBtn);
+            });
+            senderEl.appendChild(verifyUserBtn);
+          }
+          bubble.appendChild(senderEl);
+        } else if (current) {
+          const senderEl = document.createElement("div");
+          senderEl.className = "aton-message-sender aton-message-sender--self";
+          const selfName =
+            getLocalSelfDisplayName(current.username) || current.displayName || current.username || "";
+          senderEl.textContent = selfName;
+          if (current.isVerified) {
+            const badge = document.createElement("span");
+            badge.className = "aton-message-sender-badge";
+            badge.textContent = " ✔";
+            senderEl.appendChild(badge);
+          }
+          bubble.appendChild(senderEl);
         }
-        bubble.appendChild(senderEl);
-      } else if (current) {
-        const senderEl = document.createElement("div");
-        senderEl.className = "aton-message-sender aton-message-sender--self";
-        const selfName =
-          getLocalSelfDisplayName(current.username) || current.displayName || current.username || "";
-        senderEl.textContent = selfName;
-        if (current.isVerified) {
-          const badge = document.createElement("span");
-          badge.className = "aton-message-sender-badge";
-          badge.textContent = " ✔";
-          senderEl.appendChild(badge);
-        }
-        bubble.appendChild(senderEl);
       }
 
       bubble.appendChild(text);
 
       const meta = document.createElement("div");
-      meta.className = "aton-message-meta";
-      meta.innerHTML = `<span class="aton-message-time">${escHtml(timeLabel)}${escHtml(editedLabel)}${escHtml(pinnedLabel)}</span>`;
+      meta.className = "aton-message-meta" + (isSelf ? " aton-message-meta--self" : "");
+      {
+        const st = msg.status && ["sent", "delivered", "read"].includes(msg.status) ? msg.status : "delivered";
+        const showAck = isSelf && privateDmUi;
+        const ack = showAck ? messageAckHtml(st) : "";
+        meta.innerHTML = `<span class="aton-message-time">${escHtml(timeLabel)}${escHtml(editedLabel)}${escHtml(pinnedLabel)}</span>${ack}`;
+      }
       bubble.appendChild(meta);
 
       const actions = document.createElement("div");
@@ -3913,7 +4112,7 @@ function createApp() {
 
       bubble.appendChild(actions);
 
-      inner.appendChild(avatarWrap);
+      if (avatarWrap) inner.appendChild(avatarWrap);
       inner.appendChild(bubble);
       row.appendChild(inner);
       messagesEl.appendChild(row);
@@ -4093,28 +4292,53 @@ function createApp() {
       renderChatList();
       renderMessages();
       updateTopbarTitle();
+      void pullChatReceipts(currentChatId);
     }
 
-    users.forEach((u) => {
+    let fsList = [];
+    try {
+      fsList = await Promise.all(
+        users.map((u) =>
+          api(`/api/friendship-status?userId=${encodeURIComponent(u.id)}`).catch(() => ({
+            status: "none",
+          }))
+        )
+      );
+    } catch {
+      fsList = users.map(() => ({ status: "none" }));
+    }
+
+    users.forEach((u, idx) => {
       const item = document.createElement("div");
       item.className = "aton-search-item aton-search-item--user";
       const isFriend = contacts.friends.some((f) => f.username === u.username);
       const isBlocked = contacts.blocked.some((b) => b.username === u.username);
       const hasIn = (contacts.requestsIn || []).some((r) => r.username === u.username);
       const hasOut = (contacts.requestsOut || []).some((r) => r.username === u.username);
+      const fs = fsList[idx] || { status: "none" };
+      const eff =
+        !isBlocked && (fs.status === "accepted" || (fs.status === "none" && isFriend))
+          ? { status: "accepted" }
+          : !isBlocked && fs.status === "pending" && fs.direction
+            ? { status: "pending", direction: fs.direction }
+            : !isBlocked && hasIn
+              ? { status: "pending", direction: "in" }
+              : !isBlocked && hasOut
+                ? { status: "pending", direction: "out" }
+                : { status: isFriend ? "accepted" : "none" };
       let friendButtonsHtml = "";
-      if (isFriend) {
-        friendButtonsHtml = `<button type="button" class="aton-search-action aton-search-add" disabled>В друзьях</button>`;
-      } else if (hasIn) {
+      if (isBlocked) {
+        friendButtonsHtml = `<button type="button" class="aton-search-action aton-search-add" disabled>В друзья</button>`;
+      } else if (eff.status === "accepted") {
+        friendButtonsHtml = `<span class="aton-search-friend-ok" aria-hidden="true">Вы друзья</span>`;
+      } else if (eff.status === "pending" && eff.direction === "in") {
         friendButtonsHtml = `<button type="button" class="aton-search-action aton-search-accept">Принять</button>
             <button type="button" class="aton-search-action aton-search-decline">Отклонить</button>`;
-      } else if (hasOut) {
+      } else if (eff.status === "pending" && eff.direction === "out") {
         friendButtonsHtml = `<button type="button" class="aton-search-action" disabled>Заявка отправлена</button>
             <button type="button" class="aton-search-action aton-search-cancel-req">Отменить заявку</button>`;
-      } else if (isBlocked) {
-        friendButtonsHtml = `<button type="button" class="aton-search-action aton-search-add" disabled>В друзья</button>`;
       } else {
-        friendButtonsHtml = `<button type="button" class="aton-search-action aton-search-add">Отправить заявку</button>`;
+        friendButtonsHtml = `<button type="button" class="aton-search-action aton-search-add">Добавить в друзья</button>`;
       }
       const nameStr = u.displayName || u.username;
       const verifiedBadge = u.isVerified
@@ -5222,7 +5446,9 @@ function createApp() {
   const hasToken = Boolean(getToken());
   if (hasToken) {
     authLoginBlock.style.display = "none";
-    authLoggedBlock.style.display = "none";
+    const snapInit = readSessionSnapshot();
+    authLoggedBlock.style.display =
+      snapInit && snapInit.verified ? "block" : "none";
   }
 
   const joinUrlMatch = window.location.pathname.match(/^\/join\/([^/]+)\/?$/);

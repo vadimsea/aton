@@ -90,6 +90,10 @@ model Message {
   pinned         Boolean   @default(false)
   reactions      Json      @default("[]")
 
+  /** sent → delivered (получатель сделал GET) → read (read receipt) */
+  status         String    @default("sent")
+  updatedAt      DateTime  @updatedAt
+
   @@index([chatId, createdAt(sort: Desc)])
   @@map("messages")
 }
