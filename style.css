@@ -1888,6 +1888,7 @@ body {
 }
 
 .aton-chat {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -1898,11 +1899,54 @@ body {
   overflow: hidden;
 }
 
+/* Плашка «Новые сообщения» — поверх ленты, над полем ввода (примерно) */
+.aton-messages-jump {
+  position: absolute;
+  left: 50%;
+  bottom: max(88px, calc(env(safe-area-inset-bottom, 0px) + 72px));
+  transform: translateX(-50%);
+  z-index: 6;
+  pointer-events: none;
+}
+
+.aton-messages-jump-btn {
+  pointer-events: auto;
+  appearance: none;
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  background: rgba(15, 23, 42, 0.92);
+  color: #e0f2fe;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 999px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.aton-messages-jump-btn:hover {
+  background: rgba(15, 23, 42, 1);
+  border-color: #38bdf8;
+}
+
+.aton-messages-jump[hidden] {
+  display: none !important;
+}
+
+[data-theme="light"] .aton-messages-jump-btn {
+  background: rgba(255, 255, 255, 0.95);
+  color: #1e3a5f;
+  border-color: rgba(37, 99, 235, 0.4);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+}
+
 .aton-messages {
   flex: 1;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  /* Меньше неожиданных «подскоков» scroll anchoring браузера при догрузке медиа */
+  overflow-anchor: none;
   padding: 4px 6px 8px 2px;
   display: flex;
   flex-direction: column;
@@ -1924,15 +1968,17 @@ body {
   gap: 0;
 }
 
-/* Личка: тот же потолок ширины, что и в группах */
+/* Личка: тот же потолок ширины, что и в группах (Telegram-like) */
 .aton-message-row--private-dm .aton-message-bubble {
   max-width: min(96%, 1000px);
 }
 
-/* голос: длинный трек, но не edge-to-edge (98% — перебор) */
+/* личка + голос: тот же ползунок, что и в группе */
 .aton-message-row--private-dm .aton-message-bubble--voice {
   width: min(360px, 58%);
   max-width: min(360px, 58%);
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 /* Страховка: в личке не показываем строки имён, даже при старом кэше main.js */
@@ -2016,12 +2062,16 @@ body {
   box-sizing: border-box;
 }
 
+/* 100% ширины пузыря: иначе flex/max-content сжимает длинный текст и голос в «колонку» */
 .aton-message-text {
   text-align: left;
+  display: block;
+  width: 100%;
   overflow-wrap: break-word;
   word-break: normal;
   max-width: 100%;
   min-width: 0;
+  box-sizing: border-box;
 }
 
 /* Ширина текста = ширина пузыря (а не max-content, иначе узкая «колонка») */
@@ -2040,10 +2090,12 @@ body {
   max-width: min(520px, calc(100vw - 32px));
 }
 
-/* Голос: без max-content на пузыре 100% у блока схлопывается — полоса остаётся у кнопки. Явная ширина пузыря, блок на всю ширину */
+/* Голос: фиксированная «нормальная» ширина полосы, не max-content-узкое (кнопка+трек на всю ширину) */
 .aton-message-bubble--voice {
   width: min(360px, 58%);
   max-width: min(360px, 58%);
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .aton-message-text--media.aton-message-text--voice {
@@ -4750,6 +4802,8 @@ body {
   .aton-message-bubble--voice {
     width: min(360px, 58%);
     max-width: min(360px, 58%);
+    min-width: 0;
+    box-sizing: border-box;
   }
 
   .aton-message-text--media {

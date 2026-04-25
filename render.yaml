@@ -34,6 +34,9 @@ services:
         value: llama-3.3-70b-versatile
       - key: GOLOS_MAX_PER_WINDOW
         value: "0"
+      # Лимит строк в GET /api/messages/all (RAM на бесплатном Render). При необходимости поднять — вручную в Dashboard.
+      - key: MESSAGES_BOOTSTRAP_MAX
+        value: "8000"
       - key: OPENAI_API_KEY
         sync: false
       - key: ATON_PUBLIC_URL

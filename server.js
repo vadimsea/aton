@@ -43,6 +43,12 @@ const GOLOS_MAX_PER_WINDOW = Math.max(0, parseInt(String(process.env.GOLOS_MAX_P
 function golosRateAllow(username) {
   if (!username) return true;
   if (GOLOS_MAX_PER_WINDOW <= 0) return true;
+  if (GOLOS_RATE.size > 5000) {
+    const keys = [...GOLOS_RATE.keys()];
+    for (let i = 0; i < Math.floor(keys.length / 2); i++) {
+      GOLOS_RATE.delete(keys[i]);
+    }
+  }
   const now = Date.now();
   const rec = GOLOS_RATE.get(username) || { count: 0, windowStart: now };
   if (now - rec.windowStart > GOLOS_RATE_WINDOW_MS) {
@@ -85,6 +91,50 @@ function isDirectMessageChatId(chatId) {
   );
 }
 
+/** Не тянуть passwordHash/sessionToken в память на каждый запрос */
+const PRISMA_USER_SELECT_LIST = {
+  id: true,
+  email: true,
+  username: true,
+  publicId: true,
+  displayName: true,
+  bio: true,
+  avatarDataUrl: true,
+  lastSeen: true,
+  createdAt: true,
+  friends: true,
+  blocked: true,
+  friendRequestsIn: true,
+  friendRequestsOut: true,
+  verified: true,
+  isVerified: true,
+  isSuperAdmin: true,
+  peerAliases: true,
+};
+
+/** Только владельцы чатов (по username) — для ensureChatFields, без findMany(all users) */
+async function loadUsersByUsernameMap(ownerUsernames) {
+  const unique = [...new Set((ownerUsernames || []).filter(Boolean))];
+  if (unique.length === 0) return {};
+  const rows = await prisma.user.findMany({
+    where: { username: { in: unique } },
+    select: PRISMA_USER_SELECT_LIST,
+  });
+  const map = {};
+  for (const row of rows) {
+    const u = userFromPrismaRow(row);
+    if (u.username) map[u.username] = u;
+  }
+  return map;
+}
+
+/** Макс. строк в ответе bootstrap-клиента (снижение RAM). Env: MESSAGES_BOOTSTRAP_MAX, по умолчанию 8000 */
+const MESSAGES_BOOTSTRAP_MAX = (() => {
+  const n = parseInt(String(process.env.MESSAGES_BOOTSTRAP_MAX || "8000"), 10);
+  if (Number.isNaN(n) || n < 200) return 8000;
+  return Math.min(100_000, n);
+})();
+
 /** Просмотр списка сообщений: только участник global / лички / группы. */
 async function assertUserCanAccessChat(req, chatId) {
   const uid = req.user.id;
@@ -98,12 +148,7 @@ async function assertUserCanAccessChat(req, chatId) {
   if (chatId.startsWith("group:") || chatId.startsWith("channel:")) {
     const raw = await prisma.chat.findUnique({ where: { id: chatId } });
     if (!raw) return { ok: false, error: "Чат не найден" };
-    const userRows = await prisma.user.findMany();
-    const usersByUsername = {};
-    for (const row of userRows) {
-      const u = userFromPrismaRow(row);
-      if (u.username) usersByUsername[u.username] = u;
-    }
+    const usersByUsername = await loadUsersByUsernameMap([raw.owner]);
     const chat = ensureChatFields(chatFromPrismaRow(raw), usersByUsername);
     const members = Array.isArray(chat.members) ? chat.members : [];
     if (!members.includes(uid)) {
@@ -191,6 +236,7 @@ app.get("/api/health", async (req, res) => {
     out.openaiTtsConfigured = Boolean(String(process.env.OPENAI_API_KEY || "").trim());
     out.golosMaxPerWindow = GOLOS_MAX_PER_WINDOW;
     out.golosRateUnlimited = GOLOS_MAX_PER_WINDOW <= 0;
+    out.messagesBootstrapMax = MESSAGES_BOOTSTRAP_MAX;
     out.nodeFetch = typeof globalThis.fetch === "function";
     out.nodeVersion = process.version;
     const golos = await prisma.user.findUnique({
@@ -1674,7 +1720,7 @@ app.get("/api/users", authMiddleware, requireVerified, async (req, res) => {
     const blockedSet = new Set((current && current.blocked) || []);
     const myUsername = current && current.username;
 
-    const raw = await prisma.user.findMany();
+    const raw = await prisma.user.findMany({ select: PRISMA_USER_SELECT_LIST });
     for (const row of raw) {
       if (!row.publicId) {
         const pid = await generateUniquePublicId(prisma, row.username);
@@ -1715,7 +1761,10 @@ app.get("/api/admin/users", authMiddleware, requireVerified, async (req, res) =>
     return res.status(403).json({ error: "Недостаточно прав" });
   }
   try {
-    const raw = await prisma.user.findMany({ orderBy: { createdAt: "asc" } });
+    const raw = await prisma.user.findMany({
+      orderBy: { createdAt: "asc" },
+      select: PRISMA_USER_SELECT_LIST,
+    });
     const out = raw.map((row) => {
       const u = userFromPrismaRow(row);
       ensureLists(u);
@@ -1761,14 +1810,9 @@ app.post("/api/users/:id/verify", authMiddleware, requireVerified, async (req, r
 // Чаты (группы)
 app.get("/api/chats", authMiddleware, requireVerified, async (req, res) => {
   try {
-    const userRows = await prisma.user.findMany();
-    const usersByUsername = {};
-    for (const row of userRows) {
-      const u = userFromPrismaRow(row);
-      if (u.username) usersByUsername[u.username] = u;
-    }
-
     const chatRows = await prisma.chat.findMany();
+    const ownerNames = chatRows.map((r) => r && r.owner).filter(Boolean);
+    const usersByUsername = await loadUsersByUsernameMap(ownerNames);
     const normalizedChats = [];
     for (const row of chatRows) {
       let plain = chatFromPrismaRow(row);
@@ -1813,17 +1857,9 @@ app.get("/api/chats", authMiddleware, requireVerified, async (req, res) => {
 // Публичный список чатов, в которых пользователь НЕ состоит (preview для вступления)
 app.get("/api/chats/discover", authMiddleware, requireVerified, async (req, res) => {
   try {
-    const userRows = await prisma.user.findMany();
-    const usersById = {};
-    const usersByUsername = {};
-    for (const row of userRows) {
-      const u = userFromPrismaRow(row);
-      if (!u.username) continue;
-      usersByUsername[u.username] = u;
-      if (u.id) usersById[u.id] = u;
-    }
-
     const chatRows = await prisma.chat.findMany();
+    const discoverOwnerNames = chatRows.map((c) => c && c.owner).filter(Boolean);
+    const usersByUsername = await loadUsersByUsernameMap(discoverOwnerNames);
     const normalized = chatRows.map((c) => ensureChatFields(chatFromPrismaRow(c), usersByUsername));
 
     const filtered = normalized.filter((chat) => {
@@ -1831,6 +1867,26 @@ app.get("/api/chats/discover", authMiddleware, requireVerified, async (req, res)
       const vis = chat.visibility === "private" ? "private" : "public";
       return vis === "public" && !members.includes(req.user.id);
     });
+
+    const memberIdSet = new Set();
+    for (const ch of filtered) {
+      for (const uid of ch.members || []) {
+        memberIdSet.add(uid);
+      }
+    }
+    const memberIdArr = [...memberIdSet];
+    const memberRows =
+      memberIdArr.length > 0
+        ? await prisma.user.findMany({
+            where: { id: { in: memberIdArr } },
+            select: PRISMA_USER_SELECT_LIST,
+          })
+        : [];
+    const usersById = {};
+    for (const row of memberRows) {
+      const u = userFromPrismaRow(row);
+      if (u.id) usersById[u.id] = u;
+    }
 
     const discover = await Promise.all(
       filtered.map(async (chat) => {
@@ -1920,16 +1976,10 @@ app.get("/api/chats/invite/:token", async (req, res) => {
   const { token } = req.params;
   if (!token) return res.status(404).json({ error: "Приглашение недействительно" });
   try {
-    const userRows = await prisma.user.findMany();
-    const usersByUsername = {};
-    for (const row of userRows) {
-      const u = userFromPrismaRow(row);
-      if (u.username) usersByUsername[u.username] = u;
-    }
-
     const rawRow = await prisma.chat.findFirst({ where: { inviteToken: token } });
     if (!rawRow) return res.status(404).json({ error: "Приглашение недействительно" });
 
+    const usersByUsername = await loadUsersByUsernameMap([rawRow.owner]);
     const chat = ensureChatFields(chatFromPrismaRow(rawRow), usersByUsername);
     res.json({
       id: chat.id,
@@ -1948,16 +1998,10 @@ app.get("/api/chats/invite/:token", async (req, res) => {
 app.post("/api/chats/invite/:token/join", authMiddleware, requireVerified, async (req, res) => {
   const { token } = req.params;
   try {
-    const userRows = await prisma.user.findMany();
-    const usersByUsername = {};
-    for (const row of userRows) {
-      const u = userFromPrismaRow(row);
-      if (u.username) usersByUsername[u.username] = u;
-    }
-
     const row = await prisma.chat.findFirst({ where: { inviteToken: token } });
     if (!row) return res.status(404).json({ error: "Приглашение недействительно" });
 
+    let usersByUsername = await loadUsersByUsernameMap([row.owner]);
     let chat = ensureChatFields(chatFromPrismaRow(row), usersByUsername);
     const members = Array.isArray(chat.members) ? [...chat.members] : [];
     if (!members.includes(req.user.id)) members.push(req.user.id);
@@ -2171,15 +2215,9 @@ app.post("/api/chats/:id/members/add", authMiddleware, requireVerified, async (r
   const { username } = req.body || {};
   if (!username) return res.status(400).json({ error: "username обязателен" });
   try {
-    const userRows = await prisma.user.findMany();
-    const usersByUsername = {};
-    for (const row of userRows) {
-      const u = userFromPrismaRow(row);
-      if (u.username) usersByUsername[u.username] = u;
-    }
-
     const row = await prisma.chat.findUnique({ where: { id } });
     if (!row) return res.status(404).json({ error: "Чат не найден" });
+    let usersByUsername = await loadUsersByUsernameMap([row.owner]);
     let chat = ensureChatFields(chatFromPrismaRow(row), usersByUsername);
 
     if (!chat.ownerId || chat.ownerId !== req.user.id) {
@@ -2210,15 +2248,9 @@ app.post("/api/chats/:id/members/remove", authMiddleware, requireVerified, async
   const { userId } = req.body || {};
   if (!userId) return res.status(400).json({ error: "userId обязателен" });
   try {
-    const userRows = await prisma.user.findMany();
-    const usersByUsername = {};
-    for (const row of userRows) {
-      const u = userFromPrismaRow(row);
-      if (u.username) usersByUsername[u.username] = u;
-    }
-
     const row = await prisma.chat.findUnique({ where: { id } });
     if (!row) return res.status(404).json({ error: "Чат не найден" });
+    let usersByUsername = await loadUsersByUsernameMap([row.owner]);
     let chat = ensureChatFields(chatFromPrismaRow(row), usersByUsername);
 
     if (!chat.ownerId || chat.ownerId !== req.user.id) {
@@ -2250,15 +2282,9 @@ app.post("/api/chats/:id/members/remove", authMiddleware, requireVerified, async
 app.post("/api/chats/:id/leave", authMiddleware, requireVerified, async (req, res) => {
   const { id } = req.params;
   try {
-    const userRows = await prisma.user.findMany();
-    const usersByUsername = {};
-    for (const row of userRows) {
-      const u = userFromPrismaRow(row);
-      if (u.username) usersByUsername[u.username] = u;
-    }
-
     const row = await prisma.chat.findUnique({ where: { id } });
     if (!row) return res.status(404).json({ error: "Чат не найден" });
+    let usersByUsername = await loadUsersByUsernameMap([row.owner]);
     let chat = ensureChatFields(chatFromPrismaRow(row), usersByUsername);
 
     let members = Array.isArray(chat.members) ? chat.members : [];
@@ -2291,15 +2317,9 @@ app.post("/api/chats/:id/leave", authMiddleware, requireVerified, async (req, re
 app.post("/api/chats/:id/join", authMiddleware, requireVerified, async (req, res) => {
   const { id } = req.params;
   try {
-    const userRows = await prisma.user.findMany();
-    const usersByUsername = {};
-    for (const row of userRows) {
-      const u = userFromPrismaRow(row);
-      if (u.username) usersByUsername[u.username] = u;
-    }
-
     const row = await prisma.chat.findUnique({ where: { id } });
     if (!row) return res.status(404).json({ error: "Чат не найден" });
+    let usersByUsername = await loadUsersByUsernameMap([row.owner]);
     let chat = ensureChatFields(chatFromPrismaRow(row), usersByUsername);
 
     const visibility = chat.visibility === "private" ? "private" : "public";
@@ -2446,20 +2466,11 @@ app.get("/api/messages/all", authMiddleware, requireVerified, async (req, res) =
   const userId = req.user.id;
   try {
     const chatRows = await prisma.chat.findMany();
-    const ownerNames = new Set();
+    const ownerNameList = [];
     for (const raw of chatRows) {
-      if (raw && raw.owner) ownerNames.add(raw.owner);
+      if (raw && raw.owner) ownerNameList.push(raw.owner);
     }
-    const usersByUsername = {};
-    if (ownerNames.size > 0) {
-      const ownerRows = await prisma.user.findMany({
-        where: { username: { in: [...ownerNames] } },
-      });
-      for (const row of ownerRows) {
-        const u = userFromPrismaRow(row);
-        if (u.username) usersByUsername[u.username] = u;
-      }
-    }
+    const usersByUsername = await loadUsersByUsernameMap(ownerNameList);
 
     const memberChatIds = new Set();
     for (const raw of chatRows) {
@@ -2476,8 +2487,10 @@ app.get("/api/messages/all", authMiddleware, requireVerified, async (req, res) =
     if (inChats.length) orClause.push({ chatId: { in: inChats } });
     const rows = await prisma.message.findMany({
       where: { OR: orClause },
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "desc" },
+      take: MESSAGES_BOOTSTRAP_MAX,
     });
+    rows.reverse();
     res.json(rows.map(messageFromPrismaRow));
   } catch (err) {
     console.error("GET /api/messages/all:", err);
@@ -2526,15 +2539,9 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
   const isGroupOrChannelChatId =
     typeof chatId === "string" && (chatId.startsWith("group:") || chatId.startsWith("channel:"));
   if (isGroupOrChannelChatId) {
-    const userRows = await prisma.user.findMany();
-    const usersByUsername = {};
-    for (const row of userRows) {
-      const u = userFromPrismaRow(row);
-      if (u.username) usersByUsername[u.username] = u;
-    }
-
     const rawChat = await prisma.chat.findUnique({ where: { id: chatId } });
     if (!rawChat) return res.status(404).json({ error: "Чат не найден" });
+    const usersByUsername = await loadUsersByUsernameMap([rawChat.owner]);
     const chat = ensureChatFields(chatFromPrismaRow(rawChat), usersByUsername);
     const chatType = chat.type || (String(chat.id).startsWith("channel:") ? "channel" : "group");
     const isScopedType = chatType === "group" || chatType === "channel";

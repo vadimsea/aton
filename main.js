@@ -375,24 +375,67 @@ function captureMessagesScrollSnapshot(el) {
   return null;
 }
 
+/**
+ * «У низа»: как в Telegram / WhatsApp (небольшой порог, без привязки к React — проект на ванили).
+ * @see main.js: scrollMessagesListToBottomRaf, renderMessages
+ */
+const CHAT_SCROLL_BOTTOM_THRESHOLD_PX = 50;
+
+function isMessagesListAtBottom(el) {
+  if (!el) return true;
+  const { scrollTop, scrollHeight, clientHeight } = el;
+  if (scrollHeight <= clientHeight + 1) return true;
+  return scrollHeight - scrollTop - clientHeight < CHAT_SCROLL_BOTTOM_THRESHOLD_PX;
+}
+
+/** Запасной снимок, если сменились data-message-id (например _temp_ → id) */
+function captureMessagesScrollRatio(el) {
+  if (!el) return null;
+  const maxS = el.scrollHeight - el.clientHeight;
+  if (maxS <= 0) return { kind: "ratio", ratio: 0 };
+  return { kind: "ratio", ratio: el.scrollTop / maxS };
+}
+
+function applyMessagesScrollRatio(el, snap) {
+  if (!el || !snap || snap.kind !== "ratio" || typeof snap.ratio !== "number") {
+    return false;
+  }
+  const maxS = Math.max(0, el.scrollHeight - el.clientHeight);
+  const r = Math.max(0, Math.min(1, snap.ratio));
+  el.scrollTop = maxS * r;
+  return true;
+}
+
 function applyMessagesScrollSnapshot(el, snap) {
-  if (!el) return;
+  if (!el) return false;
   if (!snap || snap.kind !== "anchor" || !snap.id) {
-    return;
+    return false;
   }
   const row = el.querySelector(`[data-message-id="${safeDataMessageIdForSelector(snap.id)}"]`);
   if (!row) {
-    return;
+    return false;
   }
   const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
-  const targetFromAnchor = row.offsetTop - snap.offsetInView;
-  let nextTop = targetFromAnchor;
+  const nextTop = row.offsetTop - snap.offsetInView;
   if (nextTop < 0) {
-    const oldMax = Math.max(1, (snap.scrollHeight || el.scrollHeight) - el.clientHeight);
-    const prev = typeof snap.scrollTop === "number" ? snap.scrollTop : 0;
-    nextTop = (prev / oldMax) * maxScroll;
+    return false; // только applyMessagesScrollRatio, без гибрида в одном кадре
   }
-  el.scrollTop = Math.min(maxScroll, Math.max(0, nextTop));
+  el.scrollTop = Math.min(maxScroll, nextTop);
+  return true;
+}
+
+/**
+ * Один путь после innerHTML: либо якорь, либо доля — никогда оба.
+ * @returns {boolean} удалось ли выставить скролл
+ */
+function restoreMessagesScrollAfterRerender(el, anchorSnap, ratioSnap) {
+  if (anchorSnap && applyMessagesScrollSnapshot(el, anchorSnap)) {
+    return true;
+  }
+  if (ratioSnap && applyMessagesScrollRatio(el, ratioSnap)) {
+    return true;
+  }
+  return false;
 }
 
 function lastActivityAtForDmChatId(dmId, messages) {
@@ -1165,6 +1208,15 @@ function createApp() {
   golosVoiceBar.innerHTML = "";
 
   chat.appendChild(messagesEl);
+
+  const newMessagesJump = document.createElement("div");
+  newMessagesJump.className = "aton-messages-jump";
+  newMessagesJump.setAttribute("hidden", "");
+  newMessagesJump.setAttribute("aria-live", "polite");
+  newMessagesJump.innerHTML =
+    '<button type="button" class="aton-messages-jump-btn">Новые сообщения ↓</button>';
+
+  chat.appendChild(newMessagesJump);
   chat.appendChild(golosVoiceBar);
   chat.appendChild(compose);
 
@@ -1258,6 +1310,67 @@ function createApp() {
   /** Стабилизация скролла: при смене чата — вниз; при мерже в том же чате — якорь, если смотрели историю. */
   let lastMessagesRenderChatId = null;
   let messageStatusDebounce = null;
+  /** user прокрутил вверх — пришли новые, показываем кнопку «Новые сообщения» (как useRef+state в React). */
+  let newMessagesArrivedOffBottom = false;
+
+  /**
+   * Прокрутка вниз в одном кадре (один rAF) — без синхронного scroll + второго кадра (дрожь UI).
+   * @param {boolean} onlyIfAtBottom — если true, в rAF не трогаем скролл, если пользователь читает историю (ResizeObserver).
+   */
+  function scrollMessagesListToBottomRaf(onlyIfAtBottom) {
+    if (!messagesEl) return;
+    requestAnimationFrame(() => {
+      if (!messagesEl) return;
+      if (onlyIfAtBottom && !isMessagesListAtBottom(messagesEl)) {
+        return;
+      }
+      messagesEl.scrollTop = Math.max(0, messagesEl.scrollHeight - messagesEl.clientHeight);
+      if (!onlyIfAtBottom) {
+        newMessagesArrivedOffBottom = false;
+      }
+      syncNewMessagesJumpUi();
+    });
+  }
+
+  /** Рост контента (картинки, шрифты): поджимаем вниз только если пользователь уже у низа */
+  let messagesResizeRafId = 0;
+  const messagesResizeObserver = new ResizeObserver(() => {
+    if (messageResizeRafId) {
+      cancelAnimationFrame(messageResizeRafId);
+    }
+    messageResizeRafId = requestAnimationFrame(() => {
+      messageResizeRafId = 0;
+      scrollMessagesListToBottomRaf(true);
+    });
+  });
+  messagesResizeObserver.observe(messagesEl);
+
+  function syncNewMessagesJumpUi() {
+    if (!newMessagesJump) return;
+    const show =
+      newMessagesArrivedOffBottom && messagesEl && !isMessagesListAtBottom(messagesEl);
+    if (show) newMessagesJump.removeAttribute("hidden");
+    else newMessagesJump.setAttribute("hidden", "");
+  }
+
+  const newMessagesJumpBtn = newMessagesJump.querySelector("button");
+  if (newMessagesJumpBtn) {
+    newMessagesJumpBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      scrollMessagesListToBottomRaf(false);
+    });
+  }
+
+  messagesEl.addEventListener(
+    "scroll",
+    () => {
+      if (isMessagesListAtBottom(messagesEl)) {
+        newMessagesArrivedOffBottom = false;
+      }
+      syncNewMessagesJumpUi();
+    },
+    { passive: true }
+  );
 
   function userFromContacts(username) {
     if (!username) return null;
@@ -1502,7 +1615,7 @@ function createApp() {
     if (!msg) return;
     // Если сообщение уже есть в истории, не дублируем
     if (allMessages.some((m) => m.id === msg.id)) return;
-    if (msg.from === GOLOS_ATON_USERNAME && msg.chatId === currentChatId) {
+    if (msg.from === GOLOS_ATON_USERNAME && currentChatId && messageBelongsToOpenChat(msg, currentChatId)) {
       golosPendingReplies = Math.max(0, golosPendingReplies - 1);
     }
     if (currentUser && msg.from !== currentUser.username) {
@@ -1514,13 +1627,18 @@ function createApp() {
         }
       }
     }
+    const isOpenThread = Boolean(currentChatId && messageBelongsToOpenChat(msg, currentChatId));
+    // До вставки в массив: знать, смотрел ли пользователь на низ (для кнопки «Новые сообщения»)
+    const atBottomBeforeInsert = isOpenThread && messagesEl && isMessagesListAtBottom(messagesEl);
     allMessages.push(msg);
     // Держим сообщения в хронологическом порядке
     allMessages.sort((a, b) => new Date(a.time) - new Date(b.time));
     // Список чатов должен обновляться всегда (для бейджей и порядка)
     renderChatList();
-    // Перерисовываем сообщения только если это активный чат
-    if (msg.chatId === currentChatId) {
+    if (isOpenThread) {
+      if (!atBottomBeforeInsert) {
+        newMessagesArrivedOffBottom = true;
+      }
       renderMessages();
     }
   });
@@ -2095,7 +2213,8 @@ function createApp() {
           allChats = Array.isArray(v) ? v : [];
         } catch (e) {
           if (version !== bootstrapVersion) return;
-          allChats = [];
+          if (e && e.status === 401) throw e;
+          // Сеть/таймаут/5xx: не затирать allChats — оставляем тёплый кэш sessionStorage / прошлый успех
           throw e;
         }
         paintBootstrap();
@@ -2108,7 +2227,8 @@ function createApp() {
           allMessages = Array.isArray(v) ? v : [];
         } catch (e) {
           if (version !== bootstrapVersion) return;
-          allMessages = [];
+          if (e && e.status === 401) throw e;
+          // Иначе при сбое API список диалогов «исчезал» — пользователь видел пустой сайдбар
           throw e;
         }
         paintBootstrap();
@@ -2156,6 +2276,8 @@ function createApp() {
       }
       if (chatsRes.status === "rejected" || msgRes.status === "rejected") {
         sessionBootstrapNeedsRetry = true;
+      } else {
+        sessionBootstrapNeedsRetry = false;
       }
 
       if (getToken() === tokenAtStart && currentUser && currentUser.username) {
@@ -2859,10 +2981,24 @@ function createApp() {
 
     const privateFromMessages = new Set();
     allMessages.forEach((m) => {
-      if (!m.to) return;
-      const id = chatIdForUsers(m.from, m.to);
-      if (m.from === current.username || m.to === current.username) {
-        privateFromMessages.add(id);
+      if (!m) return;
+      if (m.to) {
+        const id = chatIdForUsers(m.from, m.to);
+        if (m.from === current.username || m.to === current.username) {
+          privateFromMessages.add(id);
+        }
+        return;
+      }
+      // Личка в БД может идти по chatId без to (legacy / только chatId в сообщении)
+      if (m.chatId && isPrivateDirectChat(m.chatId)) {
+        const parts = m.chatId.split("|");
+        if (
+          parts.length === 2 &&
+          (parts[0] === current.username || parts[1] === current.username) &&
+          messageBelongsToDmId(m, m.chatId)
+        ) {
+          privateFromMessages.add(m.chatId);
+        }
       }
     });
     const privateChatIds = new Set(privateFromMessages);
@@ -3848,12 +3984,18 @@ function createApp() {
     );
     if (chat) chat.classList.toggle("aton-chat--private-dm", privateDmUi);
     const chatChangedForScroll = currentChatId !== lastMessagesRenderChatId;
-    const canKeepScroll =
-      !chatChangedForScroll &&
-      currentUser &&
-      currentChatId &&
-      messagesEl.querySelector(".aton-message-row");
-    const scrollSnapshot = canKeepScroll ? captureMessagesScrollSnapshot(messagesEl) : null;
+    if (chatChangedForScroll) {
+      newMessagesArrivedOffBottom = false;
+    }
+    // До innerHTML: «у низа» = только если это тот же тред, есть строки, и дистанция до низа < 50px
+    const hadMessageRows = Boolean(
+      currentUser && currentChatId && messagesEl.querySelector(".aton-message-row")
+    );
+    const wasAtBottom =
+      !chatChangedForScroll && hadMessageRows && isMessagesListAtBottom(messagesEl);
+    const useScrollAnchor = !chatChangedForScroll && hadMessageRows && !wasAtBottom;
+    const scrollSnapshot = useScrollAnchor ? captureMessagesScrollSnapshot(messagesEl) : null;
+    const scrollRatioSnap = useScrollAnchor ? captureMessagesScrollRatio(messagesEl) : null;
 
     try {
     messagesEl.innerHTML = "";
@@ -4205,12 +4347,27 @@ function createApp() {
       messagesEl.appendChild(makeGolosPendingEl());
     }
 
-    applyMessagesScrollSnapshot(messagesEl, scrollSnapshot);
+    {
+      // Смена чата / первый показ / были у низа → автоприлипание вниз. Читали старые → только якорь, без autoscroll
+      const pinToBottom = chatChangedForScroll || wasAtBottom || !hadMessageRows;
+      if (pinToBottom) {
+        scrollMessagesListToBottomRaf(false);
+      } else {
+        restoreMessagesScrollAfterRerender(messagesEl, scrollSnapshot, scrollRatioSnap);
+        syncNewMessagesJumpUi();
+      }
+    }
     // Для выбранного чата показываем поле ввода
     setComposeEnabled(true);
     compose.style.display = "flex";
     } finally {
       lastMessagesRenderChatId = currentUser && currentChatId ? currentChatId : null;
+      if (!currentUser || !currentChatId) {
+        newMessagesArrivedOffBottom = false;
+      } else if (!messagesEl || !messagesEl.querySelector(".aton-message-row")) {
+        newMessagesArrivedOffBottom = false;
+      }
+      syncNewMessagesJumpUi();
     }
   }
 
@@ -5681,7 +5838,25 @@ function createApp() {
   }
 
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") refreshUserDataFromServer();
+    if (document.visibilityState !== "visible") return;
+    if (getToken() && currentUser && sessionBootstrapNeedsRetry) {
+      void bootstrapData()
+        .then(() => {
+          try {
+            if (!getToken() || !currentUser) return;
+            applyCurrentUserUI();
+            renderChatList();
+            renderMessages();
+            updateTopbarTitle();
+            updateFriendsBadge();
+            renderContacts();
+          } catch (e) {
+            console.error("UI after visibility bootstrap", e);
+          }
+        })
+        .catch((e) => console.error("bootstrap after visibility", e));
+    }
+    refreshUserDataFromServer();
   });
   window.addEventListener("focus", () => {
     refreshUserDataFromServer();
