@@ -3138,7 +3138,12 @@ function createApp() {
       avatarWrap.className = "aton-chat-avatar-wrap";
       const avatar = document.createElement("div");
       avatar.className = "aton-chat-avatar";
-      if (isGolos) {
+      if (isGolos && peerUser?.avatarDataUrl) {
+        const img = document.createElement("img");
+        img.src = peerUser.avatarDataUrl;
+        img.alt = "";
+        avatar.appendChild(img);
+      } else if (isGolos) {
         avatar.textContent = "☀";
       } else if (peerUser?.avatarDataUrl) {
         const img = document.createElement("img");

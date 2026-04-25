@@ -45,6 +45,36 @@ const GOLOS_RATE = new Map();
 const GOLOS_RATE_WINDOW_MS = 60 * 60 * 1000;
 /** 0 = без лимита (по умолчанию). Иначе — макс. обращений к Голосу Атона за окно. */
 const GOLOS_MAX_PER_WINDOW = Math.max(0, parseInt(String(process.env.GOLOS_MAX_PER_WINDOW || "0"), 10) || 0);
+/** Статика на том же хосте, что и сайт (FTP). */
+const GOLOS_AVATAR_FILENAME = "golos-aton-avatar.png";
+
+function golosAtonAvatarPublicUrl() {
+  const raw = String(process.env.ATON_PUBLIC_URL || "https://aten.vadzim.by").trim();
+  const base = raw.replace(/\/+$/, "");
+  if (/^https?:\/\//i.test(base)) {
+    return `${base}/${GOLOS_AVATAR_FILENAME}`;
+  }
+  return `https://aten.vadzim.by/${GOLOS_AVATAR_FILENAME}`;
+}
+
+async function syncGolosAtonAvatarUrl() {
+  const url = golosAtonAvatarPublicUrl();
+  try {
+    const row = await prisma.user.findUnique({
+      where: { username: GOLOS_ATON_USERNAME },
+      select: { avatarDataUrl: true },
+    });
+    if (!row) return;
+    if (row.avatarDataUrl === url) return;
+    await prisma.user.update({
+      where: { username: GOLOS_ATON_USERNAME },
+      data: { avatarDataUrl: url },
+    });
+    console.log(`Голос Атона: avatarDataUrl обновлён (${GOLOS_AVATAR_FILENAME})`);
+  } catch (e) {
+    console.error("syncGolosAtonAvatarUrl:", e);
+  }
+}
 
 function golosRateAllow(username) {
   if (!username) return true;
@@ -786,11 +816,15 @@ async function processGolosAtonUserReply({ savedUserMsg, authorUsername }) {
 async function ensureGolosAtonUser() {
   try {
     const existing = await prisma.user.findUnique({ where: { username: GOLOS_ATON_USERNAME } });
-    if (existing) return;
+    if (existing) {
+      await syncGolosAtonAvatarUrl();
+      return;
+    }
     const id = generateToken();
     const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10);
     const publicId = await generateUniquePublicId(prisma, "golos");
     const verifyToken = generateToken();
+    const avatarUrl = golosAtonAvatarPublicUrl();
     await prisma.user.create({
       data: {
         id,
@@ -800,7 +834,7 @@ async function ensureGolosAtonUser() {
         passwordHash,
         publicId,
         bio: "Голос Атона.",
-        avatarDataUrl: null,
+        avatarDataUrl: avatarUrl,
         sessionToken: null,
         lastSeen: new Date(),
         createdAt: new Date(),
@@ -818,7 +852,10 @@ async function ensureGolosAtonUser() {
     });
     console.log(`Создан системный пользователь «Голос Атона» (${GOLOS_ATON_USERNAME}).`);
   } catch (e) {
-    if (e.code === "P2002") return;
+    if (e.code === "P2002") {
+      await syncGolosAtonAvatarUrl();
+      return;
+    }
     console.error("ensureGolosAtonUser:", e);
   }
 }

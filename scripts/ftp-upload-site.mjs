@@ -35,6 +35,7 @@ const SITE_FILES = [
   "forgot.html",
   "reset.html",
   "admin-users.html",
+  "golos-aton-avatar.png",
 ];
 
 if (!host || !user || !pass) {
