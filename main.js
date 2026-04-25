@@ -287,12 +287,40 @@ function messageBelongsToOpenChat(m, chatId) {
 }
 
 /**
+ * Серверный снимок + уже показанный у клиента: не терять data URL, если в ответе API поле пустое (гонка/сбой записи).
+ */
+function mergeMessagePreserveMedia(serverMsg, clientMsg) {
+  if (!serverMsg) return clientMsg;
+  if (!clientMsg || String(serverMsg.id) !== String(clientMsg.id)) return serverMsg;
+  const out = { ...serverMsg };
+  if ((!out.imageDataUrl || !String(out.imageDataUrl).trim()) && clientMsg.imageDataUrl) {
+    const c = String(clientMsg.imageDataUrl).trim();
+    if (c) out.imageDataUrl = clientMsg.imageDataUrl;
+  }
+  if ((!out.audioDataUrl || !String(out.audioDataUrl).trim()) && clientMsg.audioDataUrl) {
+    const c = String(clientMsg.audioDataUrl).trim();
+    if (c) out.audioDataUrl = clientMsg.audioDataUrl;
+  }
+  return out;
+}
+
+/**
  * Подменяет в allMessages только один чат; остальные треды не трогает.
  * Оптимистичные _temp_ для этого чата оставляем, если сервер ещё не прислал замену.
  */
 function applyMessagesForChatInAll(currentAll, chatId, freshList) {
   const fresh = Array.isArray(freshList) ? freshList : [];
   const rest = currentAll.filter((m) => !messageBelongsToOpenChat(m, chatId));
+  const priorById = new Map();
+  for (const m of currentAll) {
+    if (!messageBelongsToOpenChat(m, chatId) || m == null || m.id == null) continue;
+    priorById.set(String(m.id), m);
+  }
+  const freshMerged = fresh.map((fm) => {
+    if (!fm || fm.id == null) return fm;
+    const cm = priorById.get(String(fm.id));
+    return cm ? mergeMessagePreserveMedia(fm, cm) : fm;
+  });
   const pendingTemp = currentAll.filter(
     (m) =>
       messageBelongsToOpenChat(m, chatId) &&
@@ -300,7 +328,7 @@ function applyMessagesForChatInAll(currentAll, chatId, freshList) {
       m.id != null &&
       String(m.id).startsWith("_temp_")
   );
-  const freshIds = new Set(fresh.map((m) => m && m.id).filter(Boolean));
+  const freshIds = new Set(freshMerged.map((m) => m && m.id).filter(Boolean));
   const keepTemp = pendingTemp.filter((m) => m.id && !freshIds.has(m.id));
   /* Сообщения ветки уже в памяти (сокет и т.д.), но не в выборке API — иначе после pull/receipt
      пузыри исчезают (рассинхрон chatId в БД, гонка, обрезка /messages/all). */
@@ -314,7 +342,7 @@ function applyMessagesForChatInAll(currentAll, chatId, freshList) {
   );
   const seen = new Set();
   const merged = [];
-  for (const m of [...fresh, ...keepTemp, ...localOnly]) {
+  for (const m of [...freshMerged, ...keepTemp, ...localOnly]) {
     if (!m || m.id == null) continue;
     const id = String(m.id);
     if (seen.has(id)) continue;
@@ -2290,7 +2318,11 @@ function createApp() {
             if (m && m.id) byId.set(String(m.id), m);
           }
           for (const m of incoming) {
-            if (m && m.id) byId.set(String(m.id), m);
+            if (m && m.id) {
+              const id = String(m.id);
+              const prev = byId.get(id);
+              byId.set(id, prev ? mergeMessagePreserveMedia(m, prev) : m);
+            }
           }
           allMessages = [...byId.values()].sort(
             (a, b) => new Date(a.time) - new Date(b.time)
@@ -4628,28 +4660,65 @@ function createApp() {
 
   attachInput.addEventListener("change", () => {
     const user = currentUser;
-    if (!user || !currentChatId) return;
+    if (!user || !currentChatId) {
+      attachInput.value = "";
+      return;
+    }
     const file = attachInput.files?.[0];
+    attachInput.value = "";
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = async () => {
       const imageDataUrl = reader.result;
+      if (typeof imageDataUrl !== "string" || !imageDataUrl.startsWith("data:")) {
+        alert("Не удалось прочитать изображение.");
+        return;
+      }
+      const to = dmToForApi();
+      const chatId = currentChatId;
+      const peer = currentChatPeer();
+      if (peer && contacts.blocked.some((u) => u.username === peer)) {
+        alert("Вы заблокировали этого пользователя. Разблокируйте его в контактах, чтобы писать.");
+        return;
+      }
+      const tempId = `_temp_${Date.now()}`;
+      const tempMsg = {
+        id: tempId,
+        from: user.username,
+        chatId,
+        to,
+        type: "image",
+        imageDataUrl,
+        text: "",
+        time: new Date().toISOString(),
+        status: "sent",
+      };
+      allMessages.push(tempMsg);
+      renderMessages();
+      renderChatList();
       try {
-        const to = dmToForApi();
-        const chatId = currentChatId;
         const msg = await api("/api/messages", {
           method: "POST",
           body: JSON.stringify({ chatId, type: "image", imageDataUrl, to }),
         });
-        allMessages.push(msg);
-        attachInput.value = "";
+        const idx = allMessages.findIndex((m) => m.id === tempId);
+        if (!allMessages.some((m) => m.id === msg.id)) {
+          if (idx !== -1) allMessages.splice(idx, 1, mergeMessagePreserveMedia(msg, tempMsg));
+          else allMessages.push(mergeMessagePreserveMedia(msg, tempMsg));
+        } else if (idx !== -1) {
+          allMessages.splice(idx, 1);
+        }
         renderMessages();
         renderChatList();
       } catch (err) {
+        allMessages = allMessages.filter((m) => m.id !== tempId);
+        renderMessages();
+        renderChatList();
         alert(err.message);
       }
     };
+    reader.onerror = () => alert("Не удалось прочитать файл.");
     reader.readAsDataURL(file);
   });
 

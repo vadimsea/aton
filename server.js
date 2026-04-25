@@ -2753,6 +2753,10 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
     return res.status(400).json({ error: "Нет аудиозаписи" });
   }
 
+  if (type === "image" && !String(imageDataUrl || "").trim()) {
+    return res.status(400).json({ error: "Нет изображения" });
+  }
+
   if (
     type === "text" &&
     (!text || !String(text).trim()) &&
