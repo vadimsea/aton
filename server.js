@@ -97,6 +97,28 @@ function isDirectMessageChatId(chatId) {
   );
 }
 
+/** Личка: все сообщения пары (на случай устаревшего chatId в строке сообщения). */
+function dmThreadWhereClause(chatId, me) {
+  if (!isDirectMessageChatId(chatId) || !me) {
+    return { chatId };
+  }
+  const peer = dmPeerFromChatId(chatId, me);
+  if (!peer) {
+    return { chatId };
+  }
+  return {
+    OR: [
+      { chatId },
+      {
+        OR: [
+          { AND: [{ senderUsername: me }, { recipientUsername: peer }] },
+          { AND: [{ senderUsername: peer }, { recipientUsername: me }] },
+        ],
+      },
+    ],
+  };
+}
+
 /** Не тянуть passwordHash/sessionToken в память на каждый запрос */
 const PRISMA_USER_SELECT_LIST = {
   id: true,
@@ -2414,12 +2436,27 @@ app.get("/api/messages", authMiddleware, requireVerified, async (req, res) => {
       await ensureGolosIntroIfEmpty(String(chatId), me);
     }
     if (isDirectMessageChatId(chatId)) {
+      const peer = dmPeerFromChatId(chatId, me);
+      const deliveredWhere = peer
+        ? {
+            OR: [
+              { chatId, senderUsername: { not: me }, status: "sent" },
+              {
+                AND: [
+                  { senderUsername: peer },
+                  { recipientUsername: me },
+                  { status: "sent" },
+                ],
+              },
+            ],
+          }
+        : {
+            chatId,
+            senderUsername: { not: me },
+            status: "sent",
+          };
       await prisma.message.updateMany({
-        where: {
-          chatId,
-          senderUsername: { not: me },
-          status: "sent",
-        },
+        where: deliveredWhere,
         data: { status: "delivered" },
       });
       emitMessageStatusForChat(chatId, {
@@ -2429,7 +2466,7 @@ app.get("/api/messages", authMiddleware, requireVerified, async (req, res) => {
       });
     }
     const rows = await prisma.message.findMany({
-      where: { chatId },
+      where: dmThreadWhereClause(chatId, me),
       orderBy: { createdAt: "asc" },
     });
     res.json(rows.map(messageFromPrismaRow));
@@ -2459,12 +2496,31 @@ app.post("/api/messages/read", authMiddleware, requireVerified, async (req, res)
       await ensureGolosIntroIfEmpty(String(chatId), me);
     }
     if (isDirectMessageChatId(chatId)) {
+      const peer = dmPeerFromChatId(chatId, me);
+      const readWhere = peer
+        ? {
+            OR: [
+              {
+                chatId,
+                senderUsername: { not: me },
+                status: { in: ["sent", "delivered"] },
+              },
+              {
+                AND: [
+                  { senderUsername: peer },
+                  { recipientUsername: me },
+                  { status: { in: ["sent", "delivered"] } },
+                ],
+              },
+            ],
+          }
+        : {
+            chatId,
+            senderUsername: { not: me },
+            status: { in: ["sent", "delivered"] },
+          };
       await prisma.message.updateMany({
-        where: {
-          chatId,
-          senderUsername: { not: me },
-          status: { in: ["sent", "delivered"] },
-        },
+        where: readWhere,
         data: { status: "read" },
       });
       emitMessageStatusForChat(chatId, {
@@ -2474,7 +2530,7 @@ app.post("/api/messages/read", authMiddleware, requireVerified, async (req, res)
       });
     }
     const rows = await prisma.message.findMany({
-      where: { chatId },
+      where: dmThreadWhereClause(chatId, me),
       orderBy: { createdAt: "asc" },
     });
     const list = rows.map(messageFromPrismaRow);

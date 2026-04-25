@@ -302,9 +302,26 @@ function applyMessagesForChatInAll(currentAll, chatId, freshList) {
   );
   const freshIds = new Set(fresh.map((m) => m && m.id).filter(Boolean));
   const keepTemp = pendingTemp.filter((m) => m.id && !freshIds.has(m.id));
-  return [...rest, ...fresh, ...keepTemp].sort(
-    (a, b) => new Date(a.time) - new Date(b.time)
+  /* Сообщения ветки уже в памяти (сокет и т.д.), но не в выборке API — иначе после pull/receipt
+     пузыри исчезают (рассинхрон chatId в БД, гонка, обрезка /messages/all). */
+  const localOnly = currentAll.filter(
+    (m) =>
+      messageBelongsToOpenChat(m, chatId) &&
+      m &&
+      m.id &&
+      !String(m.id).startsWith("_temp_") &&
+      !freshIds.has(m.id)
   );
+  const seen = new Set();
+  const merged = [];
+  for (const m of [...fresh, ...keepTemp, ...localOnly]) {
+    if (!m || m.id == null) continue;
+    const id = String(m.id);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    merged.push(m);
+  }
+  return [...rest, ...merged].sort((a, b) => new Date(a.time) - new Date(b.time));
 }
 
 /** Сравнение login без регистра/пробелов — иначе «свои»/«чужие» пузыри в треде путаются */
@@ -2266,7 +2283,18 @@ function createApp() {
         try {
           const v = await api("/api/messages/all");
           if (version !== bootstrapVersion) return;
-          allMessages = Array.isArray(v) ? v : [];
+          const incoming = Array.isArray(v) ? v : [];
+          const prev = Array.isArray(allMessages) ? allMessages : [];
+          const byId = new Map();
+          for (const m of prev) {
+            if (m && m.id) byId.set(String(m.id), m);
+          }
+          for (const m of incoming) {
+            if (m && m.id) byId.set(String(m.id), m);
+          }
+          allMessages = [...byId.values()].sort(
+            (a, b) => new Date(a.time) - new Date(b.time)
+          );
         } catch (e) {
           if (version !== bootstrapVersion) return;
           if (e && e.status === 401) throw e;
