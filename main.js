@@ -279,6 +279,34 @@ function messageBelongsToDmId(msg, dmId) {
   return false;
 }
 
+/** Сообщение относится к чату, для которого пришла свежая выборка (GET/ read) — для безопасного мержа без схлопывания Map по id. */
+function messageBelongsToOpenChat(m, chatId) {
+  if (!m || !chatId) return false;
+  if (isPrivateDirectChat(chatId)) return messageBelongsToDmId(m, chatId);
+  return m.chatId === chatId;
+}
+
+/**
+ * Подменяет в allMessages только один чат; остальные треды не трогает.
+ * Оптимистичные _temp_ для этого чата оставляем, если сервер ещё не прислал замену.
+ */
+function applyMessagesForChatInAll(currentAll, chatId, freshList) {
+  const fresh = Array.isArray(freshList) ? freshList : [];
+  const rest = currentAll.filter((m) => !messageBelongsToOpenChat(m, chatId));
+  const pendingTemp = currentAll.filter(
+    (m) =>
+      messageBelongsToOpenChat(m, chatId) &&
+      m != null &&
+      m.id != null &&
+      String(m.id).startsWith("_temp_")
+  );
+  const freshIds = new Set(fresh.map((m) => m && m.id).filter(Boolean));
+  const keepTemp = pendingTemp.filter((m) => m.id && !freshIds.has(m.id));
+  return [...rest, ...fresh, ...keepTemp].sort(
+    (a, b) => new Date(a.time) - new Date(b.time)
+  );
+}
+
 /** Сравнение login без регистра/пробелов — иначе «свои»/«чужие» пузыри в треде путаются */
 function sameAtonUsername(a, b) {
   return String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
@@ -313,6 +341,55 @@ function messageAckHtml(status) {
     return '<span class="aton-message-ack aton-message-ack--delivered" title="Доставлено" aria-label="Доставлено"><span class="aton-message-ack-tick" aria-hidden="true">✓</span><span class="aton-message-ack-tick" aria-hidden="true">✓</span></span>';
   }
   return '<span class="aton-message-ack aton-message-ack--read" title="Прочитано" aria-label="Прочитано"><span class="aton-message-ack-tick" aria-hidden="true">✓</span><span class="aton-message-ack-tick" aria-hidden="true">✓</span></span>';
+}
+
+function safeDataMessageIdForSelector(id) {
+  if (id == null) return "";
+  if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(String(id));
+  return String(id).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+/**
+ * Сохраняет позицию прокрутки при дозагрузке/мерже, если пользователь смотрит историю (не внизу).
+ */
+function captureMessagesScrollSnapshot(el) {
+  if (!el || !el.querySelector(".aton-message-row")) {
+    return { kind: "bottom" };
+  }
+  const threshold = 100;
+  const { scrollTop, scrollHeight, clientHeight } = el;
+  const fromBottom = scrollHeight - scrollTop - clientHeight;
+  if (fromBottom <= threshold) {
+    return { kind: "bottom" };
+  }
+  const mRect = el.getBoundingClientRect();
+  for (const row of el.querySelectorAll(".aton-message-row")) {
+    const id = row.getAttribute("data-message-id");
+    if (!id) continue;
+    const br = row.getBoundingClientRect();
+    if (br.bottom > mRect.top + 2) {
+      return { kind: "anchor", id, offsetInView: br.top - mRect.top };
+    }
+  }
+  return { kind: "bottom" };
+}
+
+function applyMessagesScrollSnapshot(el, snap) {
+  if (!el) return;
+  if (!snap || snap.kind === "bottom") {
+    el.scrollTop = el.scrollHeight;
+    return;
+  }
+  const row = el.querySelector(`[data-message-id="${safeDataMessageIdForSelector(snap.id)}"]`);
+  if (!row) {
+    el.scrollTop = el.scrollHeight;
+    return;
+  }
+  // Не полагаемся на offsetTop (flex) — сравниваем видимый отступ с тем, что был до перерисовки.
+  const mRect = el.getBoundingClientRect();
+  const rRect = row.getBoundingClientRect();
+  const vNow = rRect.top - mRect.top;
+  el.scrollTop = Math.max(0, vNow - snap.offsetInView);
 }
 
 function lastActivityAtForDmChatId(dmId, messages) {
@@ -1175,6 +1252,8 @@ function createApp() {
   let hasOnboardingAutoFocused = false;
   let bootstrapVersion = 0;
   let receiptsInFlight = null;
+  /** Стабилизация скролла: при смене чата — вниз; при мерже в том же чате — якорь, если смотрели историю. */
+  let lastMessagesRenderChatId = null;
   let messageStatusDebounce = null;
 
   function userFromContacts(username) {
@@ -1239,12 +1318,7 @@ function createApp() {
       const list = await api(`/api/messages?chatId=${encodeURIComponent(chatId)}`);
       if (receiptsInFlight !== token) return;
       if (!Array.isArray(list)) return;
-      const byId = new Map(allMessages.map((m) => [m.id, m]));
-      for (const m of list) {
-        byId.set(m.id, m);
-      }
-      allMessages = Array.from(byId.values());
-      allMessages.sort((a, b) => new Date(a.time) - new Date(b.time));
+      allMessages = applyMessagesForChatInAll(allMessages, chatId, list);
       if (isPrivateDirectChat(chatId)) {
         const r = await api("/api/messages/read", {
           method: "POST",
@@ -1252,11 +1326,7 @@ function createApp() {
         });
         if (receiptsInFlight !== token) return;
         if (r && Array.isArray(r.messages)) {
-          for (const m of r.messages) {
-            byId.set(m.id, m);
-          }
-          allMessages = Array.from(byId.values());
-          allMessages.sort((a, b) => new Date(a.time) - new Date(b.time));
+          allMessages = applyMessagesForChatInAll(allMessages, chatId, r.messages);
         }
       }
       if (currentChatId === chatId) {
@@ -3774,6 +3844,15 @@ function createApp() {
       currentUser && currentChatId && isPrivateDirectChat(currentChatId)
     );
     if (chat) chat.classList.toggle("aton-chat--private-dm", privateDmUi);
+    const chatChangedForScroll = currentChatId !== lastMessagesRenderChatId;
+    const canKeepScroll =
+      !chatChangedForScroll &&
+      currentUser &&
+      currentChatId &&
+      messagesEl.querySelector(".aton-message-row");
+    const scrollSnapshot = canKeepScroll ? captureMessagesScrollSnapshot(messagesEl) : null;
+
+    try {
     messagesEl.innerHTML = "";
     const current = currentUser;
     shell.classList.toggle("aton-shell--guest-landing", !current);
@@ -3841,6 +3920,7 @@ function createApp() {
         "aton-message-row" +
         (isSelf ? " self" : "") +
         (privateDmUi ? " aton-message-row--private-dm" : "");
+      if (msg.id) row.setAttribute("data-message-id", String(msg.id));
 
       const inner = document.createElement("div");
       inner.className = "aton-message-inner";
@@ -3967,7 +4047,8 @@ function createApp() {
       const meta = document.createElement("div");
       meta.className = "aton-message-meta" + (isSelf ? " aton-message-meta--self" : "");
       {
-        const st = msg.status && ["sent", "delivered", "read"].includes(msg.status) ? msg.status : "delivered";
+        const st =
+          msg.status && ["sent", "delivered", "read"].includes(msg.status) ? msg.status : "sent";
         const showAck = isSelf && privateDmUi;
         const ack = showAck ? messageAckHtml(st) : "";
         meta.innerHTML = `<span class="aton-message-time">${escHtml(timeLabel)}${escHtml(editedLabel)}${escHtml(pinnedLabel)}</span>${ack}`;
@@ -4122,10 +4203,13 @@ function createApp() {
       messagesEl.appendChild(makeGolosPendingEl());
     }
 
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    applyMessagesScrollSnapshot(messagesEl, scrollSnapshot);
     // Для выбранного чата показываем поле ввода
     setComposeEnabled(true);
     compose.style.display = "flex";
+    } finally {
+      lastMessagesRenderChatId = currentUser && currentChatId ? currentChatId : null;
+    }
   }
 
   sendButton.addEventListener("click", () => {
@@ -4160,6 +4244,7 @@ function createApp() {
       text,
       time: new Date().toISOString(),
       replyTo: replyToId,
+      status: "sent",
     };
     allMessages.push(tempMsg);
     inputMessage.value = "";
