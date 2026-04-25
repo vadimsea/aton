@@ -764,7 +764,7 @@ async function processGolosAtonUserReply({ savedUserMsg, authorUsername }) {
       });
     } catch (e) {
       console.error("fetchGolosReply:", e);
-      replyText = "Сбой. Позже.";
+      replyText = "Не сейчас. Повтори.";
     }
   }
 

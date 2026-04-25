@@ -3184,7 +3184,7 @@ function createApp() {
       if (isGolos) {
         const subtitleEl = document.createElement("div");
         subtitleEl.className = "aton-chat-item-subtitle";
-        subtitleEl.textContent = "ИИ бот";
+        subtitleEl.textContent = "Голос, не бот";
         main.appendChild(subtitleEl);
       }
       main.appendChild(previewEl);
@@ -5801,8 +5801,8 @@ function createApp() {
       }
       if (peer === GOLOS_ATON_USERNAME) {
         setTitle("Голос Атона", true);
-        statusEl.textContent = "Помощник";
-        statusEl.setAttribute("title", "Помощник мессенджера «Атон»");
+        statusEl.textContent = "Принцип, не служба";
+        statusEl.setAttribute("title", "Голос из позиции Атона — не помощник и не сервис");
         statusEl.classList.add("aton-topbar-status--online");
         return;
       }
