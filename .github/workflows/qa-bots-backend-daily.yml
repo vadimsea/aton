@@ -7,7 +7,8 @@ name: QA bot — backend daily (Groq)
 
 on:
   schedule:
-    - cron: "0 */2 * * *"
+    # Среда 12:00 UTC (полдень по Гринвичу), раз в неделю
+    - cron: "0 12 * * 3"
   workflow_dispatch:
 
 jobs:
