@@ -14,6 +14,7 @@ const {
   ensureVerificationFlags,
   userFromPrismaRow,
   chatFromPrismaRow,
+  chatMembersAdmins,
   messageFromPrismaRow,
   generateUniquePublicId,
 } = require("./lib/aton-mappers");
@@ -201,7 +202,59 @@ const MESSAGES_BOOTSTRAP_MAX = (() => {
   return Math.min(100_000, n);
 })();
 
-/** Просмотр списка сообщений: только участник global / лички / группы. */
+/**
+ * Когда MESSAGES_BOOTSTRAP_MAX не задан («безлимит»), всё равно ограничиваем выборку последними N
+ * строками — иначе GET /api/messages/all читает всю таблицу с base64. MESSAGES_BOOTSTRAP_SOFT_CAP=0 — без потолка (опасно).
+ */
+const MESSAGES_BOOTSTRAP_SOFT_CAP = (() => {
+  const raw = process.env.MESSAGES_BOOTSTRAP_SOFT_CAP;
+  if (raw === undefined || String(raw).trim() === "") return 12_000;
+  if (String(raw).trim() === "0") return null;
+  const n = parseInt(String(raw), 10);
+  if (Number.isNaN(n) || n < 200) return 12_000;
+  return Math.min(100_000, n);
+})();
+
+/** Поля сообщения без imageDataUrl/audioDataUrl — быстрый bootstrap. */
+const MESSAGE_BOOTSTRAP_SELECT = {
+  id: true,
+  chatId: true,
+  senderUsername: true,
+  recipientUsername: true,
+  type: true,
+  text: true,
+  createdAt: true,
+  editedAt: true,
+  replyTo: true,
+  pinned: true,
+  reactions: true,
+  status: true,
+  updatedAt: true,
+};
+
+function effectiveMessagesBootstrapTake() {
+  if (MESSAGES_BOOTSTRAP_MAX != null) return MESSAGES_BOOTSTRAP_MAX;
+  return MESSAGES_BOOTSTRAP_SOFT_CAP;
+}
+
+/** Чаты, где userId входит в JSON-массив members (PostgreSQL jsonb @>). */
+async function loadChatsWhereUserIsMember(userId) {
+  if (!userId) return [];
+  try {
+    const needle = JSON.stringify([userId]);
+    return await prisma.$queryRawUnsafe(
+      `SELECT * FROM "chats" WHERE "members"::jsonb @> $1::jsonb ORDER BY "createdAt" ASC`,
+      needle
+    );
+  } catch (e) {
+    console.error("loadChatsWhereUserIsMember (fallback findMany):", e);
+    const all = await prisma.chat.findMany({ orderBy: { createdAt: "asc" } });
+    return all.filter((row) => {
+      const { members } = chatMembersAdmins(row);
+      return Array.isArray(members) && members.includes(userId);
+    });
+  }
+}
 async function assertUserCanAccessChat(req, chatId) {
   const uid = req.user.id;
   const uname = req.user.username;
@@ -302,7 +355,9 @@ app.get("/api/health", async (req, res) => {
     out.openaiTtsConfigured = Boolean(String(process.env.OPENAI_API_KEY || "").trim());
     out.golosMaxPerWindow = GOLOS_MAX_PER_WINDOW;
     out.golosRateUnlimited = GOLOS_MAX_PER_WINDOW <= 0;
-    out.messagesBootstrapMax = MESSAGES_BOOTSTRAP_MAX == null ? "unlimited" : MESSAGES_BOOTSTRAP_MAX;
+    out.messagesBootstrapMax = MESSAGES_BOOTSTRAP_MAX;
+    out.messagesBootstrapSoftCap = MESSAGES_BOOTSTRAP_SOFT_CAP;
+    out.messagesBootstrapEffectiveTake = effectiveMessagesBootstrapTake();
     out.nodeFetch = typeof globalThis.fetch === "function";
     out.nodeVersion = process.version;
     const golos = await prisma.user.findUnique({
@@ -1951,7 +2006,7 @@ app.post("/api/users/:id/verify", authMiddleware, requireVerified, async (req, r
 // Чаты (группы)
 app.get("/api/chats", authMiddleware, requireVerified, async (req, res) => {
   try {
-    const chatRows = await prisma.chat.findMany();
+    const chatRows = await loadChatsWhereUserIsMember(req.user.id);
     const ownerNames = chatRows.map((r) => r && r.owner).filter(Boolean);
     const usersByUsername = await loadUsersByUsernameMap(ownerNames);
     const normalizedChats = [];
@@ -1985,10 +2040,7 @@ app.get("/api/chats", authMiddleware, requireVerified, async (req, res) => {
       normalizedChats.push(after);
     }
 
-    const visibleChats = normalizedChats.filter(
-      (chat) => Array.isArray(chat.members) && chat.members.includes(req.user.id)
-    );
-    res.json(visibleChats);
+    res.json(normalizedChats);
   } catch (err) {
     console.error("GET /api/chats:", err);
     res.status(500).json({ error: "Ошибка сервера" });
@@ -2041,6 +2093,16 @@ app.get("/api/chats/discover", authMiddleware, requireVerified, async (req, res)
         const lastMsgRow = await prisma.message.findFirst({
           where: { chatId: chat.id },
           orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            chatId: true,
+            senderUsername: true,
+            recipientUsername: true,
+            type: true,
+            text: true,
+            createdAt: true,
+            status: true,
+          },
         });
         const lm = lastMsgRow ? messageFromPrismaRow(lastMsgRow) : null;
           const lastMessagePreview = lm
@@ -2647,7 +2709,7 @@ app.get("/api/messages/all", authMiddleware, requireVerified, async (req, res) =
   const userId = req.user.id;
   try {
     await ensureGolosIntroIfEmpty(dmChatIdForUsernames(username, GOLOS_ATON_USERNAME), username);
-    const chatRows = await prisma.chat.findMany();
+    const chatRows = await loadChatsWhereUserIsMember(userId);
     const ownerNameList = [];
     for (const raw of chatRows) {
       if (raw && raw.owner) ownerNameList.push(raw.owner);
@@ -2657,8 +2719,7 @@ app.get("/api/messages/all", authMiddleware, requireVerified, async (req, res) =
     const memberChatIds = new Set();
     for (const raw of chatRows) {
       const chat = ensureChatFields(chatFromPrismaRow(raw), usersByUsername);
-      const members = Array.isArray(chat.members) ? chat.members : [];
-      if (members.includes(userId)) memberChatIds.add(chat.id);
+      memberChatIds.add(chat.id);
     }
 
     const inChats = [...memberChatIds];
@@ -2667,19 +2728,21 @@ app.get("/api/messages/all", authMiddleware, requireVerified, async (req, res) =
       { recipientUsername: username },
     ];
     if (inChats.length) orClause.push({ chatId: { in: inChats } });
+    const takeLimit = effectiveMessagesBootstrapTake();
     const findArgs = {
       where: { OR: orClause },
       orderBy: { createdAt: "asc" },
+      select: MESSAGE_BOOTSTRAP_SELECT,
     };
-    if (MESSAGES_BOOTSTRAP_MAX != null) {
+    if (takeLimit != null) {
       findArgs.orderBy = { createdAt: "desc" };
-      findArgs.take = MESSAGES_BOOTSTRAP_MAX;
+      findArgs.take = takeLimit;
     }
     const rows = await prisma.message.findMany(findArgs);
-    if (MESSAGES_BOOTSTRAP_MAX != null) {
+    if (takeLimit != null) {
       rows.reverse();
     }
-    res.json(rows.map(messageFromPrismaRow));
+    res.json(rows.map((row) => messageFromPrismaRow(row)));
   } catch (err) {
     console.error("GET /api/messages/all:", err);
     res.status(500).json({ error: "Ошибка сервера" });

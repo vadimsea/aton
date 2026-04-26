@@ -34,9 +34,11 @@ services:
         value: llama-3.3-70b-versatile
       - key: GOLOS_MAX_PER_WINDOW
         value: "0"
-      # 0 = без лимита (все чаты в сайдбаре). Число ≥200 = жёсткий потолок ответа (риск пропажи старых DM).
+      # 0 = не задавать жёсткий лимит; тогда срабатывает MESSAGES_BOOTSTRAP_SOFT_CAP (последние N без медиа в JSON).
       - key: MESSAGES_BOOTSTRAP_MAX
         value: "0"
+      - key: MESSAGES_BOOTSTRAP_SOFT_CAP
+        value: "12000"
       - key: OPENAI_API_KEY
         sync: false
       - key: ATON_PUBLIC_URL
