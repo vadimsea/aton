@@ -11,8 +11,8 @@ name: QA monitor → DM
 
 on:
   schedule:
-    # Среда 12:00 UTC (полдень по Гринвичу), раз в неделю
-    - cron: "0 12 * * 3"
+    # Среда 12:45 UTC — 4-й слот
+    - cron: "45 12 * * 3"
   workflow_dispatch:
 
 jobs:

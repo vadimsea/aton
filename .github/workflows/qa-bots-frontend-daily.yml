@@ -7,8 +7,8 @@ name: QA bot — frontend daily (Groq)
 
 on:
   schedule:
-    # Среда 12:00 UTC (полдень по Гринвичу), раз в неделю
-    - cron: "0 12 * * 3"
+    # Среда 12:15 UTC — 2-й слот
+    - cron: "15 12 * * 3"
   workflow_dispatch:
 
 jobs:

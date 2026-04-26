@@ -9,8 +9,8 @@ name: QA bot — social E2E daily
 
 on:
   schedule:
-    # Среда 12:00 UTC (полдень по Гринвичу), раз в неделю
-    - cron: "0 12 * * 3"
+    # Среда 12:30 UTC — 3-й слот
+    - cron: "30 12 * * 3"
   workflow_dispatch:
 
 jobs:

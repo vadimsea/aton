@@ -1,6 +1,6 @@
 # QA-боты (Groq) — фронт и бэк
 
-Сценарии QA-ботов: отчёты в формате **Markdown** и **HTML** и загрузка на **FTP** (в т.ч. **подкаталоги** — скриншоты) в папку на хостинге. В **GitHub Actions** по расписанию они запускаются **раз в неделю: среда, 12:00 UTC** (полдень по Гринвичу). Вручную — **workflow_dispatch** в любой момент.
+Сценарии QA-ботов: отчёты в формате **Markdown** и **HTML** и загрузка на **FTP** (в т.ч. **подкаталоги** — скриншоты) в папку на хостинге. В **GitHub Actions** по расписанию — **раз в неделю, среда**, слоты **UTC** (Гринвич): бэкенд **12:00**, фронт **12:15**, social **12:30**, monitor **12:45**. Вручную — **workflow_dispatch** в любой момент.
 
 ## Форматы
 
@@ -18,9 +18,10 @@ Groq **vision** — до **5 картинок за запрос**; длинны�
 
 | Скрипт | Расписание (GitHub Actions, UTC) | Суть |
 |--------|-----------------------------------|------|
-| `frontend-daily.mjs` | **Ср 12:00** (еженедельно) | Playwright: **замер сессии** (F5+токен, повторный F5, `networkidle`) → затем волны **десктоп / планшет / мобилка**, чат, скрины; авто-чек **PTT** (title #aton-mic) → **Groq vision** (числа сессии в промпте и в .md, без опоры только на картинки). |
-| `backend-daily.mjs` | **Ср 12:00** (еженедельно) | Смоук `scripts/qa-prod-smoke.js` (в т.ч. `golosMaxPerWindow===0`), ручные GET/metrics → **Groq text** — API, перф, безопасность, рекомендации. |
-| `social-daily.mjs`, `qa-monitor-dm` | **Ср 12:00** (еженедельно) | см. workflows `.github/workflows/qa-bots-social-daily.yml`, `qa-monitor.yml` |
+| `backend-daily.mjs` | **Ср 12:00** UTC | Смоук `scripts/qa-prod-smoke.js` (в т.ч. `golosMaxPerWindow===0`), ручные GET/metrics → **Groq text** — API, перф, безопасность, рекомендации. |
+| `frontend-daily.mjs` | **Ср 12:15** UTC | Playwright: **замер сессии** (F5+токен, повторный F5, `networkidle`) → затем волны **десктоп / планшет / мобилка**, чат, скрины; авто-чек **PTT** (title #aton-mic) → **Groq vision** (числа сессии в промпте и в .md, без опоры только на картинки). |
+| `social-daily.mjs` | **Ср 12:30** UTC | см. `.github/workflows/qa-bots-social-daily.yml` |
+| `qa-monitor-dm.mjs` | **Ср 12:45** UTC | см. `.github/workflows/qa-monitor.yml` |
 
 Локальная сборка: `qa-bots/out/` (в `.gitignore`). В CI папка каждый раз пустая; на **FTP** накапливаются суточные `frontend-*` / `backend-*` (текст) и обновлённый **`index.html`**. Старые вручную залитые `shots/*.png` на хосте с ботом не синхронизируются.
 
