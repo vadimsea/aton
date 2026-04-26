@@ -36,9 +36,11 @@ export async function groqVision({
     parts.push(`--- Пакет ${b + 1} / ${totalBatches} ---\n\n${p}`);
   }
   return groqText({
-    system: `Ты редактор UI/UX-отчёта (мессенджер «Атон»). Ниже — части анализа **разных паков скриншотов** (один пак = до ${GROQ_VISION_MAX_IMAGES} кадров). Объедини в **один** связный отчёт на русском, сохрани P1-проблемы и конкретику, убери дубли, добавь краткое резюме в начало.`,
+    system: `Ты редактор UI/UX-отчёта (мессенджер «Атон»). Ниже — части анализа **разных паков скриншотов** (один пак = до ${GROQ_VISION_MAX_IMAGES} кадров). Объедини в **один** связный отчёт на русском, сохрани P1-проблемы и конкретику, убери дубли, добавь краткое резюме в начало.
+В **конец** итогового отчёта добавь раздел **## Промпт для Cursor**: 5–12 нумерованных строк — что править в коде (компоненты, CSS, main.js), только по фактам из объединённого текста; без общих «улучшить продукт». Если критичных находок нет — 2–4 строки про регрессии/что мониторить.`,
     user: `Части анализа:\n\n${parts.join("\n\n")}`,
     maxTokens: Math.min(8000, maxTokens + 2000),
+    temperature: 0.25,
   });
 }
 
@@ -101,11 +103,12 @@ async function groqVisionOnce({
   return j.choices?.[0]?.message?.content || String(JSON.stringify(j)).slice(0, 2000);
 }
 
-export async function groqText({ system, user, model, maxTokens = 4000 }) {
+export async function groqText({ system, user, model, maxTokens = 4000, temperature } = {}) {
   const m = model || process.env.GROQ_TEXT_MODEL || "llama-3.3-70b-versatile";
   const messages = [];
   if (system) messages.push({ role: "system", content: system });
   messages.push({ role: "user", content: user });
+  const temp = typeof temperature === "number" && temperature >= 0 && temperature <= 2 ? temperature : 0.3;
 
   const res = await fetch(GROQ_CHAT, {
     method: "POST",
@@ -117,7 +120,7 @@ export async function groqText({ system, user, model, maxTokens = 4000 }) {
       model: m,
       messages,
       max_tokens: maxTokens,
-      temperature: 0.3,
+      temperature: temp,
     }),
   });
   const j = await res.json().catch(() => ({}));
