@@ -196,6 +196,7 @@ body {
   justify-content: center;
   cursor: pointer;
   padding: 0;
+  overflow: hidden;
 }
 
 .aton-lang-btn.active {
@@ -207,6 +208,33 @@ body {
   background: #fff;
   color: #111827;
   border-color: rgba(15, 23, 42, 0.18);
+}
+
+.aton-flag {
+  position: relative;
+  display: block;
+  width: 20px;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.18);
+}
+
+.aton-flag--ru {
+  background: linear-gradient(to bottom, #ffffff 0 33.333%, #1d4ed8 33.333% 66.666%, #dc2626 66.666% 100%);
+}
+
+.aton-flag--de {
+  background: linear-gradient(to bottom, #111827 0 33.333%, #dc2626 33.333% 66.666%, #facc15 66.666% 100%);
+}
+
+.aton-flag--gb {
+  background-color: #1e3a8a;
+  background-image:
+    linear-gradient(33deg, transparent 0 40%, #ffffff 40% 47%, #dc2626 47% 53%, #ffffff 53% 60%, transparent 60% 100%),
+    linear-gradient(147deg, transparent 0 40%, #ffffff 40% 47%, #dc2626 47% 53%, #ffffff 53% 60%, transparent 60% 100%),
+    linear-gradient(to bottom, transparent 0 35%, #ffffff 35% 43%, #dc2626 43% 57%, #ffffff 57% 65%, transparent 65% 100%),
+    linear-gradient(to right, transparent 0 35%, #ffffff 35% 43%, #dc2626 43% 57%, #ffffff 57% 65%, transparent 65% 100%);
 }
 
 /* Дублирует тему и друзей с топбара: в шапке сайдбара, на мобиле — в одной строке с логотипом */

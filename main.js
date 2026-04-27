@@ -1602,9 +1602,9 @@ function createApp() {
   authLangSwitcher.className = "aton-auth-lang";
   authLangSwitcher.innerHTML = `
     <div class="aton-lang-switcher" id="aton-auth-lang-switcher" aria-label="Language switcher">
-      <button type="button" class="aton-lang-btn" data-lang="ru" title="Russian">🇷🇺</button>
-      <button type="button" class="aton-lang-btn" data-lang="de" title="Deutsch">🇩🇪</button>
-      <button type="button" class="aton-lang-btn" data-lang="en" title="English (UK)">🇬🇧</button>
+      <button type="button" class="aton-lang-btn" data-lang="ru" title="Русский" aria-label="Русский"><span class="aton-flag aton-flag--ru" aria-hidden="true"></span></button>
+      <button type="button" class="aton-lang-btn" data-lang="de" title="Deutsch" aria-label="Deutsch"><span class="aton-flag aton-flag--de" aria-hidden="true"></span></button>
+      <button type="button" class="aton-lang-btn" data-lang="en" title="English" aria-label="English"><span class="aton-flag aton-flag--gb" aria-hidden="true"></span></button>
     </div>
   `;
   authLoginBlock.appendChild(authLangSwitcher);
@@ -1654,9 +1654,9 @@ function createApp() {
   sidebarLangFooter.className = "aton-sidebar-lang-footer";
   sidebarLangFooter.innerHTML = `
     <div class="aton-lang-switcher" id="aton-sidebar-lang-switcher" aria-label="Language switcher">
-      <button type="button" class="aton-lang-btn" data-lang="ru" title="Russian">🇷🇺</button>
-      <button type="button" class="aton-lang-btn" data-lang="de" title="Deutsch">🇩🇪</button>
-      <button type="button" class="aton-lang-btn" data-lang="en" title="English (UK)">🇬🇧</button>
+      <button type="button" class="aton-lang-btn" data-lang="ru" title="Русский" aria-label="Русский"><span class="aton-flag aton-flag--ru" aria-hidden="true"></span></button>
+      <button type="button" class="aton-lang-btn" data-lang="de" title="Deutsch" aria-label="Deutsch"><span class="aton-flag aton-flag--de" aria-hidden="true"></span></button>
+      <button type="button" class="aton-lang-btn" data-lang="en" title="English" aria-label="English"><span class="aton-flag aton-flag--gb" aria-hidden="true"></span></button>
     </div>
   `;
   sidebar.appendChild(sidebarLangFooter);
