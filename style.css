@@ -149,13 +149,36 @@ body {
 .aton-lang-switcher {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  margin-left: auto;
-  margin-right: 6px;
+  margin: 0;
 }
 
 .aton-lang-switcher--topbar {
   margin: 0 2px 0 0;
+}
+
+.aton-auth-lang {
+  display: none;
+  justify-content: center;
+  padding-top: 12px;
+}
+
+.aton-sidebar-lang-footer {
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: auto;
+  padding: 10px 14px 14px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.aton-shell--guest-landing .aton-auth-lang {
+  display: flex;
+}
+
+.aton-shell--guest-landing .aton-sidebar-lang-footer {
+  display: none;
 }
 
 .aton-lang-btn {
@@ -4338,6 +4361,14 @@ body {
     min-height: 0;
     border-bottom: none;
     padding: 16px 20px max(20px, env(safe-area-inset-bottom));
+  }
+
+  .aton-shell--guest-landing .aton-auth-lang {
+    display: flex;
+  }
+
+  .aton-shell--guest-landing .aton-sidebar-lang-footer {
+    display: none;
   }
 
   /* Гость: скрыть чаты, поиск, профиль — показать только auth */

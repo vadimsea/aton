@@ -1545,11 +1545,6 @@ function createApp() {
           <div class="aton-subtitle">${t("мессенджер под светом диска")}</div>
         </div>
       </div>
-      <div class="aton-lang-switcher" id="aton-sidebar-lang-switcher" aria-label="Language switcher">
-        <button type="button" class="aton-lang-btn" data-lang="ru" title="Russian">🇷🇺</button>
-        <button type="button" class="aton-lang-btn" data-lang="de" title="Deutsch">🇩🇪</button>
-        <button type="button" class="aton-lang-btn" data-lang="en" title="English (UK)">🇬🇧</button>
-      </div>
       <div class="aton-sidebar-toolbar" id="aton-sidebar-toolbar" hidden>
         <button type="button" class="aton-topbar-icon" id="aton-sidebar-friends-btn" title="${t("Друзья, заявки и блокировки")}" style="display:none;">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -1603,6 +1598,16 @@ function createApp() {
   const authLoginBlock = document.createElement("div");
   authLoginBlock.appendChild(tabs);
   authLoginBlock.appendChild(form);
+  const authLangSwitcher = document.createElement("div");
+  authLangSwitcher.className = "aton-auth-lang";
+  authLangSwitcher.innerHTML = `
+    <div class="aton-lang-switcher" id="aton-auth-lang-switcher" aria-label="Language switcher">
+      <button type="button" class="aton-lang-btn" data-lang="ru" title="Russian">🇷🇺</button>
+      <button type="button" class="aton-lang-btn" data-lang="de" title="Deutsch">🇩🇪</button>
+      <button type="button" class="aton-lang-btn" data-lang="en" title="English (UK)">🇬🇧</button>
+    </div>
+  `;
+  authLoginBlock.appendChild(authLangSwitcher);
 
   const authLoggedBlock = document.createElement("div");
   authLoggedBlock.className = "aton-auth-logged";
@@ -1645,6 +1650,17 @@ function createApp() {
 
   sidebar.appendChild(chatsRoot);
 
+  const sidebarLangFooter = document.createElement("div");
+  sidebarLangFooter.className = "aton-sidebar-lang-footer";
+  sidebarLangFooter.innerHTML = `
+    <div class="aton-lang-switcher" id="aton-sidebar-lang-switcher" aria-label="Language switcher">
+      <button type="button" class="aton-lang-btn" data-lang="ru" title="Russian">🇷🇺</button>
+      <button type="button" class="aton-lang-btn" data-lang="de" title="Deutsch">🇩🇪</button>
+      <button type="button" class="aton-lang-btn" data-lang="en" title="English (UK)">🇬🇧</button>
+    </div>
+  `;
+  sidebar.appendChild(sidebarLangFooter);
+
   // === Основная часть: чат ===
   const main = document.createElement("div");
   main.className = "aton-main";
@@ -1663,11 +1679,6 @@ function createApp() {
       </div>
     </div>
     <div class="aton-topbar-right">
-      <div class="aton-lang-switcher aton-lang-switcher--topbar" id="aton-topbar-lang-switcher" aria-label="Language switcher">
-        <button type="button" class="aton-lang-btn" data-lang="ru" title="Russian">🇷🇺</button>
-        <button type="button" class="aton-lang-btn" data-lang="de" title="Deutsch">🇩🇪</button>
-        <button type="button" class="aton-lang-btn" data-lang="en" title="English (UK)">🇬🇧</button>
-      </div>
       <button class="aton-topbar-icon aton-notify-permission-btn" id="aton-notify-permission" title="${t("Разрешить уведомления о сообщениях вне вкладки")}" type="button" style="display:none;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M19 8h2l-2 2"/></svg>
       </button>
@@ -2299,11 +2310,11 @@ function createApp() {
   const sidebarThemeBtn = document.getElementById("aton-sidebar-theme-btn");
   const friendsSidebarBadge = document.getElementById("aton-sidebar-friends-badge");
   const notifyPermissionBtn = document.getElementById("aton-notify-permission");
+  const authLangSwitcherEl = document.getElementById("aton-auth-lang-switcher");
   const sidebarLangSwitcher = document.getElementById("aton-sidebar-lang-switcher");
-  const topbarLangSwitcher = document.getElementById("aton-topbar-lang-switcher");
   const langButtons = [
+    ...(authLangSwitcherEl ? Array.from(authLangSwitcherEl.querySelectorAll(".aton-lang-btn")) : []),
     ...(sidebarLangSwitcher ? Array.from(sidebarLangSwitcher.querySelectorAll(".aton-lang-btn")) : []),
-    ...(topbarLangSwitcher ? Array.from(topbarLangSwitcher.querySelectorAll(".aton-lang-btn")) : []),
   ];
 
   function syncLangButtons() {
