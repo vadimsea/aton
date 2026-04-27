@@ -377,6 +377,129 @@ const I18N = {
     en: "Sign in or create an account first - the form is on the left.",
     de: "Melden Sie sich zuerst an oder registrieren Sie sich - das Formular ist links.",
   },
+  "Создать аккаунт": { en: "Create account", de: "Konto erstellen" },
+  "Имя, email и пароль не менее 6 символов.": {
+    en: "Username, email, and password of at least 6 characters.",
+    de: "Name, E-Mail und Passwort mit mindestens 6 Zeichen.",
+  },
+  "Не удалось загрузить данные. Проверьте сеть и обновите страницу.": {
+    en: "Failed to load data. Check the network and refresh the page.",
+    de: "Daten konnten nicht geladen werden. Pruefen Sie die Verbindung und aktualisieren Sie die Seite.",
+  },
+  "Нет сети — подключаемся, как только сеть появится": {
+    en: "Offline - reconnecting as soon as the network is back",
+    de: "Offline - Verbindung wird wiederhergestellt, sobald das Netzwerk zurueck ist",
+  },
+  "Проблема с подключением": {
+    en: "Connection problem",
+    de: "Verbindungsproblem",
+  },
+  "Войдите по форме слева": {
+    en: "Sign in using the form on the left",
+    de: "Melden Sie sich ueber das Formular links an",
+  },
+  "После входа здесь появятся ваши чаты.": {
+    en: "Your chats will appear here after sign-in.",
+    de: "Nach der Anmeldung erscheinen hier Ihre Chats.",
+  },
+  "Групповой чат": { en: "Group chat", de: "Gruppenchat" },
+  "не участник": { en: "not a member", de: "kein Mitglied" },
+  "Предпросмотр чата": { en: "Chat preview", de: "Chat-Vorschau" },
+  "Личный диалог": { en: "Private chat", de: "Privater Dialog" },
+  "Добро пожаловать": { en: "Welcome", de: "Willkommen" },
+  "Выберите чат или пользователя слева": {
+    en: "Choose a chat or user on the left",
+    de: "Waehlen Sie links einen Chat oder Nutzer",
+  },
+  "Выберите чат": { en: "Choose a chat", de: "Chat auswaehlen" },
+  "Откройте диалог слева или найдите пользователя по @username.": {
+    en: "Open a conversation on the left or find a user by @username.",
+    de: "Oeffnen Sie links einen Dialog oder suchen Sie einen Nutzer per @username.",
+  },
+  "Голос Атона думает": { en: "Aton Voice is thinking", de: "Aton Stimme denkt nach" },
+  "Часто 3–15 с; с голосом дольше — распознавание, ответ и озвучка. Ниже в ленте.": {
+    en: "Usually 3-15 sec; voice takes longer for recognition, reply, and speech. It will appear below in the feed.",
+    de: "Meist 3-15 Sek.; mit Stimme dauert es laenger fuer Erkennung, Antwort und Sprachausgabe. Es erscheint unten im Verlauf.",
+  },
+  "Ниже — лента. Пиши в поле или удерживай круглую кнопку с микрофоном.": {
+    en: "The feed is below. Type in the field or hold the round mic button.",
+    de: "Der Verlauf ist unten. Schreiben Sie ins Feld oder halten Sie die runde Mikrofontaste.",
+  },
+  "Ответы приходят сообщениями в ленту, не потоком в реальном времени.": {
+    en: "Replies arrive as messages in the feed, not as a live stream.",
+    de: "Antworten kommen als Nachrichten im Verlauf, nicht als Live-Stream.",
+  },
+  "Поле ввода": { en: "Input field", de: "Eingabefeld" },
+  "Участники": { en: "Members", de: "Mitglieder" },
+  "Добавляйте по @username. Создателя нельзя удалить.": {
+    en: "Add by @username. The owner cannot be removed.",
+    de: "Per @username hinzufuegen. Der Ersteller kann nicht entfernt werden.",
+  },
+  "Добавить": { en: "Add", de: "Hinzufuegen" },
+  "Введите @username": { en: "Enter @username", de: "@username eingeben" },
+  "Выберите участника": { en: "Choose a member", de: "Mitglied auswaehlen" },
+  "Нельзя удалить создателя чата": {
+    en: "The chat owner cannot be removed",
+    de: "Der Chat-Ersteller kann nicht entfernt werden",
+  },
+  "Принцип, не служба": { en: "Principle, not service", de: "Prinzip, kein Dienst" },
+  "Голос из позиции Атона — не помощник и не сервис": {
+    en: "A voice from Aton's position - not an assistant or a service",
+    de: "Eine Stimme aus Atons Position - kein Assistent und kein Dienst",
+  },
+  "Когда вкладка в фоне, вы будете видеть уведомления о сообщениях": {
+    en: "When the tab is in the background, you will see message notifications",
+    de: "Wenn der Tab im Hintergrund ist, sehen Sie Nachrichtenbenachrichtigungen",
+  },
+  "Разрешите уведомления в настройках сайта в браузере": {
+    en: "Allow notifications in the browser site settings",
+    de: "Erlauben Sie Benachrichtigungen in den Website-Einstellungen des Browsers",
+  },
+  "Звук и уведомления снова включены": {
+    en: "Sound and notifications are on again",
+    de: "Ton und Benachrichtigungen sind wieder an",
+  },
+  "Для этого чата выключены звук и уведомления": {
+    en: "Sound and notifications are off for this chat",
+    de: "Ton und Benachrichtigungen sind fuer diesen Chat aus",
+  },
+  "Заявка принята": { en: "Request accepted", de: "Anfrage angenommen" },
+  "Жалоба отправлена": { en: "Report sent", de: "Meldung gesendet" },
+  "Скопировать ссылку приглашения": {
+    en: "Copy invite link",
+    de: "Einladungslink kopieren",
+  },
+  "Ссылка скопирована": { en: "Link copied", de: "Link kopiert" },
+  "Слишком короткое сообщение": {
+    en: "Message is too short",
+    de: "Nachricht ist zu kurz",
+  },
+  "Приглашение недоступно": {
+    en: "Invite unavailable",
+    de: "Einladung nicht verfuegbar",
+  },
+  "Ссылка недействительна": {
+    en: "Invalid link",
+    de: "Ungueltiger Link",
+  },
+  "Не удалось запросить разрешение": {
+    en: "Failed to request permission",
+    de: "Berechtigung konnte nicht angefragt werden",
+  },
+  "Не удалось отправить": { en: "Failed to send", de: "Senden fehlgeschlagen" },
+  "Не удалось получить доступ к микрофону.": {
+    en: "Failed to access the microphone.",
+    de: "Zugriff auf das Mikrofon fehlgeschlagen.",
+  },
+  "Ошибка": { en: "Error", de: "Fehler" },
+  "Не удалось запустить мессенджер. Обновите страницу (Ctrl+F5) или зайдите позже. Если снова так — откройте консоль (F12) и сделайте скриншот.": {
+    en: "Failed to start the messenger. Refresh the page (Ctrl+F5) or try again later. If it happens again, open the console (F12) and take a screenshot.",
+    de: "Messenger konnte nicht gestartet werden. Aktualisieren Sie die Seite (Ctrl+F5) oder versuchen Sie es spaeter erneut. Wenn es wieder passiert, oeffnen Sie die Konsole (F12) und machen Sie einen Screenshot.",
+  },
+  "Email подтверждён! Добро пожаловать.": {
+    en: "Email verified. Welcome.",
+    de: "E-Mail bestaetigt. Willkommen.",
+  },
 };
 
 function detectPreferredLanguage() {
@@ -2679,8 +2802,8 @@ function createApp() {
     if (mode === "login") {
       tabLogin.classList.add("active");
       tabRegister.classList.remove("active");
-      submitButton.textContent = "Войти";
-      hintEl.textContent = "Введите email и пароль.";
+      submitButton.textContent = t("Войти");
+      hintEl.textContent = t("Введите email и пароль.");
       if (emailGroup) emailGroup.style.display = "block";
       if (passwordGroup) passwordGroup.style.display = "block";
       if (usernameGroup) usernameGroup.style.display = "none";
@@ -2689,8 +2812,8 @@ function createApp() {
     } else {
       tabRegister.classList.add("active");
       tabLogin.classList.remove("active");
-      submitButton.textContent = "Создать аккаунт";
-      hintEl.textContent = "Имя, email и пароль не менее 6 символов.";
+      submitButton.textContent = t("Создать аккаунт");
+      hintEl.textContent = t("Имя, email и пароль не менее 6 символов.");
       if (emailGroup) emailGroup.style.display = "block";
       if (passwordGroup) passwordGroup.style.display = "block";
       if (usernameGroup) usernameGroup.style.display = "block";
@@ -3001,17 +3124,17 @@ function createApp() {
             hintEl.textContent = "";
           }
           if (statusEl) {
-            statusEl.textContent = "Нет сети — подключаемся, как только сеть появится";
+            statusEl.textContent = t("Нет сети — подключаемся, как только сеть появится");
           }
         } else {
           currentUser = null;
           authLoginBlock.style.display = "block";
           authLoggedBlock.style.display = "none";
           if (hintEl) {
-            hintEl.textContent = "Не удалось загрузить данные. Проверьте сеть и обновите страницу.";
+            hintEl.textContent = t("Не удалось загрузить данные. Проверьте сеть и обновите страницу.");
           }
           if (statusEl) {
-            statusEl.textContent = "Проблема с подключением";
+            statusEl.textContent = t("Проблема с подключением");
           }
         }
       }
@@ -3023,7 +3146,7 @@ function createApp() {
     if (!user) {
       authLoginBlock.style.display = "block";
       authLoggedBlock.style.display = "none";
-      statusEl.textContent = "Войдите по форме слева";
+      statusEl.textContent = t("Войдите по форме слева");
       const tb = document.getElementById("aton-topbar");
       if (tb) tb.classList.add("aton-topbar--guest");
       userPill.style.display = "none";
@@ -3558,7 +3681,7 @@ function createApp() {
         } else return;
         await pullContacts();
       } catch (err) {
-        alert(err.message || "Ошибка");
+        alert(err.message || t("Ошибка"));
       }
     });
 
@@ -3572,7 +3695,7 @@ function createApp() {
         setChatNotifyMuted(currentUser.username, cid, nextMuted);
         updatePeerActionBar();
         renderChatList();
-        showToast(nextMuted ? "Для этого чата выключены звук и уведомления" : "Звук и уведомления снова включены");
+        showToast(nextMuted ? t("Для этого чата выключены звук и уведомления") : t("Звук и уведомления снова включены"));
         return;
       }
       const renameBtn = e.target.closest(".aton-peer-rename-local");
@@ -3598,7 +3721,7 @@ function createApp() {
           if (r.status === "accepted") showToast(t("Вы в друзьях"));
         } else if (btn.classList.contains("aton-peer-accept")) {
           await api("/api/contacts/accept", { method: "POST", body: JSON.stringify({ username: peer }) });
-          showToast("Заявка принята");
+          showToast(t("Заявка принята"));
         } else if (btn.classList.contains("aton-peer-decline")) {
           await api("/api/contacts/decline", { method: "POST", body: JSON.stringify({ username: peer }) });
         } else if (btn.classList.contains("aton-peer-cancel")) {
@@ -3606,7 +3729,7 @@ function createApp() {
         } else return;
         await pullContacts();
       } catch (err) {
-        alert(err.message || "Ошибка");
+        alert(err.message || t("Ошибка"));
       }
     });
 
@@ -3628,7 +3751,7 @@ function createApp() {
     if (!current) {
       const info = document.createElement("div");
       info.className = "aton-chat-list-empty";
-      info.textContent = "После входа здесь появятся ваши чаты.";
+      info.textContent = t("После входа здесь появятся ваши чаты.");
       chatListEl.appendChild(info);
       if (contactsEl) contactsEl.innerHTML = "";
       return;
@@ -3780,7 +3903,7 @@ function createApp() {
       if (isGolos) {
         const subtitleEl = document.createElement("div");
         subtitleEl.className = "aton-chat-item-subtitle";
-        subtitleEl.textContent = "Голос, не бот";
+        subtitleEl.textContent = t("Голос, не бот");
         main.appendChild(subtitleEl);
       }
       main.appendChild(previewEl);
@@ -4051,7 +4174,7 @@ function createApp() {
                       body: JSON.stringify({ reason }),
                     });
                     overlay.remove();
-                    showToast("Жалоба отправлена");
+                    showToast(t("Жалоба отправлена"));
                   } catch (err) {
                     alert(err.message);
                   }
@@ -4074,12 +4197,12 @@ function createApp() {
           if (isPrivateChat && inviteTok) {
             dropdown.appendChild(
               createMenuItem({
-                label: "Скопировать ссылку приглашения",
+                label: t("Скопировать ссылку приглашения"),
                 onClick: async () => {
                   const url = `${window.location.origin}/join/${inviteTok}`;
                   try {
                     await navigator.clipboard.writeText(url);
-                    showToast("Ссылка скопирована");
+                    showToast(t("Ссылка скопирована"));
                   } catch {
                     window.prompt("Скопируйте ссылку:", url);
                   }
@@ -4089,7 +4212,7 @@ function createApp() {
           }
           dropdown.appendChild(
             createMenuItem({
-              label: "Участники",
+              label: t("Участники"),
               onClick: async () => {
                 // Берём актуальный chat из allChats
                 const chat = allChats.find((c) => c.id === chatMeta.id) || chatMeta;
@@ -4117,14 +4240,14 @@ function createApp() {
                 modal.style.color = "#e5e7eb";
 
                 modal.innerHTML = `
-                  <div style="font-size:14px;font-weight:600;margin-bottom:8px;">Участники</div>
+                  <div style="font-size:14px;font-weight:600;margin-bottom:8px;">${escHtml(t("Участники"))}</div>
                   <div style="font-size:11px;color:#9ca3af;margin-bottom:12px;">
-                    Добавляйте по @username. Создателя нельзя удалить.
+                    ${escHtml(t("Добавляйте по @username. Создателя нельзя удалить."))}
                   </div>
 
                   <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
                     <input id="aton-member-add-username" type="text" class="aton-input" placeholder="@username" style="flex:1;margin:0;" />
-                    <button type="button" id="aton-member-add-btn" class="aton-primary-button" style="margin-top:0;padding-inline:12px;">Добавить</button>
+                    <button type="button" id="aton-member-add-btn" class="aton-primary-button" style="margin-top:0;padding-inline:12px;">${escHtml(t("Добавить"))}</button>
                   </div>
 
                   <div style="max-height:220px;overflow:auto;border:1px solid rgba(55,65,81,0.9);border-radius:12px;padding:8px;margin-bottom:12px;">
@@ -4132,8 +4255,8 @@ function createApp() {
                   </div>
 
                   <div style="display:flex;justify-content:space-between;gap:10px;">
-                    <button type="button" id="aton-member-delete-btn" class="aton-new-chat-button" style="padding-inline:14px;">Удалить</button>
-                    <button type="button" id="aton-member-close-btn" class="aton-new-chat-button" style="padding-inline:14px;">Закрыть</button>
+                    <button type="button" id="aton-member-delete-btn" class="aton-new-chat-button" style="padding-inline:14px;">${escHtml(t("Удалить"))}</button>
+                    <button type="button" id="aton-member-close-btn" class="aton-new-chat-button" style="padding-inline:14px;">${escHtml(t("Закрыть"))}</button>
                   </div>
                 `;
 
@@ -4213,7 +4336,7 @@ function createApp() {
 
                 addBtn.addEventListener("click", async () => {
                   const raw = (addInput.value || "").trim();
-                  if (!raw) return alert("Введите @username");
+                  if (!raw) return alert(t("Введите @username"));
                   const username = raw.replace(/^@/, "");
                   try {
                     await api(`/api/chats/${chatId}/members/add`, {
@@ -4228,9 +4351,9 @@ function createApp() {
                 });
 
                 delBtn.addEventListener("click", async () => {
-                  if (!selectedUserId) return alert("Выберите участника");
+                  if (!selectedUserId) return alert(t("Выберите участника"));
                   if (ownerId && String(selectedUserId) === String(ownerId)) {
-                    return alert("Нельзя удалить создателя чата");
+                    return alert(t("Нельзя удалить создателя чата"));
                   }
                   try {
                     await api(`/api/chats/${chatId}/members/remove`, {
@@ -4302,7 +4425,7 @@ function createApp() {
         } else if (isOwner) {
           dropdown.appendChild(
             createMenuItem({
-              label: "Удалить",
+              label: t("Удалить"),
               onClick: () => deleteChat({ moderation: false }),
             })
           );
@@ -4416,9 +4539,9 @@ function createApp() {
             <line x1="9" y1="10" x2="15" y2="10" opacity="0.5"/>
           </svg>
         </div>
-        <h2 class="aton-empty-title">Выберите чат</h2>
+        <h2 class="aton-empty-title">${escHtml(t("Выберите чат"))}</h2>
         <p class="aton-empty-lead">
-          Откройте диалог слева или найдите пользователя по @username.
+          ${escHtml(t("Откройте диалог слева или найдите пользователя по @username."))}
         </p>
       </div>
     `;
@@ -4432,8 +4555,8 @@ function createApp() {
     wrap.innerHTML = `<div class="aton-golos-pending-card" role="status" aria-live="polite" aria-atomic="true">
       <div class="aton-golos-typing-dots" aria-hidden="true"><span></span><span></span><span></span></div>
       <div class="aton-golos-pending-copy">
-        <p class="aton-golos-pending-title">Голос Атона думает${queueBadge}</p>
-        <p class="aton-golos-pending-hint">Часто 3–15 с; с голосом дольше — распознавание, ответ и озвучка. Ниже в ленте.</p>
+        <p class="aton-golos-pending-title">${escHtml(t("Голос Атона думает"))}${queueBadge}</p>
+        <p class="aton-golos-pending-hint">${escHtml(t("Часто 3–15 с; с голосом дольше — распознавание, ответ и озвучка. Ниже в ленте."))}</p>
       </div>
     </div>`;
     return wrap;
@@ -4450,11 +4573,11 @@ function createApp() {
               </svg>
             </div>
           </div>
-          <h2 class="aton-golos-empty-gpt-title">Голос Атона</h2>
-          <p class="aton-golos-empty-gpt-lead">Ниже — лента. Пиши в поле или удерживай круглую кнопку с микрофоном.</p>
-          <p class="aton-golos-empty-tiny aton-golos-empty-tiny--gpt">Ответы приходят сообщениями в ленту, не потоком в реальном времени.</p>
+          <h2 class="aton-golos-empty-gpt-title">${escHtml(t("Голос Атона"))}</h2>
+          <p class="aton-golos-empty-gpt-lead">${escHtml(t("Ниже — лента. Пиши в поле или удерживай круглую кнопку с микрофоном."))}</p>
+          <p class="aton-golos-empty-tiny aton-golos-empty-tiny--gpt">${escHtml(t("Ответы приходят сообщениями в ленту, не потоком в реальном времени."))}</p>
           <div class="aton-golos-empty-actions">
-            <button type="button" class="aton-golos-empty-focus-btn" id="aton-golos-empty-focus-cta">Поле ввода</button>
+            <button type="button" class="aton-golos-empty-focus-btn" id="aton-golos-empty-focus-cta">${escHtml(t("Поле ввода"))}</button>
           </div>
         </div>
       `;
@@ -5460,7 +5583,7 @@ function createApp() {
               method: "POST",
               body: JSON.stringify({ username: u.username }),
             });
-            showToast("Заявка принята");
+            showToast(t("Заявка принята"));
             await syncContactsAfterAction();
           } catch (err) {
             alert(err.message);
@@ -5901,10 +6024,10 @@ function createApp() {
       try {
         const p = await Notification.requestPermission();
         updateNotifyPermissionButton();
-        if (p === "granted") showToast("Когда вкладка в фоне, вы будете видеть уведомления о сообщениях");
-        else if (p === "denied") showToast("Разрешите уведомления в настройках сайта в браузере");
+        if (p === "granted") showToast(t("Когда вкладка в фоне, вы будете видеть уведомления о сообщениях"));
+        else if (p === "denied") showToast(t("Разрешите уведомления в настройках сайта в браузере"));
       } catch (_) {
-        showToast("Не удалось запросить разрешение");
+        showToast(t("Не удалось запросить разрешение"));
       }
     });
   }
@@ -6317,7 +6440,7 @@ function createApp() {
 
         const durSec = (Date.now() - recordingStartedAt) / 1000;
         if (blob.size < 80 || durSec < 0.45) {
-          showToast("Слишком короткое сообщение");
+          showToast(t("Слишком короткое сообщение"));
           voiceSessionChatId = null;
           return;
         }
@@ -6328,7 +6451,7 @@ function createApp() {
             try {
               await sendAudioBlobAsMessage(blob);
             } catch (e) {
-              alert((e && e.message) || "Не удалось отправить");
+              alert((e && e.message) || t("Не удалось отправить"));
             }
           })();
           return;
@@ -6357,7 +6480,7 @@ function createApp() {
       clearPttDocEndHandler();
       releasePttPointerCaptureIfAny(capEl, capturePointerId);
       pttInFlight = false;
-      alert("Не удалось получить доступ к микрофону.");
+      alert(t("Не удалось получить доступ к микрофону."));
       console.error(err);
       activeMicStream = null;
       voiceSessionChatId = null;
@@ -6401,11 +6524,11 @@ function createApp() {
       const current = currentUser;
       statusEl.classList.remove("aton-topbar-status--online");
       if (!current) {
-        setTitle("Добро пожаловать", false);
+        setTitle(t("Добро пожаловать"), false);
         return;
       }
       if (!currentChatId) {
-        setTitle("Выберите чат или пользователя слева", false);
+        setTitle(t("Выберите чат или пользователя слева"), false);
         return;
       }
       if (currentChatId.startsWith("group:") || currentChatId.startsWith("channel:")) {
@@ -6413,31 +6536,31 @@ function createApp() {
         if (chatMeta) {
           const verified = Boolean(chatMeta.verified);
           setTitle(chatMeta.title, verified);
-          statusEl.textContent = "групповой чат";
+          statusEl.textContent = t("Групповой чат");
           statusEl.removeAttribute("title");
           return;
         }
         const preview = discoverChats.find((c) => c.id === currentChatId);
         if (preview) {
-          setTitle(preview.title + " (не участник)", Boolean(preview.verified));
+          setTitle(`${preview.title} (${t("не участник")})`, Boolean(preview.verified));
         } else {
-          setTitle("Предпросмотр чата", false);
+          setTitle(t("Предпросмотр чата"), false);
         }
-        statusEl.textContent = "групповой чат";
+        statusEl.textContent = t("Групповой чат");
         statusEl.removeAttribute("title");
         return;
       }
       const peer = currentChatPeer();
       if (!peer) {
-        setTitle("Личный диалог", false);
+        setTitle(t("Личный диалог"), false);
         statusEl.textContent = "";
         statusEl.removeAttribute("title");
         return;
       }
       if (peer === GOLOS_ATON_USERNAME) {
-        setTitle("Голос Атона", true);
-        statusEl.textContent = "Принцип, не служба";
-        statusEl.setAttribute("title", "Голос из позиции Атона — не помощник и не сервис");
+        setTitle(t("Голос Атона"), true);
+        statusEl.textContent = t("Принцип, не служба");
+        statusEl.setAttribute("title", t("Голос из позиции Атона — не помощник и не сервис"));
         statusEl.classList.add("aton-topbar-status--online");
         return;
       }
@@ -6521,8 +6644,8 @@ function createApp() {
         titleEl.textContent = t;
       })
       .catch((e) => {
-        titleEl.textContent = "Приглашение недоступно";
-        errEl.textContent = e.message || "Ссылка недействительна";
+        titleEl.textContent = t("Приглашение недоступно");
+        errEl.textContent = e.message || t("Ссылка недействительна");
         errEl.style.display = "block";
         joinBtn.style.display = "none";
       });
@@ -6555,7 +6678,7 @@ function createApp() {
         renderMessages();
         updateTopbarTitle();
       } catch (e) {
-        errEl.textContent = e.message || "Ошибка";
+        errEl.textContent = e.message || t("Ошибка");
         errEl.style.display = "block";
       }
     });
@@ -6701,7 +6824,7 @@ function createApp() {
 
       if (verifyResult && verifyResult.ok) {
         const hint = document.querySelector(".aton-auth-hint");
-        if (hint) hint.textContent = "Email подтверждён! Добро пожаловать.";
+        if (hint) hint.textContent = t("Email подтверждён! Добро пожаловать.");
       }
 
       applyCurrentUserUI();
@@ -6714,7 +6837,7 @@ function createApp() {
       if (root && !root.querySelector(".aton-shell")) {
         root.insertAdjacentHTML(
           "afterbegin",
-          '<div class="aton-init-fatal" style="position:fixed;z-index:9999;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(2,6,23,0.95);color:#e5e7eb;font:14px/1.5 system-ui,sans-serif;text-align:center;max-width:100vw;box-sizing:border-box;"><div style="max-width:22rem">Не удалось запустить мессенджер. Обновите страницу (Ctrl+F5) или зайдите позже. Если снова так — откройте консоль (F12) и сделайте скриншот.</div></div>'
+          `<div class="aton-init-fatal" style="position:fixed;z-index:9999;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(2,6,23,0.95);color:#e5e7eb;font:14px/1.5 system-ui,sans-serif;text-align:center;max-width:100vw;box-sizing:border-box;"><div style="max-width:22rem">${escHtml(t("Не удалось запустить мессенджер. Обновите страницу (Ctrl+F5) или зайдите позже. Если снова так — откройте консоль (F12) и сделайте скриншот."))}</div></div>`
         );
       } else if (typeof showToast === "function") {
         showToast(t("Не удалось загрузить"));
