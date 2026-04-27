@@ -1926,11 +1926,11 @@ function createApp() {
     if (!messagesBottomInView) {
       return;
     }
-    if (messageResizeRafId) {
-      cancelAnimationFrame(messageResizeRafId);
+    if (messagesResizeRafId) {
+      cancelAnimationFrame(messagesResizeRafId);
     }
-    messageResizeRafId = requestAnimationFrame(() => {
-      messageResizeRafId = 0;
+    messagesResizeRafId = requestAnimationFrame(() => {
+      messagesResizeRafId = 0;
       if (!messagesBottomInView) {
         return;
       }
