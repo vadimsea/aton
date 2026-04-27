@@ -1043,15 +1043,15 @@ function formatPeerPresence(peerUser) {
       title: "",
     };
   }
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) {
+  const seenAt = new Date(iso).getTime();
+  if (Number.isNaN(seenAt)) {
     return {
       text: t("нет данных о последнем визите"),
       online: false,
       title: "",
     };
   }
-  const diff = Date.now() - t;
+  const diff = Date.now() - seenAt;
   const ONLINE_MS = 60 * 1000;
   if (diff < ONLINE_MS) {
     return { text: t("онлайн"), online: true, title: t("Сейчас онлайн") };
@@ -6711,11 +6711,13 @@ function createApp() {
       updateTopbarTitle();
     } catch (e) {
       console.error("Aton: init", e);
-      if (root) {
+      if (root && !root.querySelector(".aton-shell")) {
         root.insertAdjacentHTML(
           "afterbegin",
           '<div class="aton-init-fatal" style="position:fixed;z-index:9999;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(2,6,23,0.95);color:#e5e7eb;font:14px/1.5 system-ui,sans-serif;text-align:center;max-width:100vw;box-sizing:border-box;"><div style="max-width:22rem">Не удалось запустить мессенджер. Обновите страницу (Ctrl+F5) или зайдите позже. Если снова так — откройте консоль (F12) и сделайте скриншот.</div></div>'
         );
+      } else if (typeof showToast === "function") {
+        showToast(t("Не удалось загрузить"));
       }
     }
   })();
