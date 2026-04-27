@@ -5,6 +5,459 @@ const TOKEN_KEY = "aton_token";
 const SESSION_ME_CACHE_KEY = "aton_me_cache_v1";
 /** Системный ассистент (сервер: тот же username). */
 const GOLOS_ATON_USERNAME = "golos_aton";
+const LANG_KEY = "aton_lang";
+
+const I18N = {
+  "Подтвердите email": { en: "Verify your email", de: "E-Mail bestaetigen" },
+  "ваш email": { en: "your email", de: "Ihre E-Mail" },
+  "Мы отправили письмо на": { en: "We sent an email to", de: "Wir haben eine E-Mail gesendet an" },
+  "Перейдите по ссылке в письме, чтобы активировать аккаунт.": {
+    en: "Open the link in the email to activate your account.",
+    de: "Oeffnen Sie den Link in der E-Mail, um Ihr Konto zu aktivieren.",
+  },
+  "Отправить повторно": { en: "Resend", de: "Erneut senden" },
+  "Выйти": { en: "Log out", de: "Abmelden" },
+  "Письмо отправлено повторно.": { en: "Email sent again.", de: "E-Mail wurde erneut gesendet." },
+  "АТОН": { en: "ATON", de: "ATON" },
+  "мессенджер под светом диска": {
+    en: "messenger under the disk light",
+    de: "Messenger unter dem Licht der Scheibe",
+  },
+  "Друзья, заявки и блокировки": {
+    en: "Friends, requests, and blocked",
+    de: "Freunde, Anfragen und blockiert",
+  },
+  "Сменить тему": { en: "Toggle theme", de: "Thema wechseln" },
+  "Вход": { en: "Sign in", de: "Anmelden" },
+  "Регистрация": { en: "Sign up", de: "Registrieren" },
+  "Имя пользователя": { en: "Username", de: "Benutzername" },
+  "Пароль": { en: "Password", de: "Passwort" },
+  "Повторите пароль": { en: "Repeat password", de: "Passwort wiederholen" },
+  "Войти": { en: "Sign in", de: "Anmelden" },
+  "Забыли пароль?": { en: "Forgot password?", de: "Passwort vergessen?" },
+  "В сети": { en: "Online", de: "Online" },
+  "Профиль": { en: "Profile", de: "Profil" },
+  "Чаты": { en: "Chats", de: "Chats" },
+  "+ Группа": { en: "+ Group", de: "+ Gruppe" },
+  "Поиск по имени или @username…": {
+    en: "Search by name or @username…",
+    de: "Suche nach Name oder @username…",
+  },
+  "Профиль:": { en: "Profile:", de: "Profil:" },
+  "настроить имя, статус и аватар": {
+    en: "set name, status, and avatar",
+    de: "Name, Status und Avatar einstellen",
+  },
+  "Назад к чатам": { en: "Back to chats", de: "Zurueck zu Chats" },
+  "Атон": { en: "Aton", de: "Aton" },
+  "Войдите, чтобы открыть чаты": {
+    en: "Sign in to open chats",
+    de: "Melden Sie sich an, um Chats zu oeffnen",
+  },
+  "Разрешить уведомления о сообщениях вне вкладки": {
+    en: "Allow notifications for messages outside the tab",
+    de: "Benachrichtigungen fuer Nachrichten ausserhalb des Tabs erlauben",
+  },
+  "Личные диалоги": { en: "Private chats", de: "Private Chats" },
+  "Группы и каналы": { en: "Groups and channels", de: "Gruppen und Kanaele" },
+  "Все пользователи": { en: "All users", de: "Alle Benutzer" },
+  "Модерация": { en: "Moderation", de: "Moderation" },
+  "Идёт запись. Отпустите кнопку микрофона, чтобы остановить.": {
+    en: "Recording... Release the mic button to stop.",
+    de: "Aufnahme laeuft... Mikrofon loslassen zum Stoppen.",
+  },
+  "Сообщение…": { en: "Message…", de: "Nachricht…" },
+  "Фото": { en: "Photo", de: "Foto" },
+  "Удерживайте, чтобы записать голос": {
+    en: "Hold to record voice",
+    de: "Gedrueckt halten fuer Sprachaufnahme",
+  },
+  "ОТПРАВИТЬ": { en: "SEND", de: "SENDEN" },
+  "Голосовое": { en: "Voice", de: "Sprachnachricht" },
+  "Прослушать": { en: "Listen", de: "Anhoeren" },
+  "Удалить": { en: "Delete", de: "Loeschen" },
+  "Отправить": { en: "Send", de: "Senden" },
+  "Друзья и контакты": { en: "Friends and contacts", de: "Freunde und Kontakte" },
+  "Закрыть": { en: "Close", de: "Schliessen" },
+  "В друзьях — те, кого вы добавили и кто принял заявку. Переписка возможна и без этого; друзья видны в списке ниже.": {
+    en: "Friends are those you added and who accepted your request. You can chat without this too; friends are listed below.",
+    de: "Freunde sind die, die Sie hinzugefuegt haben und die Anfrage angenommen haben. Chatten geht auch ohne das; Freunde sind unten sichtbar.",
+  },
+  "Входящие заявки": { en: "Incoming requests", de: "Eingehende Anfragen" },
+  "Исходящие заявки": { en: "Outgoing requests", de: "Ausgehende Anfragen" },
+  "Друзья": { en: "Friends", de: "Freunde" },
+  "Заблокированные": { en: "Blocked", de: "Blockiert" },
+  "Голос Атона": { en: "Aton Voice", de: "Aton Stimme" },
+  "🎙 Голосовое": { en: "🎙 Voice", de: "🎙 Sprache" },
+  "Сообщение без текста": { en: "Message without text", de: "Nachricht ohne Text" },
+  "Подключение…": { en: "Connecting…", de: "Verbindung…"},
+  "Загружаем переписку…": { en: "Loading chats…", de: "Lade Chats…"},
+  "Проверяем сессию…": { en: "Checking session…", de: "Sitzung wird geprueft…"},
+  "Печатаете сообщение…": { en: "Typing a message…", de: "Nachricht wird getippt…"},
+  "Запись… отпустите, чтобы остановить": {
+    en: "Recording... release to stop",
+    de: "Aufnahme... loslassen zum Stoppen",
+  },
+  "Текст — Enter. Голос — удерживайте кнопку с микрофоном, отпустите для отправки": {
+    en: "Text: Enter. Voice: hold the mic button and release to send",
+    de: "Text: Enter. Sprache: Mikro-Taste halten und zum Senden loslassen",
+  },
+  "Текст: ввод и Enter. Голос: удерживайте круглую кнопку с микрофоном, отпустите — отправка.": {
+    en: "Text: type and press Enter. Voice: hold the round mic button, release to send.",
+    de: "Text: eingeben und Enter. Sprache: runde Mikro-Taste halten, loslassen zum Senden.",
+  },
+  "Принять": { en: "Accept", de: "Annehmen" },
+  "Отклонить": { en: "Decline", de: "Ablehnen" },
+  "Отменить заявку": { en: "Cancel request", de: "Anfrage abbrechen" },
+  "Разблокировать": { en: "Unblock", de: "Entsperren" },
+  "Голос, не бот": { en: "Voice, not a bot", de: "Stimme, kein Bot" },
+  "Голос Атона думает": { en: "Aton Voice is thinking", de: "Aton Stimme denkt nach" },
+  "Настройте, как вы выглядите в Атоне.": {
+    en: "Set up how you appear in Aton.",
+    de: "Stellen Sie ein, wie Sie in Aton erscheinen.",
+  },
+  "Отправлено": { en: "Sent", de: "Gesendet" },
+  "Доставлено": { en: "Delivered", de: "Zugestellt" },
+  "Прочитано": { en: "Read", de: "Gelesen" },
+  "Нет сообщений": { en: "No messages", de: "Keine Nachrichten" },
+  "📷 Фото": { en: "📷 Photo", de: "📷 Foto" },
+  "давно не был(а) в сети": { en: "last seen long ago", de: "lange nicht online" },
+  "Статус скрыт": { en: "Status hidden", de: "Status verborgen" },
+  "нет данных о последнем визите": { en: "no last seen data", de: "keine Last-Seen-Daten" },
+  "онлайн": { en: "online", de: "online" },
+  "Сейчас онлайн": { en: "Online now", de: "Jetzt online" },
+  "Воспроизвести": { en: "Play", de: "Abspielen" },
+  "Позиция воспроизведения": { en: "Playback position", de: "Wiedergabeposition" },
+  "Пауза": { en: "Pause", de: "Pause" },
+  "Не удалось загрузить": { en: "Failed to load", de: "Laden fehlgeschlagen" },
+  "Нет сети или сервер не отвечает": { en: "No network or server unavailable", de: "Kein Netzwerk oder Server nicht erreichbar" },
+  "Сессия устарела. Войдите снова — так бывает, если вы входили с другого устройства или браузера.": {
+    en: "Session expired. Please sign in again — this can happen if you signed in from another device or browser.",
+    de: "Sitzung abgelaufen. Bitte erneut anmelden — das kann passieren, wenn Sie sich von einem anderen Geraet oder Browser angemeldet haben.",
+  },
+  "Ошибка соединения с сервером": { en: "Server connection error", de: "Serververbindungsfehler" },
+  "Укажите email, имя и дважды один и тот же пароль.": {
+    en: "Enter email, username, and the same password twice.",
+    de: "Bitte E-Mail, Benutzername und dasselbe Passwort zweimal eingeben.",
+  },
+  "Пароль должен содержать не менее 6 символов.": {
+    en: "Password must be at least 6 characters.",
+    de: "Das Passwort muss mindestens 6 Zeichen enthalten.",
+  },
+  "Пароли не совпадают. Введите их одинаково.": {
+    en: "Passwords do not match. Enter them identically.",
+    de: "Passwoerter stimmen nicht ueberein. Bitte identisch eingeben.",
+  },
+  "Аккаунт создан. Проверьте почту для подтверждения.": {
+    en: "Account created. Check your email for verification.",
+    de: "Konto erstellt. Bitte E-Mail zur Bestaetigung pruefen.",
+  },
+  "Введите email и пароль.": { en: "Enter email and password.", de: "E-Mail und Passwort eingeben." },
+  "Вход выполнен.": { en: "Signed in.", de: "Angemeldet." },
+  "был(а) в сети {minutes} мин назад": {
+    en: "last seen {minutes} min ago",
+    de: "zuletzt vor {minutes} Min online",
+  },
+  "был(а) в сети сегодня в {time}": {
+    en: "last seen today at {time}",
+    de: "zuletzt heute um {time} online",
+  },
+  "был(а) в сети вчера в {time}": {
+    en: "last seen yesterday at {time}",
+    de: "zuletzt gestern um {time} online",
+  },
+  "был(а) в сети {date}, {time}": {
+    en: "last seen {date}, {time}",
+    de: "zuletzt online {date}, {time}",
+  },
+  "был(а) в сети {date}": {
+    en: "last seen {date}",
+    de: "zuletzt online {date}",
+  },
+  "Чат": { en: "Chat", de: "Chat" },
+  "Новое сообщение": { en: "New message", de: "Neue Nachricht" },
+  "Голосовое сообщение": { en: "Voice message", de: "Sprachnachricht" },
+  "Нет чата": { en: "No chat selected", de: "Kein Chat ausgewaehlt" },
+  "Не удалось прочитать запись": { en: "Failed to read recording", de: "Aufnahme konnte nicht gelesen werden" },
+  "Текст — Enter · голос — удерживайте микрофон": {
+    en: "Text: Enter · voice: hold the mic",
+    de: "Text: Enter · Sprache: Mikro gedrueckt halten",
+  },
+  "Не в сети": { en: "Offline", de: "Offline" },
+  "В сети как {name}": { en: "Online as {name}", de: "Online als {name}" },
+  "Недавно были в сети как {name}": {
+    en: "Recently online as {name}",
+    de: "Kuerzlich online als {name}",
+  },
+  "Верифицировано": { en: "Verified", de: "Verifiziert" },
+  "Уведомления отключены": { en: "Notifications off", de: "Benachrichtigungen aus" },
+  "канал": { en: "channel", de: "Kanal" },
+  "группа": { en: "group", de: "Gruppe" },
+  "создал": { en: "created by", de: "erstellt von" },
+  "Открыть": { en: "Open", de: "Oeffnen" },
+  "Включить уведомления": { en: "Turn notifications on", de: "Benachrichtigungen einschalten" },
+  "Без звука и уведомлений": { en: "Mute sound and notifications", de: "Ton und Benachrichtigungen aus" },
+  "Звук и уведомления снова включены для этого чата": {
+    en: "Sound and notifications are on again for this chat",
+    de: "Ton und Benachrichtigungen sind fuer diesen Chat wieder an",
+  },
+  "Для этого чата выключены звук и всплывающие уведомления": {
+    en: "Sound and pop-up notifications are off for this chat",
+    de: "Ton und Pop-up-Benachrichtigungen sind fuer diesen Chat aus",
+  },
+  "Пожаловаться": { en: "Report", de: "Melden" },
+  "Ответить": { en: "Reply", de: "Antworten" },
+  "Ответ на сообщение от {name}…": {
+    en: "Replying to a message from {name}…",
+    de: "Antwort auf eine Nachricht von {name}…",
+  },
+  "Редактировать": { en: "Edit", de: "Bearbeiten" },
+  "Измените текст сообщения:": { en: "Edit message text:", de: "Nachrichtentext bearbeiten:" },
+  "Снять закрепление": { en: "Unpin", de: "Fixierung aufheben" },
+  "Закрепить сообщение": { en: "Pin message", de: "Nachricht fixieren" },
+  "Удалить сообщение": { en: "Delete message", de: "Nachricht loeschen" },
+  "Вы заблокировали этого пользователя. Разблокируйте его в контактах, чтобы писать.": {
+    en: "You blocked this user. Unblock them in contacts to write.",
+    de: "Sie haben diesen Benutzer blockiert. Entsperren Sie ihn in den Kontakten, um zu schreiben.",
+  },
+  "Не удалось прочитать изображение.": {
+    en: "Failed to read the image.",
+    de: "Bild konnte nicht gelesen werden.",
+  },
+  "Не удалось прочитать файл.": {
+    en: "Failed to read the file.",
+    de: "Datei konnte nicht gelesen werden.",
+  },
+  "Пользователи": { en: "Users", de: "Benutzer" },
+  "В друзьях": { en: "Friends", de: "Freunde" },
+  "Вы друзья": { en: "Friends", de: "Freunde" },
+  "Заявка отправлена": { en: "Request sent", de: "Anfrage gesendet" },
+  "Добавить в друзья": { en: "Add friend", de: "Als Freund hinzufuegen" },
+  "Заблокировать": { en: "Block", de: "Blockieren" },
+  "Написать": { en: "Message", de: "Schreiben" },
+  "Мои чаты": { en: "My chats", de: "Meine Chats" },
+  "Рекомендуемые чаты": { en: "Recommended chats", de: "Empfohlene Chats" },
+  "не участник": { en: "not a member", de: "kein Mitglied" },
+  "Вступить": { en: "Join", de: "Beitreten" },
+  "Вступить в {type}": { en: "Join {type}", de: "{type} beitreten" },
+  "Вступаем…": { en: "Joining…", de: "Beitritt…" },
+  "Вы вступили в чат": { en: "You joined the chat", de: "Sie sind dem Chat beigetreten" },
+  "Не удалось вступить в чат": { en: "Failed to join chat", de: "Beitritt fehlgeschlagen" },
+  "Новый чат": { en: "New chat", de: "Neuer Chat" },
+  "Выберите тип и введите название.": {
+    en: "Choose a type and enter a title.",
+    de: "Typ waehlen und Titel eingeben.",
+  },
+  "Тип": { en: "Type", de: "Typ" },
+  "Доступ": { en: "Access", de: "Zugriff" },
+  "Публичный": { en: "Public", de: "Oeffentlich" },
+  "Приватный": { en: "Private", de: "Privat" },
+  "Например: «Песни о Фивах»": { en: "For example: \"Songs of Thebes\"", de: "Zum Beispiel: \"Lieder ueber Theben\"" },
+  "Описание": { en: "Description", de: "Beschreibung" },
+  "необязательно": { en: "optional", de: "optional" },
+  "О чём этот чат?": { en: "What is this chat about?", de: "Worum geht es in diesem Chat?" },
+  "Отмена": { en: "Cancel", de: "Abbrechen" },
+  "Создать": { en: "Create", de: "Erstellen" },
+  "В этом чате пока нет сообщений": { en: "There are no messages in this chat yet", de: "In diesem Chat gibt es noch keine Nachrichten" },
+  "Напишите первое сообщение, чтобы начать диалог.": {
+    en: "Write the first message to start the conversation.",
+    de: "Schreiben Sie die erste Nachricht, um den Dialog zu starten.",
+  },
+  "приватный {type}": { en: "private {type}", de: "privater {type}" },
+  "публичный {type}": { en: "public {type}", de: "oeffentlicher {type}" },
+  "Чат закрытый. Попросите администратора выслать вам ссылку-приглашение.": {
+    en: "This chat is private. Ask an administrator to send you an invite link.",
+    de: "Dieser Chat ist privat. Bitten Sie einen Administrator um einen Einladungslink.",
+  },
+  "создан сегодня": { en: "created today", de: "heute erstellt" },
+  "только что": { en: "just now", de: "gerade eben" },
+  "{n} мин. назад": { en: "{n} min ago", de: "vor {n} Min." },
+  "{n} ч. назад": { en: "{n} h ago", de: "vor {n} Std." },
+  "вчера": { en: "yesterday", de: "gestern" },
+  "участник": { en: "member", de: "Mitglied" },
+  "участника": { en: "members", de: "Mitglieder" },
+  "участников": { en: "members", de: "Mitglieder" },
+  "Последнее сообщение": { en: "Last message", de: "Letzte Nachricht" },
+  "Сообщений пока нет": { en: "No messages yet", de: "Noch keine Nachrichten" },
+  "Вы сможете читать и отправлять сообщения": {
+    en: "You will be able to read and send messages",
+    de: "Sie koennen Nachrichten lesen und senden",
+  },
+  "Действия": { en: "Actions", de: "Aktionen" },
+  "Сначала войдите или зарегистрируйтесь, чтобы создавать группы.": {
+    en: "Sign in or create an account first to create groups.",
+    de: "Melden Sie sich zuerst an oder registrieren Sie sich, um Gruppen zu erstellen.",
+  },
+  "Включить звук и уведомления для этого чата": {
+    en: "Turn on sound and notifications for this chat",
+    de: "Ton und Benachrichtigungen fuer diesen Chat einschalten",
+  },
+  "Выключить звук и уведомления для этого чата": {
+    en: "Turn off sound and notifications for this chat",
+    de: "Ton und Benachrichtigungen fuer diesen Chat ausschalten",
+  },
+  "Звук и уведомления снова включены": {
+    en: "Sound and notifications are on again",
+    de: "Ton und Benachrichtigungen sind wieder an",
+  },
+  "Для этого чата выключены звук и уведомления": {
+    en: "Sound and notifications are off for this chat",
+    de: "Ton und Benachrichtigungen sind fuer diesen Chat aus",
+  },
+  "Не удалось сохранить": { en: "Failed to save", de: "Speichern fehlgeschlagen" },
+  "создатель": { en: "owner", de: "Ersteller" },
+  "Удалить эту группу и её сообщения?": {
+    en: "Delete this group and its messages?",
+    de: "Diese Gruppe und ihre Nachrichten loeschen?",
+  },
+  "{n} в очереди": { en: "{n} queued", de: "{n} in der Warteschlange" },
+  "изм.": { en: "edited", de: "bearbeitet" },
+  "Показываемое имя ({name}) — изменить в вашем списке": {
+    en: "Display name ({name}) - change in your list",
+    de: "Anzeigename ({name}) - in Ihrer Liste aendern",
+  },
+  "Изменить отображаемое имя собеседника": {
+    en: "Change contact display name",
+    de: "Anzeigenamen des Kontakts aendern",
+  },
+  "Сохранено": { en: "Saved", de: "Gespeichert" },
+  "Вы в друзьях": { en: "You are friends", de: "Sie sind befreundet" },
+  "Пока никого нет. Отправьте заявку из поиска или из открытого чата.": {
+    en: "No one yet. Send a request from search or from an open chat.",
+    de: "Noch niemand da. Senden Sie eine Anfrage aus der Suche oder aus einem offenen Chat.",
+  },
+  "Уведомления не поддерживаются в этом браузере": {
+    en: "Notifications are not supported in this browser",
+    de: "Benachrichtigungen werden in diesem Browser nicht unterstuetzt",
+  },
+  "Под солнцем Ахетатона": { en: "Under the sun of Akhetaten", de: "Unter der Sonne von Achetaton" },
+  "Спокойные диалоги — без лишнего шума": {
+    en: "Calm conversations without extra noise",
+    de: "Ruhige Dialoge ohne unnoetigen Laerm",
+  },
+  "Личные и групповые чаты в сдержанном интерфейсе. Меньше отвлечений — больше смысла в переписке.": {
+    en: "Private and group chats in a restrained interface. Fewer distractions, more meaning in conversation.",
+    de: "Private und Gruppen-Chats in einer ruhigen Oberflaeche. Weniger Ablenkung, mehr Sinn im Austausch.",
+  },
+  "Сначала войдите или зарегистрируйтесь.": {
+    en: "Sign in or create an account first.",
+    de: "Melden Sie sich zuerst an oder registrieren Sie sich.",
+  },
+  "Профиль пользователя": { en: "User profile", de: "Benutzerprofil" },
+  "Загрузить аватар": { en: "Upload avatar", de: "Avatar hochladen" },
+  "Отображаемое имя": { en: "Display name", de: "Anzeigename" },
+  "Как видеть себя в чатах (только у вас)": {
+    en: "How you see yourself in chats (only for you)",
+    de: "Wie Sie sich in Chats sehen (nur fuer Sie)",
+  },
+  "Только в этом браузере, для других не меняется": {
+    en: "Only in this browser, unchanged for others",
+    de: "Nur in diesem Browser, fuer andere unveraendert",
+  },
+  "Не отправляется на сервер. Пустое поле — показывается имя из профиля выше.": {
+    en: "Not sent to the server. Empty value shows the profile name above.",
+    de: "Wird nicht an den Server gesendet. Leer zeigt den Profilnamen oben.",
+  },
+  "Статус": { en: "Status", de: "Status" },
+  "Например: «Пишу при свете Атена»": {
+    en: "For example: \"Writing by Aten's light\"",
+    de: "Zum Beispiel: \"Ich schreibe im Licht Atons\"",
+  },
+  "ID профиля": { en: "Profile ID", de: "Profil-ID" },
+  "Удобный ID, по которому вас можно найти (@id)": {
+    en: "A convenient ID people can find you by (@id)",
+    de: "Eine praktische ID, unter der man Sie findet (@id)",
+  },
+  "ID может содержать латинские буквы, цифры, подчёркивание и дефис (3–32 символа). Должен быть уникальным.": {
+    en: "ID can contain Latin letters, digits, underscore and hyphen (3-32 characters). It must be unique.",
+    de: "Die ID darf lateinische Buchstaben, Zahlen, Unterstrich und Bindestrich enthalten (3-32 Zeichen). Sie muss eindeutig sein.",
+  },
+  "Сохранить": { en: "Save", de: "Speichern" },
+  "Сначала войдите или зарегистрируйтесь — форма входа слева.": {
+    en: "Sign in or create an account first - the form is on the left.",
+    de: "Melden Sie sich zuerst an oder registrieren Sie sich - das Formular ist links.",
+  },
+};
+
+function detectPreferredLanguage() {
+  const saved = localStorage.getItem(LANG_KEY);
+  if (saved === "ru" || saved === "en" || saved === "de") return saved;
+  return "ru";
+}
+
+let currentLang = detectPreferredLanguage();
+document.documentElement.lang = currentLang === "en" ? "en-GB" : currentLang;
+
+function applyDocumentLanguageMeta() {
+  const titles = {
+    ru: "Атон — веб‑мессенджер для личных и групповых диалогов",
+    en: "Aton — web messenger for private and group chats",
+    de: "Aton — Web-Messenger fuer private und Gruppen-Chats",
+  };
+  document.title = titles[currentLang] || titles.ru;
+}
+applyDocumentLanguageMeta();
+
+function t(ruText) {
+  if (currentLang === "ru") return ruText;
+  const dict = I18N[ruText];
+  return (dict && dict[currentLang]) || ruText;
+}
+
+function tf(ruTemplate, vars = {}) {
+  const base = t(ruTemplate);
+  return base.replace(/\{(\w+)\}/g, (_, k) => (vars[k] == null ? "" : String(vars[k])));
+}
+
+function setLanguage(nextLang) {
+  if (!nextLang || nextLang === currentLang) return;
+  currentLang = nextLang;
+  try {
+    localStorage.setItem(LANG_KEY, currentLang);
+  } catch {}
+  document.documentElement.lang = currentLang === "en" ? "en-GB" : currentLang;
+  applyDocumentLanguageMeta();
+}
+
+function translateExactText(value) {
+  if (!value || currentLang === "ru") return value;
+  const direct = I18N[value];
+  if (direct && direct[currentLang]) return direct[currentLang];
+  return value;
+}
+
+function translateDom(root) {
+  if (!root || currentLang === "ru") return;
+  const attrs = ["title", "placeholder", "aria-label"];
+
+  const walkElement = (el) => {
+    for (const attr of attrs) {
+      const raw = el.getAttribute(attr);
+      if (!raw) continue;
+      const next = translateExactText(raw);
+      if (next !== raw) el.setAttribute(attr, next);
+    }
+  };
+
+  if (root.nodeType === Node.ELEMENT_NODE) walkElement(root);
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+  let node = walker.currentNode;
+  while (node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const raw = node.nodeValue;
+      if (raw && raw.trim()) {
+        const leading = raw.match(/^\s*/)?.[0] || "";
+        const trailing = raw.match(/\s*$/)?.[0] || "";
+        const core = raw.trim();
+        const nextCore = translateExactText(core);
+        if (nextCore !== core) node.nodeValue = `${leading}${nextCore}${trailing}`;
+      }
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      walkElement(node);
+    }
+    node = walker.nextNode();
+  }
+}
 
 function persistSessionSnapshot(u) {
   if (!u || typeof u !== "object" || !u.username) return;
@@ -223,7 +676,7 @@ function displayNameForPeer(myUsername, peerUsername, peerUser) {
   const map = getPeerAliasesMap(myUsername);
   const alias = getPeerAliasValue(map, peerUsername);
   if (alias) return alias;
-  if (peerUsername === GOLOS_ATON_USERNAME) return "Голос Атона";
+  if (peerUsername === GOLOS_ATON_USERNAME) return t("Голос Атона");
   return peerUser?.displayName || peerUsername;
 }
 
@@ -383,12 +836,12 @@ function isMessageFromSelf(msg, me, activeChatId) {
 function messageAckHtml(status) {
   const s = status === "delivered" || status === "read" || status === "sent" ? status : "sent";
   if (s === "sent") {
-    return '<span class="aton-message-ack" title="Отправлено" aria-label="Отправлено"><span class="aton-message-ack-tick" aria-hidden="true">✓</span></span>';
+    return `<span class="aton-message-ack" title="${escHtml(t("Отправлено"))}" aria-label="${escHtml(t("Отправлено"))}"><span class="aton-message-ack-tick" aria-hidden="true">✓</span></span>`;
   }
   if (s === "delivered") {
-    return '<span class="aton-message-ack aton-message-ack--delivered" title="Доставлено" aria-label="Доставлено"><span class="aton-message-ack-tick" aria-hidden="true">✓</span><span class="aton-message-ack-tick" aria-hidden="true">✓</span></span>';
+    return `<span class="aton-message-ack aton-message-ack--delivered" title="${escHtml(t("Доставлено"))}" aria-label="${escHtml(t("Доставлено"))}"><span class="aton-message-ack-tick" aria-hidden="true">✓</span><span class="aton-message-ack-tick" aria-hidden="true">✓</span></span>`;
   }
-  return '<span class="aton-message-ack aton-message-ack--read" title="Прочитано" aria-label="Прочитано"><span class="aton-message-ack-tick" aria-hidden="true">✓</span><span class="aton-message-ack-tick" aria-hidden="true">✓</span></span>';
+  return `<span class="aton-message-ack aton-message-ack--read" title="${escHtml(t("Прочитано"))}" aria-label="${escHtml(t("Прочитано"))}"><span class="aton-message-ack-tick" aria-hidden="true">✓</span><span class="aton-message-ack-tick" aria-hidden="true">✓</span></span>`;
 }
 
 function safeDataMessageIdForSelector(id) {
@@ -530,17 +983,18 @@ function formatChatListMessageTime(iso) {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
+  const locale = currentLang === "de" ? "de-DE" : currentLang === "en" ? "en-GB" : "ru-RU";
   const now = new Date();
   const startOfDay = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate());
   if (startOfDay(d).getTime() === startOfDay(now).getTime()) {
-    return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
   }
   const dateOpts = { day: "numeric", month: "short" };
   if (d.getFullYear() !== now.getFullYear()) dateOpts.year = "numeric";
   return (
-    d.toLocaleDateString("ru-RU", dateOpts) +
+    d.toLocaleDateString(locale, dateOpts) +
     ", " +
-    d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
+    d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })
   );
 }
 
@@ -557,7 +1011,7 @@ function chatListPreviewWords(text, maxWords) {
 }
 
 function buildLastMessagePreviewForChatList(lastMsg) {
-  if (!lastMsg) return "Нет сообщений";
+  if (!lastMsg) return t("Нет сообщений");
   let tag = "";
   if (lastMsg.type === "image") tag = "📷";
   else if (lastMsg.type === "audio") tag = "🎙";
@@ -566,9 +1020,9 @@ function buildLastMessagePreviewForChatList(lastMsg) {
     const short = chatListPreviewWords(raw, 5);
     return tag ? `${tag} ${short}` : short;
   }
-  if (lastMsg.type === "image") return "📷 Фото";
-  if (lastMsg.type === "audio") return "🎙 Голосовое";
-  return "Сообщение без текста";
+  if (lastMsg.type === "image") return t("📷 Фото");
+  if (lastMsg.type === "audio") return t("🎙 Голосовое");
+  return t("Сообщение без текста");
 }
 
 /** Статус «был в сети» для шапки и списка личных чатов. При blockedMe не показываем реальный lastSeen. */
@@ -576,15 +1030,15 @@ function formatPeerPresence(peerUser) {
   const blockedMe = Boolean(peerUser && peerUser.blockedMe);
   if (blockedMe) {
     return {
-      text: "давно не был(а) в сети",
+      text: t("давно не был(а) в сети"),
       online: false,
-      title: "Статус скрыт",
+      title: t("Статус скрыт"),
     };
   }
   const iso = peerUser && peerUser.lastSeen;
   if (!iso) {
     return {
-      text: "нет данных о последнем визите",
+      text: t("нет данных о последнем визите"),
       online: false,
       title: "",
     };
@@ -592,7 +1046,7 @@ function formatPeerPresence(peerUser) {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) {
     return {
-      text: "нет данных о последнем визите",
+      text: t("нет данных о последнем визите"),
       online: false,
       title: "",
     };
@@ -600,7 +1054,7 @@ function formatPeerPresence(peerUser) {
   const diff = Date.now() - t;
   const ONLINE_MS = 60 * 1000;
   if (diff < ONLINE_MS) {
-    return { text: "онлайн", online: true, title: "Сейчас онлайн" };
+    return { text: t("онлайн"), online: true, title: t("Сейчас онлайн") };
   }
   const d = new Date(iso);
   const now = new Date();
@@ -611,17 +1065,48 @@ function formatPeerPresence(peerUser) {
   let detail;
   if (diff < 60 * 60 * 1000) {
     const m = Math.max(1, Math.floor(diff / 60000));
-    detail = `был(а) в сети ${m} мин назад`;
+    detail = tf("был(а) в сети {minutes} мин назад", { minutes: m });
   } else if (dayDiff === 0) {
-    detail = `был(а) в сети сегодня в ${d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
+    detail = tf("был(а) в сети сегодня в {time}", {
+      time: d.toLocaleTimeString(currentLang === "de" ? "de-DE" : currentLang === "en" ? "en-GB" : "ru-RU", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    });
   } else if (dayDiff === 1) {
-    detail = `был(а) в сети вчера в ${d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
+    detail = tf("был(а) в сети вчера в {time}", {
+      time: d.toLocaleTimeString(currentLang === "de" ? "de-DE" : currentLang === "en" ? "en-GB" : "ru-RU", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    });
   } else if (dayDiff < 7) {
-    detail = `был(а) в сети ${d.toLocaleDateString("ru-RU", { weekday: "short", day: "numeric", month: "short" })}, ${d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
+    detail = tf("был(а) в сети {date}, {time}", {
+      date: d.toLocaleDateString(currentLang === "de" ? "de-DE" : currentLang === "en" ? "en-GB" : "ru-RU", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      }),
+      time: d.toLocaleTimeString(currentLang === "de" ? "de-DE" : currentLang === "en" ? "en-GB" : "ru-RU", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    });
   } else if (d.getFullYear() === now.getFullYear()) {
-    detail = `был(а) в сети ${d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}`;
+    detail = tf("был(а) в сети {date}", {
+      date: d.toLocaleDateString(currentLang === "de" ? "de-DE" : currentLang === "en" ? "en-GB" : "ru-RU", {
+        day: "numeric",
+        month: "long",
+      }),
+    });
   } else {
-    detail = `был(а) в сети ${d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}`;
+    detail = tf("был(а) в сети {date}", {
+      date: d.toLocaleDateString(currentLang === "de" ? "de-DE" : currentLang === "en" ? "en-GB" : "ru-RU", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }),
+    });
   }
   return { text: detail, online: false, title: detail };
 }
@@ -654,7 +1139,7 @@ function createVoicePlayer(audioSrc, isSelf) {
   const playBtn = document.createElement("button");
   playBtn.type = "button";
   playBtn.className = "aton-voice-play";
-  playBtn.setAttribute("aria-label", "Воспроизвести");
+  playBtn.setAttribute("aria-label", t("Воспроизвести"));
   playBtn.innerHTML =
     '<svg class="aton-voice-icon aton-voice-icon--play" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>' +
     '<svg class="aton-voice-icon aton-voice-icon--pause" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M6 6h4v12H6V6zm8 0h4v12h-4V6z"/></svg>';
@@ -666,7 +1151,7 @@ function createVoicePlayer(audioSrc, isSelf) {
   track.className = "aton-voice-track";
   track.setAttribute("role", "slider");
   track.setAttribute("tabindex", "0");
-  track.setAttribute("aria-label", "Позиция воспроизведения");
+  track.setAttribute("aria-label", t("Позиция воспроизведения"));
   track.setAttribute("aria-valuemin", "0");
   track.setAttribute("aria-valuemax", "100");
   track.setAttribute("aria-valuenow", "0");
@@ -688,7 +1173,7 @@ function createVoicePlayer(audioSrc, isSelf) {
   function syncPlayingClass() {
     const playing = !audio.paused;
     wrap.classList.toggle("aton-voice-player--playing", playing);
-    playBtn.setAttribute("aria-label", playing ? "Пауза" : "Воспроизвести");
+    playBtn.setAttribute("aria-label", playing ? t("Пауза") : t("Воспроизвести"));
   }
 
   function updateUi() {
@@ -779,7 +1264,7 @@ function createVoicePlayer(audioSrc, isSelf) {
     updateUi();
   });
   audio.addEventListener("error", () => {
-    timeEl.textContent = "Не удалось загрузить";
+    timeEl.textContent = t("Не удалось загрузить");
     trackFill.style.width = "0%";
   });
 
@@ -943,7 +1428,7 @@ async function api(path, options = {}) {
   try {
     res = await fetch(API_BASE + path, { ...options, headers });
   } catch (cause) {
-    const err = new Error("Нет сети или сервер не отвечает");
+    const err = new Error(t("Нет сети или сервер не отвечает"));
     err.cause = cause;
     err.isNetwork = true;
     throw err;
@@ -959,12 +1444,12 @@ async function api(path, options = {}) {
       setToken(null);
       document.dispatchEvent(new CustomEvent("aton:session-expired"));
       const err = new Error(
-        "Сессия устарела. Войдите снова — так бывает, если вы входили с другого устройства или браузера."
+        t("Сессия устарела. Войдите снова — так бывает, если вы входили с другого устройства или браузера.")
       );
       err.status = 401;
       throw err;
     }
-    const err = new Error(data.error || "Ошибка соединения с сервером");
+    const err = new Error(data.error || t("Ошибка соединения с сервером"));
     err.status = res.status;
     throw err;
   }
@@ -975,7 +1460,7 @@ async function fetchJsonPublic(path, options = {}) {
   const res = await fetch(API_BASE + path, { ...options });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error(data.error || "Ошибка соединения с сервером");
+    const err = new Error(data.error || t("Ошибка соединения с сервером"));
     err.status = res.status;
     throw err;
   }
@@ -1009,12 +1494,12 @@ function createApp() {
     wrap.innerHTML = `
       <div class="aton-verify-card">
         <div class="aton-logo"><div class="aton-logo-inner"></div></div>
-        <h2>Подтвердите email</h2>
-        <p>Мы отправили письмо на <strong>${email || "ваш email"}</strong>.</p>
-        <p>Перейдите по ссылке в письме, чтобы активировать аккаунт.</p>
-        <button class="aton-primary-button aton-resend-btn">Отправить повторно</button>
+        <h2>${t("Подтвердите email")}</h2>
+        <p>${t("Мы отправили письмо на")} <strong>${email || t("ваш email")}</strong>.</p>
+        <p>${t("Перейдите по ссылке в письме, чтобы активировать аккаунт.")}</p>
+        <button class="aton-primary-button aton-resend-btn">${t("Отправить повторно")}</button>
         <p class="aton-verify-hint"></p>
-        <button class="aton-logout-link">Выйти</button>
+        <button class="aton-logout-link">${t("Выйти")}</button>
       </div>
     `;
     shell.appendChild(wrap);
@@ -1030,7 +1515,7 @@ function createApp() {
           method: "POST",
           body: JSON.stringify({ email }),
         });
-        hint.textContent = "Письмо отправлено повторно.";
+        hint.textContent = t("Письмо отправлено повторно.");
       } catch (e) {
         hint.textContent = e.message;
       }
@@ -1056,16 +1541,21 @@ function createApp() {
       <div class="aton-sidebar-header-main">
         <div class="aton-logo"><div class="aton-logo-inner"></div></div>
         <div class="aton-product-name">
-          <div class="aton-title">АТОН</div>
-          <div class="aton-subtitle">мессенджер под светом диска</div>
+          <div class="aton-title">${t("АТОН")}</div>
+          <div class="aton-subtitle">${t("мессенджер под светом диска")}</div>
         </div>
       </div>
+      <div class="aton-lang-switcher" id="aton-sidebar-lang-switcher" aria-label="Language switcher">
+        <button type="button" class="aton-lang-btn" data-lang="ru" title="Russian">🇷🇺</button>
+        <button type="button" class="aton-lang-btn" data-lang="de" title="Deutsch">🇩🇪</button>
+        <button type="button" class="aton-lang-btn" data-lang="en" title="English (UK)">🇬🇧</button>
+      </div>
       <div class="aton-sidebar-toolbar" id="aton-sidebar-toolbar" hidden>
-        <button type="button" class="aton-topbar-icon" id="aton-sidebar-friends-btn" title="Друзья, заявки и блокировки" style="display:none;">
+        <button type="button" class="aton-topbar-icon" id="aton-sidebar-friends-btn" title="${t("Друзья, заявки и блокировки")}" style="display:none;">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           <span class="aton-topbar-icon-badge" id="aton-sidebar-friends-badge"></span>
         </button>
-        <button type="button" class="aton-topbar-icon" id="aton-sidebar-theme-btn" title="Сменить тему">
+        <button type="button" class="aton-topbar-icon" id="aton-sidebar-theme-btn" title="${t("Сменить тему")}">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         </button>
       </div>
@@ -1079,10 +1569,10 @@ function createApp() {
   tabs.className = "aton-auth-tabs";
   const tabLogin = document.createElement("button");
   tabLogin.className = "aton-auth-tab active";
-  tabLogin.textContent = "Вход";
+  tabLogin.textContent = t("Вход");
   const tabRegister = document.createElement("button");
   tabRegister.className = "aton-auth-tab";
-  tabRegister.textContent = "Регистрация";
+  tabRegister.textContent = t("Регистрация");
   tabs.appendChild(tabLogin);
   tabs.appendChild(tabRegister);
 
@@ -1094,20 +1584,20 @@ function createApp() {
       <input type="email" id="aton-email" class="aton-input" inputmode="email" autocomplete="email" />
     </div>
     <div class="aton-field-group" data-role="username">
-      <label class="aton-input-label" for="aton-username">Имя пользователя</label>
+      <label class="aton-input-label" for="aton-username">${t("Имя пользователя")}</label>
       <input type="text" id="aton-username" class="aton-input" autocapitalize="off" autocomplete="username" spellcheck="false" />
     </div>
     <div class="aton-field-group" data-role="password">
-      <label class="aton-input-label" for="aton-password">Пароль</label>
+      <label class="aton-input-label" for="aton-password">${t("Пароль")}</label>
       <input type="password" id="aton-password" class="aton-input" autocomplete="current-password" />
     </div>
     <div class="aton-field-group" data-role="password-confirm">
-      <label class="aton-input-label" for="aton-password-confirm">Повторите пароль</label>
+      <label class="aton-input-label" for="aton-password-confirm">${t("Повторите пароль")}</label>
       <input type="password" id="aton-password-confirm" class="aton-input" autocomplete="new-password" />
     </div>
-    <button type="submit" class="aton-primary-button">Войти</button>
+    <button type="submit" class="aton-primary-button">${t("Войти")}</button>
     <div class="aton-auth-hint" id="aton-auth-hint"></div>
-    <div class="aton-auth-footer"><a href="forgot.html" class="aton-auth-link" id="aton-forgot">Забыли пароль?</a></div>
+    <div class="aton-auth-footer"><a href="forgot.html" class="aton-auth-link" id="aton-forgot">${t("Забыли пароль?")}</a></div>
   `;
 
   const authLoginBlock = document.createElement("div");
@@ -1122,11 +1612,11 @@ function createApp() {
       <div class="aton-auth-logged-avatar" id="aton-logged-avatar"></div>
       <div class="aton-auth-logged-info">
         <div class="aton-auth-logged-user" id="aton-logged-user"></div>
-        <div class="aton-auth-logged-status" id="aton-logged-status">В сети</div>
+        <div class="aton-auth-logged-status" id="aton-logged-status">${t("В сети")}</div>
       </div>
       <div class="aton-auth-logged-actions">
-        <button type="button" class="aton-profile-mobile-btn" id="aton-profile-mobile-btn">Профиль</button>
-        <button type="button" class="aton-logout-button" id="aton-logout" title="Выйти">⏻</button>
+        <button type="button" class="aton-profile-mobile-btn" id="aton-profile-mobile-btn">${t("Профиль")}</button>
+        <button type="button" class="aton-logout-button" id="aton-logout" title="${t("Выйти")}">⏻</button>
       </div>
     </div>
   `;
@@ -1140,16 +1630,16 @@ function createApp() {
   chatsRoot.className = "aton-chats";
   chatsRoot.innerHTML = `
     <div class="aton-chats-header">
-      <span>Чаты</span>
+      <span>${t("Чаты")}</span>
     </div>
-    <button class="aton-new-chat-button" id="aton-create-group" disabled style="display:none;">+ Группа</button>
+    <button class="aton-new-chat-button" id="aton-create-group" disabled style="display:none;">${t("+ Группа")}</button>
     <div class="aton-search">
-      <input type="text" class="aton-search-input" id="aton-user-search" placeholder="Поиск по имени или @username…" disabled />
+      <input type="text" class="aton-search-input" id="aton-user-search" placeholder="${t("Поиск по имени или @username…")}" disabled />
       <div class="aton-search-results" id="aton-search-results"></div>
     </div>
     <div class="aton-chat-list" id="aton-chat-list"></div>
     <div class="aton-profile-link" id="aton-profile-link">
-      Профиль: <span>настроить имя, статус и аватар</span>
+      ${t("Профиль:")} <span>${t("настроить имя, статус и аватар")}</span>
     </div>
   `;
 
@@ -1164,30 +1654,35 @@ function createApp() {
   topbar.id = "aton-topbar";
   topbar.innerHTML = `
     <div class="aton-topbar-left">
-      <button class="aton-back-button" id="aton-back-btn" title="Назад к чатам">
+      <button class="aton-back-button" id="aton-back-btn" title="${t("Назад к чатам")}">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
       <div class="aton-topbar-info">
-        <div class="aton-topbar-title" id="aton-topbar-title">Атон</div>
-        <div class="aton-topbar-status" id="aton-status">Войдите, чтобы открыть чаты</div>
+        <div class="aton-topbar-title" id="aton-topbar-title">${t("Атон")}</div>
+        <div class="aton-topbar-status" id="aton-status">${t("Войдите, чтобы открыть чаты")}</div>
       </div>
     </div>
     <div class="aton-topbar-right">
-      <button class="aton-topbar-icon aton-notify-permission-btn" id="aton-notify-permission" title="Разрешить уведомления о сообщениях вне вкладки" type="button" style="display:none;">
+      <div class="aton-lang-switcher aton-lang-switcher--topbar" id="aton-topbar-lang-switcher" aria-label="Language switcher">
+        <button type="button" class="aton-lang-btn" data-lang="ru" title="Russian">🇷🇺</button>
+        <button type="button" class="aton-lang-btn" data-lang="de" title="Deutsch">🇩🇪</button>
+        <button type="button" class="aton-lang-btn" data-lang="en" title="English (UK)">🇬🇧</button>
+      </div>
+      <button class="aton-topbar-icon aton-notify-permission-btn" id="aton-notify-permission" title="${t("Разрешить уведомления о сообщениях вне вкладки")}" type="button" style="display:none;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M19 8h2l-2 2"/></svg>
       </button>
-      <button class="aton-topbar-icon" id="aton-friends-btn" title="Друзья, заявки и блокировки" style="display:none;">
+      <button class="aton-topbar-icon" id="aton-friends-btn" title="${t("Друзья, заявки и блокировки")}" style="display:none;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         <span class="aton-topbar-icon-badge" id="aton-friends-badge"></span>
       </button>
-      <button class="aton-topbar-icon" id="aton-theme-toggle" title="Сменить тему">
+      <button class="aton-topbar-icon" id="aton-theme-toggle" title="${t("Сменить тему")}">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       </button>
-      <button class="aton-topbar-icon" id="aton-filter-private" title="Личные диалоги">
+      <button class="aton-topbar-icon" id="aton-filter-private" title="${t("Личные диалоги")}">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         <span class="aton-topbar-icon-badge" id="aton-filter-private-badge"></span>
       </button>
-      <button class="aton-topbar-icon" id="aton-filter-group" title="Группы и каналы">
+      <button class="aton-topbar-icon" id="aton-filter-group" title="${t("Группы и каналы")}">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         <span class="aton-topbar-icon-badge" id="aton-filter-group-badge"></span>
       </button>
@@ -1216,31 +1711,31 @@ function createApp() {
     <div class="aton-compose-record-hint" id="aton-compose-record-hint" hidden>
       <span class="aton-compose-record-dot" aria-hidden="true"></span>
       <span class="aton-compose-record-timer" id="aton-compose-record-timer">0:00</span>
-      <span class="aton-compose-record-text">Идёт запись. Отпустите кнопку микрофона, чтобы остановить.</span>
+      <span class="aton-compose-record-text">${t("Идёт запись. Отпустите кнопку микрофона, чтобы остановить.")}</span>
     </div>
     <div class="aton-compose-row">
-      <textarea class="aton-compose-input" id="aton-input" rows="1" placeholder="Сообщение…" disabled></textarea>
+      <textarea class="aton-compose-input" id="aton-input" rows="1" placeholder="${t("Сообщение…")}" disabled></textarea>
       <div class="aton-compose-actions">
-        <button class="aton-attach-button" id="aton-attach" title="Фото" disabled>
+        <button class="aton-attach-button" id="aton-attach" title="${t("Фото")}" disabled>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
         </button>
-        <button class="aton-mic-button" id="aton-mic" type="button" title="Удерживайте, чтобы записать голос" disabled>
+        <button class="aton-mic-button" id="aton-mic" type="button" title="${t("Удерживайте, чтобы записать голос")}" disabled>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
         </button>
         <button class="aton-send-button" id="aton-send" disabled>
           <svg class="aton-send-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-          <span class="aton-send-text">ОТПРАВИТЬ</span>
+          <span class="aton-send-text">${t("ОТПРАВИТЬ")}</span>
         </button>
       </div>
     </div>
     <div class="aton-voice-preview" id="aton-voice-preview" hidden>
       <div class="aton-voice-preview-inner">
         <span class="aton-voice-preview-dot" aria-hidden="true"></span>
-        <span class="aton-voice-preview-label">Голосовое</span>
+        <span class="aton-voice-preview-label">${t("Голосовое")}</span>
         <span class="aton-voice-preview-time" id="aton-voice-preview-time">0:00</span>
-        <button type="button" class="aton-voice-preview-play" id="aton-voice-preview-play" title="Прослушать" aria-label="Прослушать"></button>
-        <button type="button" class="aton-voice-preview-cancel" id="aton-voice-preview-cancel">Удалить</button>
-        <button type="button" class="aton-voice-preview-send" id="aton-voice-preview-send">Отправить</button>
+        <button type="button" class="aton-voice-preview-play" id="aton-voice-preview-play" title="${t("Прослушать")}" aria-label="${t("Прослушать")}"></button>
+        <button type="button" class="aton-voice-preview-cancel" id="aton-voice-preview-cancel">${t("Удалить")}</button>
+        <button type="button" class="aton-voice-preview-send" id="aton-voice-preview-send">${t("Отправить")}</button>
       </div>
     </div>
     <input type="file" id="aton-attach-input" accept="image/*" style="display:none;" />
@@ -1273,24 +1768,24 @@ function createApp() {
     <div class="aton-friends-overlay-backdrop" data-close-friends="1"></div>
     <div class="aton-friends-panel" role="dialog" aria-labelledby="aton-friends-panel-title">
       <div class="aton-friends-panel-header">
-        <div class="aton-friends-panel-title" id="aton-friends-panel-title">Друзья и контакты</div>
-        <button type="button" class="aton-friends-panel-close" id="aton-friends-close" aria-label="Закрыть">×</button>
+        <div class="aton-friends-panel-title" id="aton-friends-panel-title">${t("Друзья и контакты")}</div>
+        <button type="button" class="aton-friends-panel-close" id="aton-friends-close" aria-label="${t("Закрыть")}">×</button>
       </div>
-      <p class="aton-friends-hint">В друзьях — те, кого вы добавили и кто принял заявку. Переписка возможна и без этого; друзья видны в списке ниже.</p>
+      <p class="aton-friends-hint">${t("В друзьях — те, кого вы добавили и кто принял заявку. Переписка возможна и без этого; друзья видны в списке ниже.")}</p>
       <div class="aton-friends-section" id="aton-friends-incoming-wrap">
-        <div class="aton-friends-section-title">Входящие заявки <span class="aton-friends-count" id="aton-friends-in-count"></span></div>
+        <div class="aton-friends-section-title">${t("Входящие заявки")} <span class="aton-friends-count" id="aton-friends-in-count"></span></div>
         <div id="aton-friends-incoming"></div>
       </div>
       <div class="aton-friends-section" id="aton-friends-outgoing-wrap">
-        <div class="aton-friends-section-title">Исходящие заявки</div>
+        <div class="aton-friends-section-title">${t("Исходящие заявки")}</div>
         <div id="aton-friends-outgoing"></div>
       </div>
       <div class="aton-friends-section">
-        <div class="aton-friends-section-title">Друзья</div>
+        <div class="aton-friends-section-title">${t("Друзья")}</div>
         <div id="aton-friends-list"></div>
       </div>
       <div class="aton-friends-section">
-        <div class="aton-friends-section-title">Заблокированные</div>
+        <div class="aton-friends-section-title">${t("Заблокированные")}</div>
         <div id="aton-friends-blocked"></div>
       </div>
     </div>
@@ -1304,6 +1799,35 @@ function createApp() {
   shell.appendChild(sidebar);
   shell.appendChild(main);
   root.appendChild(shell);
+  translateDom(shell);
+
+  if (currentLang !== "ru") {
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type === "characterData" && m.target?.parentElement) {
+          translateDom(m.target.parentElement);
+          continue;
+        }
+        if (m.type === "attributes" && m.target) {
+          translateDom(m.target);
+          continue;
+        }
+        if (m.type === "childList") {
+          m.addedNodes.forEach((n) => {
+            if (n.nodeType === Node.ELEMENT_NODE) translateDom(n);
+            if (n.nodeType === Node.TEXT_NODE && n.parentElement) translateDom(n.parentElement);
+          });
+        }
+      }
+    });
+    observer.observe(shell, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["title", "placeholder", "aria-label"],
+      characterData: true,
+    });
+  }
 
   document.addEventListener("click", () => unlockNotificationAudio(), { once: true });
   document.addEventListener("touchstart", () => unlockNotificationAudio(), { once: true, passive: true });
@@ -1507,25 +2031,25 @@ function createApp() {
   }
 
   function getChatNotifyTitle(chatId) {
-    if (!chatId) return "Атон";
+    if (!chatId) return t("Атон");
     if (chatId.startsWith("group:") || chatId.startsWith("channel:")) {
       let c = allChats.find((x) => x.id === chatId);
       if (!c) c = discoverChats.find((x) => x.id === chatId);
-      return c?.title || "Чат";
+      return c?.title || t("Чат");
     }
     const peer = getPeerFromDmChatId(chatId);
-    if (!peer) return "Новое сообщение";
+    if (!peer) return t("Новое сообщение");
     const u = userByUsername(peer);
     return displayNameForPeer(currentUser.username, peer, u);
   }
 
   function formatNotifyBody(msg) {
     if (!msg) return "";
-    if (msg.type === "audio") return "Голосовое сообщение";
-    if (msg.type === "image") return "Фото";
-    const t = (msg.text || "").trim();
-    if (t.length > 120) return `${t.slice(0, 117)}…`;
-    return t || "Новое сообщение";
+    if (msg.type === "audio") return t("Голосовое сообщение");
+    if (msg.type === "image") return t("Фото");
+    const text = (msg.text || "").trim();
+    if (text.length > 120) return `${text.slice(0, 117)}…`;
+    return text || t("Новое сообщение");
   }
 
   function openChatFromNotification(chatId) {
@@ -1585,7 +2109,7 @@ function createApp() {
     card.type = "button";
     card.className = "aton-toast-card";
     card.innerHTML = `
-      <div class="aton-toast-card-kicker">Новое сообщение</div>
+      <div class="aton-toast-card-kicker">${escHtml(t("Новое сообщение"))}</div>
       <div class="aton-toast-card-title">${escHtml(title)}</div>
       <div class="aton-toast-card-body">${escHtml(body)}</div>
     `;
@@ -1775,6 +2299,30 @@ function createApp() {
   const sidebarThemeBtn = document.getElementById("aton-sidebar-theme-btn");
   const friendsSidebarBadge = document.getElementById("aton-sidebar-friends-badge");
   const notifyPermissionBtn = document.getElementById("aton-notify-permission");
+  const sidebarLangSwitcher = document.getElementById("aton-sidebar-lang-switcher");
+  const topbarLangSwitcher = document.getElementById("aton-topbar-lang-switcher");
+  const langButtons = [
+    ...(sidebarLangSwitcher ? Array.from(sidebarLangSwitcher.querySelectorAll(".aton-lang-btn")) : []),
+    ...(topbarLangSwitcher ? Array.from(topbarLangSwitcher.querySelectorAll(".aton-lang-btn")) : []),
+  ];
+
+  function syncLangButtons() {
+    for (const btn of langButtons) {
+      const lang = btn.getAttribute("data-lang");
+      btn.classList.toggle("active", lang === currentLang);
+      btn.setAttribute("aria-pressed", lang === currentLang ? "true" : "false");
+    }
+  }
+
+  for (const btn of langButtons) {
+    btn.addEventListener("click", () => {
+      const lang = btn.getAttribute("data-lang");
+      if (!lang || lang === currentLang) return;
+      setLanguage(lang);
+      window.location.reload();
+    });
+  }
+  syncLangButtons();
 
   if (getToken()) {
     authLoginBlock.style.display = "none";
@@ -1782,8 +2330,8 @@ function createApp() {
     const snap0 = readSessionSnapshot();
     if (loggedUserLabel) {
       loggedUserLabel.textContent = snap0
-        ? String(snap0.displayName || snap0.username || "").trim() || "Подключение…"
-        : "Подключение…";
+        ? String(snap0.displayName || snap0.username || "").trim() || t("Подключение…")
+        : t("Подключение…");
     }
     if (loggedStatusEl) {
       loggedStatusEl.textContent = "";
@@ -1791,15 +2339,15 @@ function createApp() {
     if (statusEl) {
       statusEl.textContent =
         snap0 && snap0.verified
-          ? "Загружаем переписку…"
-          : "Проверяем сессию…";
+          ? t("Загружаем переписку…")
+          : t("Проверяем сессию…");
     }
   }
 
   // Индикатор «печатает…»
   const typingIndicator = document.createElement("div");
   typingIndicator.className = "aton-typing-indicator";
-  typingIndicator.textContent = "Печатаете сообщение…";
+  typingIndicator.textContent = t("Печатаете сообщение…");
   typingIndicator.style.display = "none";
   compose.insertBefore(typingIndicator, compose.firstChild);
 
@@ -1811,13 +2359,13 @@ function createApp() {
   function setMicButtonIdle() {
     micButton.innerHTML = ATON_MIC_ICON_SVG;
     micButton.classList.remove("recording");
-    micButton.title = "Удерживайте, чтобы записать голос";
+    micButton.title = t("Удерживайте, чтобы записать голос");
   }
 
   function setMicButtonRecordingUi() {
     micButton.innerHTML = ATON_MIC_STOP_SVG;
     micButton.classList.add("recording");
-    micButton.title = "Запись… отпустите, чтобы остановить";
+    micButton.title = t("Запись… отпустите, чтобы остановить");
   }
 
   function stopRecordingTimerUi() {
@@ -1898,7 +2446,7 @@ function createApp() {
 
   function sendAudioBlobAsMessage(blob) {
     if (!currentChatId || !currentUser) {
-      return Promise.reject(new Error("Нет чата"));
+      return Promise.reject(new Error(t("Нет чата")));
     }
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -1925,7 +2473,7 @@ function createApp() {
           }
         })();
       };
-      reader.onerror = () => reject(new Error("Не удалось прочитать запись"));
+      reader.onerror = () => reject(new Error(t("Не удалось прочитать запись")));
       reader.readAsDataURL(blob);
     });
   }
@@ -1994,15 +2542,15 @@ function createApp() {
         inputMessage.setAttribute(
           "placeholder",
           narrowUi
-            ? "Текст — Enter · голос — удерживайте микрофон"
-            : "Текст — Enter. Голос — удерживайте кнопку с микрофоном, отпустите для отправки"
+            ? t("Текст — Enter · голос — удерживайте микрофон")
+            : t("Текст — Enter. Голос — удерживайте кнопку с микрофоном, отпустите для отправки")
         );
         inputMessage.setAttribute(
           "title",
           "Текст: ввод и Enter. Голос: удерживайте круглую кнопку с микрофоном, отпустите — отправка."
         );
       } else {
-        inputMessage.setAttribute("placeholder", "Сообщение…");
+        inputMessage.setAttribute("placeholder", t("Сообщение…"));
         inputMessage.removeAttribute("title");
       }
     }
@@ -2508,7 +3056,7 @@ function createApp() {
         const badge = document.createElement("span");
         badge.className = "aton-verified-badge";
         badge.textContent = "✔";
-        badge.title = "Верифицировано";
+        badge.title = t("Верифицировано");
         loggedUserLabel.appendChild(badge);
       }
       const idSpan = document.createElement("span");
@@ -2539,10 +3087,10 @@ function createApp() {
       }
       userPill.classList.toggle("online", isOnline);
       userPill.classList.toggle("offline", !isOnline);
-      if (loggedStatus) loggedStatus.textContent = isOnline ? "В сети" : "Не в сети";
+      if (loggedStatus) loggedStatus.textContent = isOnline ? t("В сети") : t("Не в сети");
       statusEl.textContent = isOnline
-        ? `В сети как ${displayName}`
-        : `Недавно были в сети как ${displayName}`;
+        ? tf("В сети как {name}", { name: displayName })
+        : tf("Недавно были в сети как {name}", { name: displayName });
       userPill.style.display = "inline-flex";
       if (filterPrivateBtn) filterPrivateBtn.style.display = "inline-flex";
       if (filterGroupBtn) filterGroupBtn.style.display = "inline-flex";
@@ -2567,7 +3115,7 @@ function createApp() {
         const pillBadge = document.createElement("span");
         pillBadge.className = "aton-verified-badge";
         pillBadge.textContent = "✔";
-        pillBadge.title = "Верифицировано";
+        pillBadge.title = t("Верифицировано");
         userNameLabel.appendChild(pillBadge);
       }
       const pillAvatar = userPill.querySelector(".aton-user-avatar");
@@ -2605,32 +3153,32 @@ function createApp() {
       let data;
       if (authMode === "register") {
         if (!email || !username || !password || !passwordConfirm) {
-          hintEl.textContent = "Укажите email, имя и дважды один и тот же пароль.";
+          hintEl.textContent = t("Укажите email, имя и дважды один и тот же пароль.");
           return;
         }
         if (password.length < 6) {
-          hintEl.textContent = "Пароль должен содержать не менее 6 символов.";
+          hintEl.textContent = t("Пароль должен содержать не менее 6 символов.");
           return;
         }
         if (password !== passwordConfirm) {
-          hintEl.textContent = "Пароли не совпадают. Введите их одинаково.";
+          hintEl.textContent = t("Пароли не совпадают. Введите их одинаково.");
           return;
         }
         data = await api("/api/register", {
           method: "POST",
           body: JSON.stringify({ email, username, password }),
         });
-        hintEl.textContent = "Аккаунт создан. Проверьте почту для подтверждения.";
+        hintEl.textContent = t("Аккаунт создан. Проверьте почту для подтверждения.");
       } else {
         if (!email || !password) {
-          hintEl.textContent = "Введите email и пароль.";
+          hintEl.textContent = t("Введите email и пароль.");
           return;
         }
         data = await api("/api/login", {
           method: "POST",
           body: JSON.stringify({ email, password }),
         });
-        hintEl.textContent = "Вход выполнен.";
+        hintEl.textContent = t("Вход выполнен.");
       }
       setToken(data.token);
       socket.auth.token = data.token;
@@ -2798,10 +3346,10 @@ function createApp() {
     listEl.innerHTML = fr.length
       ? fr
           .map((u) =>
-            rowHtml(u, `<span class="aton-friends-muted">в друзьях</span>`)
+            rowHtml(u, `<span class="aton-friends-muted">${escHtml(t("В друзьях"))}</span>`)
           )
           .join("")
-      : `<div class="aton-friends-empty">Пока никого нет. Отправьте заявку из поиска или из открытого чата.</div>`;
+      : `<div class="aton-friends-empty">${escHtml(t("Пока никого нет. Отправьте заявку из поиска или из открытого чата."))}</div>`;
 
     const bl = contacts.blocked || [];
     blockedEl.innerHTML = bl.length
@@ -2845,24 +3393,24 @@ function createApp() {
     /* Имя уже в шапке чата — здесь только действия, как в Telegram */
     let html = `<div class="aton-peer-action-inner aton-peer-action-inner--toolbar-only">
       <div class="aton-peer-action-btns">`;
-    html += `<button type="button" class="aton-peer-rename-local aton-peer-rename-local--icon" data-peer="${escHtml(peer)}" title="Показываемое имя (${escHtml(name)}) — изменить в вашем списке" aria-label="Изменить отображаемое имя собеседника">
+    html += `<button type="button" class="aton-peer-rename-local aton-peer-rename-local--icon" data-peer="${escHtml(peer)}" title="${escHtml(tf("Показываемое имя ({name}) — изменить в вашем списке", { name }))}" aria-label="${escHtml(t("Изменить отображаемое имя собеседника"))}">
         <svg class="aton-peer-rename-local-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       </button>`;
     if (isBlocked) {
-      html += `<button type="button" class="aton-peer-btn aton-peer-unblock" data-peer="${escHtml(peer)}">Разблокировать</button>`;
+      html += `<button type="button" class="aton-peer-btn aton-peer-unblock" data-peer="${escHtml(peer)}">${escHtml(t("Разблокировать"))}</button>`;
     } else {
-      html += `<button type="button" class="aton-peer-btn aton-peer-block" data-peer="${escHtml(peer)}">Заблокировать</button>`;
+      html += `<button type="button" class="aton-peer-btn aton-peer-block" data-peer="${escHtml(peer)}">${escHtml(t("Заблокировать"))}</button>`;
     }
     if (st === "friend") {
-      html += `<span class="aton-peer-muted">в друзьях</span>`;
+      html += `<span class="aton-peer-muted">${escHtml(t("В друзьях"))}</span>`;
     } else if (st === "in") {
-      html += `<button type="button" class="aton-peer-btn aton-peer-accept" data-peer="${escHtml(peer)}">Принять заявку</button>`;
-      html += `<button type="button" class="aton-peer-btn aton-peer-decline" data-peer="${escHtml(peer)}">Отклонить</button>`;
+      html += `<button type="button" class="aton-peer-btn aton-peer-accept" data-peer="${escHtml(peer)}">${escHtml(t("Принять"))}</button>`;
+      html += `<button type="button" class="aton-peer-btn aton-peer-decline" data-peer="${escHtml(peer)}">${escHtml(t("Отклонить"))}</button>`;
     } else if (st === "out") {
-      html += `<span class="aton-peer-muted">заявка отправлена</span>`;
-      html += `<button type="button" class="aton-peer-btn aton-peer-cancel" data-peer="${escHtml(peer)}">Отменить заявку</button>`;
+      html += `<span class="aton-peer-muted">${escHtml(t("Заявка отправлена"))}</span>`;
+      html += `<button type="button" class="aton-peer-btn aton-peer-cancel" data-peer="${escHtml(peer)}">${escHtml(t("Отменить заявку"))}</button>`;
     } else if (!isBlocked) {
-      html += `<button type="button" class="aton-peer-btn aton-peer-add" data-peer="${escHtml(peer)}">Добавить в друзья</button>`;
+      html += `<button type="button" class="aton-peer-btn aton-peer-add" data-peer="${escHtml(peer)}">${escHtml(t("Добавить в друзья"))}</button>`;
     }
     const mutedN =
       currentUser && currentChatId ? isChatNotifyMuted(currentUser.username, currentChatId) : false;
@@ -2870,9 +3418,9 @@ function createApp() {
       mutedN ? "aton-peer-notify-toggle--muted" : ""
     }" data-chat-id="${escHtml(currentChatId)}" title="${
       mutedN
-        ? "Включить звук и уведомления для этого чата"
-        : "Отключить звук и всплывающие уведомления"
-    }" aria-label="Уведомления">${
+        ? t("Включить звук и уведомления для этого чата")
+        : t("Выключить звук и уведомления для этого чата")
+    }" aria-label="${escHtml(t("Уведомления отключены"))}">${
       mutedN
         ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 11A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14.07"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
         : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>'
@@ -2927,10 +3475,10 @@ function createApp() {
         renderMessages({ deferIfVoice: true });
         updateTopbarTitle();
         updatePeerActionBar();
-        showToast("Сохранено");
+        showToast(t("Сохранено"));
         close();
       } catch (e) {
-        showToast(e && e.message ? e.message : "Не удалось сохранить");
+        showToast(e && e.message ? e.message : t("Не удалось сохранить"));
       }
     });
 
@@ -3035,8 +3583,8 @@ function createApp() {
           await api("/api/contacts/unblock", { method: "POST", body: JSON.stringify({ username: peer }) });
         } else if (btn.classList.contains("aton-peer-add")) {
           const r = await api("/api/contacts/add", { method: "POST", body: JSON.stringify({ username: peer }) });
-          if (r.status === "requested") showToast("Заявка отправлена");
-          if (r.status === "accepted") showToast("Вы в друзьях");
+          if (r.status === "requested") showToast(t("Заявка отправлена"));
+          if (r.status === "accepted") showToast(t("Вы в друзьях"));
         } else if (btn.classList.contains("aton-peer-accept")) {
           await api("/api/contacts/accept", { method: "POST", body: JSON.stringify({ username: peer }) });
           showToast("Заявка принята");
@@ -3207,8 +3755,8 @@ function createApp() {
       if (pMuted) {
         const offEl = document.createElement("span");
         offEl.className = "aton-chat-notify-off";
-        offEl.title = "Уведомления отключены";
-        offEl.setAttribute("aria-label", "Уведомления отключены");
+        offEl.title = t("Уведомления отключены");
+        offEl.setAttribute("aria-label", t("Уведомления отключены"));
         offEl.textContent = "🔕";
         titleEl.appendChild(offEl);
       }
@@ -3216,7 +3764,7 @@ function createApp() {
       previewEl.className = "aton-chat-item-subtitle aton-chat-item-preview";
       previewEl.textContent = lastMsg
         ? buildLastMessagePreviewForChatList(lastMsg)
-        : "Нет сообщений";
+        : t("Нет сообщений");
       main.appendChild(titleEl);
       if (isGolos) {
         const subtitleEl = document.createElement("div");
@@ -3313,7 +3861,7 @@ function createApp() {
         const verifiedBadge = document.createElement("span");
         verifiedBadge.className = "aton-chat-verified-badge";
         verifiedBadge.textContent = "✔";
-        verifiedBadge.title = "Верифицировано";
+        verifiedBadge.title = t("Верифицировано");
         titleEl.appendChild(verifiedBadge);
       }
 
@@ -3327,15 +3875,15 @@ function createApp() {
       if (gMuted) {
         const offEl = document.createElement("span");
         offEl.className = "aton-chat-notify-off";
-        offEl.title = "Уведомления отключены";
-        offEl.setAttribute("aria-label", "Уведомления отключены");
+        offEl.title = t("Уведомления отключены");
+        offEl.setAttribute("aria-label", t("Уведомления отключены"));
         offEl.textContent = "🔕";
         titleEl.appendChild(offEl);
       }
       const subtitleEl = document.createElement("div");
       subtitleEl.className = "aton-chat-item-subtitle";
-      const chatTypeLabel = chatMeta.type === "channel" ? "канал" : "группа";
-      subtitleEl.textContent = `${chatTypeLabel} • создал ${chatMeta.owner}`;
+      const chatTypeLabel = chatMeta.type === "channel" ? t("канал") : t("группа");
+      subtitleEl.textContent = `${chatTypeLabel} • ${t("создал")} ${chatMeta.owner}`;
       const previewEl = document.createElement("div");
       previewEl.className = "aton-chat-item-subtitle aton-chat-item-preview";
       previewEl.textContent = lastMsg
@@ -3374,7 +3922,7 @@ function createApp() {
       const menuBtn = document.createElement("button");
       menuBtn.type = "button";
       menuBtn.className = "aton-chat-menu-btn";
-      menuBtn.title = "Действия";
+      menuBtn.title = t("Действия");
       menuBtn.textContent = "⋮";
 
       menuBtn.addEventListener("click", (e) => {
@@ -3414,7 +3962,7 @@ function createApp() {
         // Открыть
         dropdown.appendChild(
           createMenuItem({
-            label: "Открыть",
+            label: t("Открыть"),
             onClick: () => openThisChat(),
           })
         );
@@ -3422,14 +3970,14 @@ function createApp() {
         const groupNotifyMuted = isChatNotifyMuted(current.username, chatMeta.id);
         dropdown.appendChild(
           createMenuItem({
-            label: groupNotifyMuted ? "Включить уведомления" : "Без звука и уведомлений",
+            label: groupNotifyMuted ? t("Включить уведомления") : t("Без звука и уведомлений"),
             onClick: () => {
               setChatNotifyMuted(current.username, chatMeta.id, !groupNotifyMuted);
               renderChatList();
               showToast(
                 groupNotifyMuted
-                  ? "Звук и уведомления снова включены для этого чата"
-                  : "Для этого чата выключены звук и всплывающие уведомления"
+                  ? t("Звук и уведомления снова включены для этого чата")
+                  : t("Для этого чата выключены звук и всплывающие уведомления")
               );
             },
           })
@@ -3439,7 +3987,7 @@ function createApp() {
         if (!isSuperAdmin) {
           dropdown.appendChild(
             createMenuItem({
-              label: "Пожаловаться",
+              label: t("Пожаловаться"),
               onClick: () => {
                 const overlay = document.createElement("div");
                 overlay.style.position = "fixed";
@@ -3623,7 +4171,7 @@ function createApp() {
                       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
                         <div style="display:flex;flex-direction:column;">
                           <div style="font-size:12px;font-weight:600;line-height:1.2;">
-                            ${escHtml(name)}${isOwnerRow ? " (создатель)" : ""}
+                            ${escHtml(name)}${isOwnerRow ? ` (${escHtml(t("создатель"))})` : ""}
                           </div>
                           <div style="font-size:10px;color:#9ca3af;margin-top:2px;">
                             ${escHtml(subtitle || "")}
@@ -3716,7 +4264,7 @@ function createApp() {
         }
 
         const deleteChat = async ({ moderation } = { moderation: false }) => {
-          if (!confirm(moderation ? "Удалить (модерация) этот чат и его сообщения?" : "Удалить эту группу и её сообщения?")) return;
+          if (!confirm(moderation ? "Удалить (модерация) этот чат и его сообщения?" : t("Удалить эту группу и её сообщения?"))) return;
           try {
             await api(`/api/chats/${chatMeta.id}`, { method: "DELETE" });
             allChats = allChats.filter((c) => c.id !== chatMeta.id);
@@ -3839,10 +4387,10 @@ function createApp() {
     container.innerHTML = `
       <div class="aton-empty-state aton-empty-state--landing">
         <div class="aton-landing-sun" aria-hidden="true"></div>
-        <p class="aton-empty-kicker">Под солнцем Ахетатона</p>
-        <h2 class="aton-empty-title">Спокойные диалоги — без лишнего шума</h2>
+        <p class="aton-empty-kicker">${escHtml(t("Под солнцем Ахетатона"))}</p>
+        <h2 class="aton-empty-title">${escHtml(t("Спокойные диалоги — без лишнего шума"))}</h2>
         <p class="aton-empty-lead">
-          Личные и групповые чаты в сдержанном интерфейсе. Меньше отвлечений — больше смысла в переписке.
+          ${escHtml(t("Личные и групповые чаты в сдержанном интерфейсе. Меньше отвлечений — больше смысла в переписке."))}
         </p>
       </div>
     `;
@@ -3869,7 +4417,7 @@ function createApp() {
     const wrap = document.createElement("div");
     wrap.className = "aton-golos-pending";
     const n = Math.max(1, golosPendingReplies);
-    const queueBadge = n > 1 ? `<span class="aton-golos-pending-badge">${n} в очереди</span>` : "";
+    const queueBadge = n > 1 ? `<span class="aton-golos-pending-badge">${escHtml(tf("{n} в очереди", { n }))}</span>` : "";
     wrap.innerHTML = `<div class="aton-golos-pending-card" role="status" aria-live="polite" aria-atomic="true">
       <div class="aton-golos-typing-dots" aria-hidden="true"><span></span><span></span><span></span></div>
       <div class="aton-golos-pending-copy">
@@ -3922,21 +4470,21 @@ function createApp() {
             <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
           </svg>
         </div>
-        <div class="aton-empty-title">В этом чате пока нет сообщений</div>
-        <div class="aton-empty-subtitle">Напишите первое сообщение, чтобы начать диалог.</div>
+        <div class="aton-empty-title">${escHtml(t("В этом чате пока нет сообщений"))}</div>
+        <div class="aton-empty-subtitle">${escHtml(t("Напишите первое сообщение, чтобы начать диалог."))}</div>
       </div>
     `;
   }
 
   function renderJoinChatState(container, chatPreview) {
-    const title = chatPreview?.title || "Чат";
+    const title = chatPreview?.title || t("Чат");
     const isVerified = Boolean(chatPreview?.verified);
     const canSelfJoin = Boolean(chatPreview);
 
     const chatType =
       typeof currentChatId === "string" && currentChatId.startsWith("channel:")
-        ? "канал"
-        : "группа";
+        ? t("канал")
+        : t("группа");
 
     // — приватный чат без права самостоятельного вступления —
     if (!canSelfJoin) {
@@ -3944,9 +4492,9 @@ function createApp() {
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:40px 24px;text-align:center;gap:14px;">
           <div style="width:60px;height:60px;border-radius:999px;background:rgba(15,23,42,0.7);border:1px solid rgba(55,65,81,0.9);display:flex;align-items:center;justify-content:center;font-size:26px;color:#64748b;">🔒</div>
           <div style="font-size:18px;font-weight:600;color:#e5e7eb;">${escHtml(title)}</div>
-          <div style="font-size:11px;background:rgba(148,163,184,0.1);color:#94a3b8;padding:2px 10px;border-radius:999px;border:1px solid rgba(148,163,184,0.2);">приватный ${escHtml(chatType)}</div>
+          <div style="font-size:11px;background:rgba(148,163,184,0.1);color:#94a3b8;padding:2px 10px;border-radius:999px;border:1px solid rgba(148,163,184,0.2);">${escHtml(tf("приватный {type}", { type: chatType }))}</div>
           <div style="font-size:12px;color:#64748b;max-width:300px;line-height:1.6;">
-            Чат закрытый. Попросите администратора выслать вам ссылку-приглашение.
+            ${escHtml(t("Чат закрытый. Попросите администратора выслать вам ссылку-приглашение."))}
           </div>
         </div>
       `;
@@ -3974,8 +4522,9 @@ function createApp() {
         d.getFullYear() === now.getFullYear() &&
         d.getMonth() === now.getMonth() &&
         d.getDate() === now.getDate();
-      if (sameDay) return "создан сегодня";
-      return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+      if (sameDay) return t("создан сегодня");
+      const locale = currentLang === "de" ? "de-DE" : currentLang === "en" ? "en-GB" : "ru-RU";
+      return d.toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" });
     }
 
     // Последнее сообщение: "N минут назад" / "вчера" / дата
@@ -3984,11 +4533,12 @@ function createApp() {
       const d = new Date(iso);
       if (isNaN(d)) return null;
       const diff = Date.now() - d.getTime();
-      if (diff < 60_000) return "только что";
-      if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} мин. назад`;
-      if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} ч. назад`;
-      if (diff < 2 * 86_400_000) return "вчера";
-      return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+      if (diff < 60_000) return t("только что");
+      if (diff < 3_600_000) return tf("{n} мин. назад", { n: Math.floor(diff / 60_000) });
+      if (diff < 86_400_000) return tf("{n} ч. назад", { n: Math.floor(diff / 3_600_000) });
+      if (diff < 2 * 86_400_000) return t("вчера");
+      const locale = currentLang === "de" ? "de-DE" : currentLang === "en" ? "en-GB" : "ru-RU";
+      return d.toLocaleDateString(locale, { day: "numeric", month: "short" });
     }
 
     const createdLabel = fmtCreated(createdAt);
@@ -4024,7 +4574,7 @@ function createApp() {
         </div>
 
         <!-- Тип-бейдж -->
-        <div style="font-size:10px;background:rgba(56,189,248,0.08);color:#38bdf8;padding:2px 10px;border-radius:999px;border:1px solid rgba(56,189,248,0.2);margin-bottom:18px;">публичный ${escHtml(chatType)}</div>
+        <div style="font-size:10px;background:rgba(56,189,248,0.08);color:#38bdf8;padding:2px 10px;border-radius:999px;border:1px solid rgba(56,189,248,0.2);margin-bottom:18px;">${escHtml(tf("публичный {type}", { type: chatType }))}</div>
 
         <!-- Описание -->
         ${description ? `
@@ -4038,7 +4588,7 @@ function createApp() {
           <div style="display:flex;align-items:center;">${membersHtml}</div>` : ""}
           <div style="font-size:12px;color:#64748b;">
             <span style="font-weight:600;color:#94a3b8;">${escHtml(String(memberCount))}</span>
-            ${memberCount === 1 ? "участник" : memberCount >= 2 && memberCount <= 4 ? "участника" : "участников"}
+            ${escHtml(t(memberCount === 1 ? "участник" : memberCount >= 2 && memberCount <= 4 ? "участника" : "участников"))}
             ${createdLabel ? `· <span style="color:#475569;">${escHtml(createdLabel)}</span>` : ""}
           </div>
         </div>
@@ -4046,10 +4596,10 @@ function createApp() {
         <!-- Последнее сообщение -->
         ${lastMsg ? `
         <div style="max-width:360px;width:100%;padding:8px 12px;background:rgba(15,23,42,0.45);border:1px solid rgba(55,65,81,0.5);border-radius:10px;margin-bottom:20px;text-align:left;">
-          <div style="font-size:10px;color:#475569;margin-bottom:3px;">Последнее сообщение ${activityLabel ? `· ${escHtml(activityLabel)}` : ""}</div>
+          <div style="font-size:10px;color:#475569;margin-bottom:3px;">${escHtml(t("Последнее сообщение"))} ${activityLabel ? `· ${escHtml(activityLabel)}` : ""}</div>
           <div style="font-size:12px;color:#94a3b8;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(lastMsg)}</div>
         </div>` : `
-        <div style="font-size:12px;color:#475569;margin-bottom:20px;">Сообщений пока нет</div>`}
+        <div style="font-size:12px;color:#475569;margin-bottom:20px;">${escHtml(t("Сообщений пока нет"))}</div>`}
 
         <!-- Кнопка вступить -->
         <button type="button" id="aton-join-chat-btn" style="
@@ -4064,8 +4614,8 @@ function createApp() {
           box-shadow: 0 4px 18px rgba(37,99,235,0.45);
           transition: box-shadow 0.2s, transform 0.15s;
           letter-spacing: 0.2px;
-        ">Вступить в ${escHtml(chatType)}</button>
-        <div style="font-size:11px;color:#475569;margin-top:8px;">Вы сможете читать и отправлять сообщения</div>
+        ">${escHtml(tf("Вступить в {type}", { type: chatType }))}</button>
+        <div style="font-size:11px;color:#475569;margin-top:8px;">${escHtml(t("Вы сможете читать и отправлять сообщения"))}</div>
 
       </div>
     `;
@@ -4084,7 +4634,7 @@ function createApp() {
 
     joinBtn.addEventListener("click", async () => {
       joinBtn.disabled = true;
-      joinBtn.textContent = "Вступаем…";
+      joinBtn.textContent = t("Вступаем…");
       joinBtn.style.opacity = "0.7";
       try {
         await api(`/api/chats/${currentChatId}/join`, { method: "POST" });
@@ -4095,11 +4645,11 @@ function createApp() {
         renderChatList();
         renderMessages();
         updateTopbarTitle();
-        showToast("Вы вступили в чат");
+        showToast(t("Вы вступили в чат"));
         void pullChatReceipts(cid);
       } catch (err) {
         joinBtn.disabled = false;
-        joinBtn.textContent = `Вступить в ${chatType}`;
+        joinBtn.textContent = tf("Вступить в {type}", { type: chatType });
         joinBtn.style.opacity = "";
         alert(err.message);
       }
@@ -4323,7 +4873,7 @@ function createApp() {
       const canAdmin = current && current.isSuperAdmin === true;
       const authorIsVerified = Boolean(author && author.isVerified);
       const timeLabel = formatTimeLabel(msg.time);
-      const editedLabel = msg.editedAt ? " · изм." : "";
+      const editedLabel = msg.editedAt ? ` · ${t("изм.")}` : "";
       const pinnedLabel = msg.pinned ? " 📌" : "";
 
       if (!privateDmUi) {
@@ -4444,10 +4994,10 @@ function createApp() {
       const replyBtn = document.createElement("button");
       replyBtn.className = "aton-message-action-button";
       replyBtn.textContent = "↩";
-      replyBtn.title = "Ответить";
+      replyBtn.title = t("Ответить");
       replyBtn.addEventListener("click", () => {
         replyToMessage = msg;
-        typingIndicator.textContent = `Ответ на сообщение от ${msg.from}…`;
+        typingIndicator.textContent = tf("Ответ на сообщение от {name}…", { name: msg.from });
         typingIndicator.style.display = "block";
         inputMessage.focus();
       });
@@ -4457,9 +5007,9 @@ function createApp() {
         const editBtn = document.createElement("button");
         editBtn.className = "aton-message-action-button";
         editBtn.textContent = "✎";
-        editBtn.title = "Редактировать";
+        editBtn.title = t("Редактировать");
         editBtn.addEventListener("click", async () => {
-          const nextText = prompt("Измените текст сообщения:", msg.text || "");
+          const nextText = prompt(t("Измените текст сообщения:"), msg.text || "");
           if (!nextText || nextText === msg.text) return;
           try {
             const updated = await api(`/api/messages/${msg.id}`, {
@@ -4477,7 +5027,7 @@ function createApp() {
         const pinBtn = document.createElement("button");
         pinBtn.className = "aton-message-action-button";
         pinBtn.textContent = "★";
-        pinBtn.title = msg.pinned ? "Снять закрепление" : "Закрепить сообщение";
+        pinBtn.title = msg.pinned ? t("Снять закрепление") : t("Закрепить сообщение");
         pinBtn.addEventListener("click", async () => {
           try {
             const updated = await api(`/api/messages/${msg.id}/pin`, {
@@ -4495,7 +5045,7 @@ function createApp() {
         const delBtn = document.createElement("button");
         delBtn.className = "aton-message-action-button aton-message-delete";
         delBtn.textContent = "×";
-        delBtn.title = "Удалить сообщение";
+        delBtn.title = t("Удалить сообщение");
         delBtn.addEventListener("click", async () => {
           try {
             await api(`/api/messages/${msg.id}`, { method: "DELETE" });
@@ -4567,7 +5117,7 @@ function createApp() {
 
     const peer = currentChatPeer();
     if (peer && contacts.blocked.some((u) => u.username === peer)) {
-      alert("Вы заблокировали этого пользователя. Разблокируйте его в контактах, чтобы писать.");
+      alert(t("Вы заблокировали этого пользователя. Разблокируйте его в контактах, чтобы писать."));
       return;
     }
 
@@ -4641,7 +5191,7 @@ function createApp() {
     // Локальный индикатор «печатает…»
     if (typingTimeoutId) clearTimeout(typingTimeoutId);
     if (!replyToMessage) {
-      typingIndicator.textContent = "Печатаете сообщение…";
+      typingIndicator.textContent = t("Печатаете сообщение…");
     }
     typingIndicator.style.display = inputMessage.value.trim() || event.key !== "Enter"
       ? "block"
@@ -4672,14 +5222,14 @@ function createApp() {
     reader.onload = async () => {
       const imageDataUrl = reader.result;
       if (typeof imageDataUrl !== "string" || !imageDataUrl.startsWith("data:")) {
-        alert("Не удалось прочитать изображение.");
+        alert(t("Не удалось прочитать изображение."));
         return;
       }
       const to = dmToForApi();
       const chatId = currentChatId;
       const peer = currentChatPeer();
       if (peer && contacts.blocked.some((u) => u.username === peer)) {
-        alert("Вы заблокировали этого пользователя. Разблокируйте его в контактах, чтобы писать.");
+        alert(t("Вы заблокировали этого пользователя. Разблокируйте его в контактах, чтобы писать."));
         return;
       }
       const tempId = `_temp_${Date.now()}`;
@@ -4718,7 +5268,7 @@ function createApp() {
         alert(err.message);
       }
     };
-    reader.onerror = () => alert("Не удалось прочитать файл.");
+    reader.onerror = () => alert(t("Не удалось прочитать файл."));
     reader.readAsDataURL(file);
   });
 
@@ -4744,7 +5294,7 @@ function createApp() {
     if (users.length) {
       const usersTitle = document.createElement("div");
       usersTitle.className = "aton-search-section-title";
-      usersTitle.textContent = "Пользователи";
+      usersTitle.textContent = t("Пользователи");
       searchResultsEl.appendChild(usersTitle);
     }
 
@@ -4794,21 +5344,21 @@ function createApp() {
                 : { status: isFriend ? "accepted" : "none" };
       let friendButtonsHtml = "";
       if (isBlocked) {
-        friendButtonsHtml = `<button type="button" class="aton-search-action aton-search-add" disabled>В друзья</button>`;
+        friendButtonsHtml = `<button type="button" class="aton-search-action aton-search-add" disabled>${escHtml(t("В друзьях"))}</button>`;
       } else if (eff.status === "accepted") {
-        friendButtonsHtml = `<span class="aton-search-friend-ok" aria-hidden="true">Вы друзья</span>`;
+        friendButtonsHtml = `<span class="aton-search-friend-ok" aria-hidden="true">${escHtml(t("Вы друзья"))}</span>`;
       } else if (eff.status === "pending" && eff.direction === "in") {
-        friendButtonsHtml = `<button type="button" class="aton-search-action aton-search-accept">Принять</button>
-            <button type="button" class="aton-search-action aton-search-decline">Отклонить</button>`;
+        friendButtonsHtml = `<button type="button" class="aton-search-action aton-search-accept">${escHtml(t("Принять"))}</button>
+            <button type="button" class="aton-search-action aton-search-decline">${escHtml(t("Отклонить"))}</button>`;
       } else if (eff.status === "pending" && eff.direction === "out") {
-        friendButtonsHtml = `<button type="button" class="aton-search-action" disabled>Заявка отправлена</button>
-            <button type="button" class="aton-search-action aton-search-cancel-req">Отменить заявку</button>`;
+        friendButtonsHtml = `<button type="button" class="aton-search-action" disabled>${escHtml(t("Заявка отправлена"))}</button>
+            <button type="button" class="aton-search-action aton-search-cancel-req">${escHtml(t("Отменить заявку"))}</button>`;
       } else {
-        friendButtonsHtml = `<button type="button" class="aton-search-action aton-search-add">Добавить в друзья</button>`;
+        friendButtonsHtml = `<button type="button" class="aton-search-action aton-search-add">${escHtml(t("Добавить в друзья"))}</button>`;
       }
       const nameStr = u.displayName || u.username;
       const verifiedBadge = u.isVerified
-        ? ' <span class="aton-search-verified" title="Верифицировано">✔</span>'
+        ? ` <span class="aton-search-verified" title="${escHtml(t("Верифицировано"))}">✔</span>`
         : "";
       item.innerHTML = `
         <div class="aton-search-user-card">
@@ -4820,10 +5370,10 @@ function createApp() {
             </div>
           </div>
           <div class="aton-search-actions">
-            <button type="button" class="aton-search-action aton-search-write" ${isBlocked ? "disabled" : ""}>Написать</button>
+            <button type="button" class="aton-search-action aton-search-write" ${isBlocked ? "disabled" : ""}>${escHtml(t("Написать"))}</button>
             ${friendButtonsHtml}
             <button type="button" class="aton-search-action aton-search-block">${
-              isBlocked ? "Разблокировать" : "Заблокировать"
+              escHtml(t(isBlocked ? "Разблокировать" : "Заблокировать"))
             }</button>
           </div>
         </div>
@@ -4883,8 +5433,8 @@ function createApp() {
               method: "POST",
               body: JSON.stringify({ username: u.username }),
             });
-            if (r.status === "requested") showToast("Заявка отправлена");
-            if (r.status === "accepted") showToast("Вы в друзьях");
+            if (r.status === "requested") showToast(t("Заявка отправлена"));
+            if (r.status === "accepted") showToast(t("Вы в друзьях"));
             await syncContactsAfterAction();
           } catch (err) {
             alert(err.message);
@@ -4964,14 +5514,14 @@ function createApp() {
       const myChatsTitle = document.createElement("div");
       myChatsTitle.className = "aton-search-section-title";
       myChatsTitle.style.marginTop = users.length ? "6px" : "0";
-      myChatsTitle.textContent = "Мои чаты";
+      myChatsTitle.textContent = t("Мои чаты");
       searchResultsEl.appendChild(myChatsTitle);
     }
 
     myChatsFound.forEach((chat) => {
       const item = document.createElement("div");
       item.className = "aton-search-item";
-      const typeLabel = chat.type === "channel" ? "канал" : "группа";
+      const typeLabel = chat.type === "channel" ? t("канал") : t("группа");
       item.innerHTML = `
         <div class="aton-search-main" style="cursor:pointer;">
           ${escHtml(chat.title)}${chat.verified ? ' <span style="color:#38bdf8;">✔</span>' : ""}
@@ -5009,7 +5559,7 @@ function createApp() {
       const chatsTitle = document.createElement("div");
       chatsTitle.className = "aton-search-section-title";
       chatsTitle.style.marginTop = users.length || myChatsFound.length ? "6px" : "0";
-      chatsTitle.textContent = "Рекомендуемые чаты";
+      chatsTitle.textContent = t("Рекомендуемые чаты");
       searchResultsEl.appendChild(chatsTitle);
     }
 
@@ -5022,10 +5572,10 @@ function createApp() {
       item.innerHTML = `
         <div class="aton-search-main" style="cursor:pointer;">
           ${escHtml(chat.title)}${chat.verified ? ' <span style="color:#38bdf8;">✔</span>' : ""}
-          <span style="font-size:9px;background:rgba(148,163,184,0.12);color:#94a3b8;padding:1px 5px;border-radius:6px;margin-left:4px;white-space:nowrap;">не участник</span>
+          <span style="font-size:9px;background:rgba(148,163,184,0.12);color:#94a3b8;padding:1px 5px;border-radius:6px;margin-left:4px;white-space:nowrap;">${escHtml(t("не участник"))}</span>
         </div>
         <div class="aton-search-actions">
-          <button type="button" class="aton-search-action aton-search-join">Вступить</button>
+          <button type="button" class="aton-search-action aton-search-join">${escHtml(t("Вступить"))}</button>
         </div>
       `;
       const main = item.querySelector(".aton-search-main");
@@ -5058,10 +5608,10 @@ function createApp() {
           renderChatList();
           renderMessages();
           updateTopbarTitle();
-          showToast("Вы вступили в чат");
+          showToast(t("Вы вступили в чат"));
         } catch (err) {
           joinBtn.disabled = false;
-          joinBtn.textContent = "Вступить";
+          joinBtn.textContent = t("Вступить");
           alert(err.message);
         }
       });
@@ -5080,7 +5630,7 @@ function createApp() {
     createGroupButton.addEventListener("click", () => {
       const current = currentUser;
       if (!current) {
-        alert("Сначала войдите или зарегистрируйтесь, чтобы создавать группы.");
+        alert(t("Сначала войдите или зарегистрируйтесь, чтобы создавать группы."));
         return;
       }
 
@@ -5102,24 +5652,24 @@ function createApp() {
       modal.style.width = "280px";
       modal.style.color = "#e5e7eb";
       modal.innerHTML = `
-        <div style="font-size:14px;font-weight:500;margin-bottom:6px;">Новый чат</div>
-        <div style="font-size:11px;color:#9ca3af;margin-bottom:8px;">Выберите тип и введите название.</div>
-        <label class="aton-input-label">Тип</label>
+        <div style="font-size:14px;font-weight:500;margin-bottom:6px;">${escHtml(t("Новый чат"))}</div>
+        <div style="font-size:11px;color:#9ca3af;margin-bottom:8px;">${escHtml(t("Выберите тип и введите название."))}</div>
+        <label class="aton-input-label">${escHtml(t("Тип"))}</label>
         <select id="aton-group-type" class="aton-input" style="margin-bottom:6px;">
-          <option value="group">Группа</option>
-          <option value="channel">Канал</option>
+          <option value="group">${escHtml(t("группа"))}</option>
+          <option value="channel">${escHtml(t("канал"))}</option>
         </select>
-        <label class="aton-input-label">Доступ</label>
+        <label class="aton-input-label">${escHtml(t("Доступ"))}</label>
         <select id="aton-group-visibility" class="aton-input" style="margin-bottom:6px;">
-          <option value="public">Публичный</option>
-          <option value="private">Приватный</option>
+          <option value="public">${escHtml(t("Публичный"))}</option>
+          <option value="private">${escHtml(t("Приватный"))}</option>
         </select>
-        <input type="text" id="aton-group-title" class="aton-input" placeholder="Например: «Песни о Фивах»" />
-        <label class="aton-input-label" style="margin-top:6px;">Описание <span style="color:#475569;font-weight:400;">(необязательно)</span></label>
-        <textarea id="aton-group-desc" class="aton-input" rows="2" placeholder="О чём этот чат?" style="resize:none;font-size:12px;line-height:1.5;padding:7px 10px;"></textarea>
+        <input type="text" id="aton-group-title" class="aton-input" placeholder="${escHtml(t("Например: «Песни о Фивах»"))}" />
+        <label class="aton-input-label" style="margin-top:6px;">${escHtml(t("Описание"))} <span style="color:#475569;font-weight:400;">(${escHtml(t("необязательно"))})</span></label>
+        <textarea id="aton-group-desc" class="aton-input" rows="2" placeholder="${escHtml(t("О чём этот чат?"))}" style="resize:none;font-size:12px;line-height:1.5;padding:7px 10px;"></textarea>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">
-          <button type="button" id="aton-group-cancel" class="aton-new-chat-button">Отмена</button>
-          <button type="button" id="aton-group-create" class="aton-primary-button" style="margin-top:0;padding-inline:14px;">Создать</button>
+          <button type="button" id="aton-group-cancel" class="aton-new-chat-button">${escHtml(t("Отмена"))}</button>
+          <button type="button" id="aton-group-create" class="aton-primary-button" style="margin-top:0;padding-inline:14px;">${escHtml(t("Создать"))}</button>
         </div>
       `;
 
@@ -5168,7 +5718,7 @@ function createApp() {
   // Профиль и аватар
   async function openProfileModal() {
     if (!currentUser) {
-      alert("Сначала войдите или зарегистрируйтесь.");
+      alert(t("Сначала войдите или зарегистрируйтесь."));
       return;
     }
     const user = userByUsername(currentUser.username) || currentUser;
@@ -5191,8 +5741,8 @@ function createApp() {
     modal.style.width = "320px";
     modal.style.color = "#e5e7eb";
     modal.innerHTML = `
-      <div style="font-size:14px;font-weight:500;margin-bottom:8px;">Профиль пользователя</div>
-      <div style="font-size:11px;color:#9ca3af;margin-bottom:10px;">Настройте, как вы выглядите в Атоне.</div>
+      <div style="font-size:14px;font-weight:500;margin-bottom:8px;">${escHtml(t("Профиль пользователя"))}</div>
+      <div style="font-size:11px;color:#9ca3af;margin-bottom:10px;">${escHtml(t("Настройте, как вы выглядите в Атоне."))}</div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
         <div style="width:40px;height:40px;border-radius:999px;overflow:hidden;background:#020617;border:1px solid rgba(55,65,81,0.9);flex-shrink:0;">
           <img id="aton-profile-avatar-preview" src="${
@@ -5202,23 +5752,23 @@ function createApp() {
           };" />
         </div>
         <label style="font-size:11px;cursor:pointer;color:#38bdf8;">
-          Загрузить аватар
+          ${escHtml(t("Загрузить аватар"))}
           <input type="file" id="aton-profile-avatar" accept="image/*" style="display:none;" />
         </label>
       </div>
-      <label class="aton-input-label">Отображаемое имя</label>
+      <label class="aton-input-label">${escHtml(t("Отображаемое имя"))}</label>
       <input type="text" id="aton-profile-name" class="aton-input" style="margin-bottom:6px;" />
-      <label class="aton-input-label" style="margin-top:4px;">Как видеть себя в чатах (только у вас)</label>
-      <input type="text" id="aton-profile-local-name" class="aton-input" style="margin-bottom:4px;" placeholder="Только в этом браузере, для других не меняется" />
-      <div style="font-size:10px;color:#6b7280;margin-bottom:8px;line-height:1.35;">Не отправляется на сервер. Пустое поле — показывается имя из профиля выше.</div>
-      <label class="aton-input-label">Статус</label>
-      <input type="text" id="aton-profile-bio" class="aton-input" placeholder="Например: «Пишу при свете Атена»" />
-      <label class="aton-input-label" style="margin-top:6px;">ID профиля</label>
-      <input type="text" id="aton-profile-public-id" class="aton-input" placeholder="Удобный ID, по которому вас можно найти (@id)" />
-      <div style="font-size:10px;color:#6b7280;margin-top:2px;">ID может содержать латинские буквы, цифры, подчёркивание и дефис (3–32 символа). Должен быть уникальным.</div>
+      <label class="aton-input-label" style="margin-top:4px;">${escHtml(t("Как видеть себя в чатах (только у вас)"))}</label>
+      <input type="text" id="aton-profile-local-name" class="aton-input" style="margin-bottom:4px;" placeholder="${escHtml(t("Только в этом браузере, для других не меняется"))}" />
+      <div style="font-size:10px;color:#6b7280;margin-bottom:8px;line-height:1.35;">${escHtml(t("Не отправляется на сервер. Пустое поле — показывается имя из профиля выше."))}</div>
+      <label class="aton-input-label">${escHtml(t("Статус"))}</label>
+      <input type="text" id="aton-profile-bio" class="aton-input" placeholder="${escHtml(t("Например: «Пишу при свете Атена»"))}" />
+      <label class="aton-input-label" style="margin-top:6px;">${escHtml(t("ID профиля"))}</label>
+      <input type="text" id="aton-profile-public-id" class="aton-input" placeholder="${escHtml(t("Удобный ID, по которому вас можно найти (@id)"))}" />
+      <div style="font-size:10px;color:#6b7280;margin-top:2px;">${escHtml(t("ID может содержать латинские буквы, цифры, подчёркивание и дефис (3–32 символа). Должен быть уникальным."))}</div>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">
-        <button id="aton-profile-cancel" class="aton-new-chat-button">Отмена</button>
-        <button id="aton-profile-save" class="aton-primary-button" style="margin-top:0;padding-inline:14px;">Сохранить</button>
+        <button id="aton-profile-cancel" class="aton-new-chat-button">${escHtml(t("Отмена"))}</button>
+        <button id="aton-profile-save" class="aton-primary-button" style="margin-top:0;padding-inline:14px;">${escHtml(t("Сохранить"))}</button>
       </div>
     `;
 
@@ -5334,7 +5884,7 @@ function createApp() {
   if (notifyPermissionBtn) {
     notifyPermissionBtn.addEventListener("click", async () => {
       if (typeof Notification === "undefined") {
-        showToast("Уведомления не поддерживаются в этом браузере");
+        showToast(t("Уведомления не поддерживаются в этом браузере"));
         return;
       }
       try {
@@ -5829,7 +6379,7 @@ function createApp() {
         const badge = document.createElement("span");
         badge.className = "aton-verified-badge";
         badge.textContent = "✔";
-        badge.title = "Верифицировано";
+        badge.title = t("Верифицировано");
         inner.appendChild(badge);
       }
 
@@ -5971,7 +6521,7 @@ function createApp() {
       hintEl.style.display = "none";
       if (!getToken()) {
         hintEl.textContent =
-          "Сначала войдите или зарегистрируйтесь — форма входа слева.";
+          t("Сначала войдите или зарегистрируйтесь — форма входа слева.");
         hintEl.style.display = "block";
         return;
       }
@@ -5981,7 +6531,7 @@ function createApp() {
           { method: "POST" }
         );
         const cid = result.chat && result.chat.id;
-        if (!cid) throw new Error("Не удалось вступить в чат");
+        if (!cid) throw new Error(t("Не удалось вступить в чат"));
         window.history.replaceState({}, "", "/");
         overlay.remove();
         currentChatId = cid;
@@ -6173,4 +6723,3 @@ function openImageLightbox(src) {
   overlay.addEventListener("click", () => overlay.remove());
   document.body.appendChild(overlay);
 }
-

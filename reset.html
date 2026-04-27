@@ -9,20 +9,25 @@
   <meta name="theme-color" content="#020617" />
   <meta name="color-scheme" content="dark light" />
   <meta name="aton-api-base" content="https://aton-api.onrender.com" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=97" />
 </head>
 <body>
   <div id="app" style="align-items:center;justify-content:center;">
     <div class="aton-shell" style="max-width:480px;max-height:none;">
       <div class="aton-main" style="padding:20px;">
+        <div class="aton-lang-switcher" style="justify-content:flex-end;margin-bottom:10px;">
+          <button type="button" class="aton-lang-btn" data-lang="ru" title="Русский">🇷🇺</button>
+          <button type="button" class="aton-lang-btn" data-lang="de" title="Deutsch">🇩🇪</button>
+          <button type="button" class="aton-lang-btn" data-lang="en" title="English">🇬🇧</button>
+        </div>
         <div class="aton-topbar-left" style="margin-bottom:12px;">
-          <div class="aton-topbar-title">Восстановление пароля</div>
+          <div class="aton-topbar-title" data-i18n="resetTitle">Восстановление пароля</div>
           <div class="aton-topbar-status" id="reset-status">Введите новый пароль для вашей учётной записи.</div>
         </div>
         <form id="reset-form" class="aton-auth-form">
-          <label class="aton-input-label">Новый пароль</label>
+          <label class="aton-input-label" data-i18n="newPassword">Новый пароль</label>
           <input type="password" id="reset-password" class="aton-input" autocomplete="new-password" />
-          <button type="submit" class="aton-primary-button">Сменить пароль</button>
+          <button type="submit" class="aton-primary-button" data-i18n="changePassword">Сменить пароль</button>
           <div class="aton-auth-hint" id="reset-hint"></div>
         </form>
       </div>
@@ -30,6 +35,67 @@
   </div>
 
   <script>
+    const LANG_KEY = "aton_lang";
+    const I18N = {
+      en: {
+        title: "Aton — new password",
+        resetTitle: "Password recovery",
+        resetStatus: "Enter a new password for your account.",
+        newPassword: "New password",
+        changePassword: "Change password",
+        noToken: "Invalid link: token is missing.",
+        needPassword: "Enter a new password.",
+        failed: "Failed to change password.",
+        success: "Password updated successfully. You can now sign in to Aton.",
+        network: "Network error.",
+      },
+      de: {
+        title: "Aton — neues Passwort",
+        resetTitle: "Passwort wiederherstellen",
+        resetStatus: "Geben Sie ein neues Passwort fuer Ihr Konto ein.",
+        newPassword: "Neues Passwort",
+        changePassword: "Passwort aendern",
+        noToken: "Ungueltiger Link: Token fehlt.",
+        needPassword: "Geben Sie ein neues Passwort ein.",
+        failed: "Passwort konnte nicht geaendert werden.",
+        success: "Passwort erfolgreich aktualisiert. Sie koennen sich jetzt bei Aton anmelden.",
+        network: "Netzwerkfehler.",
+      },
+    };
+    function currentLang() {
+      const v = localStorage.getItem(LANG_KEY);
+      return v === "de" || v === "en" ? v : "ru";
+    }
+    function tr(key, ru) {
+      const lang = currentLang();
+      return lang === "ru" ? ru : (I18N[lang] && I18N[lang][key]) || ru;
+    }
+    function applyLang() {
+      const lang = currentLang();
+      document.documentElement.lang = lang === "en" ? "en-GB" : lang;
+      document.title = tr("title", "Атон — новый пароль");
+      document.getElementById("reset-status").textContent = tr("resetStatus", "Введите новый пароль для вашей учётной записи.");
+      document.querySelectorAll("[data-i18n]").forEach((el) => {
+        const key = el.getAttribute("data-i18n");
+        const ru = {
+          resetTitle: "Восстановление пароля",
+          newPassword: "Новый пароль",
+          changePassword: "Сменить пароль",
+        }[key] || el.textContent;
+        el.textContent = tr(key, ru);
+      });
+      document.querySelectorAll(".aton-lang-btn").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.lang === lang);
+        btn.setAttribute("aria-pressed", btn.dataset.lang === lang ? "true" : "false");
+      });
+    }
+    document.querySelectorAll(".aton-lang-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        localStorage.setItem(LANG_KEY, btn.dataset.lang);
+        applyLang();
+      });
+    });
+    applyLang();
     function atonApiBase() {
       const m = document.querySelector('meta[name="aton-api-base"]')?.getAttribute("content")?.trim();
       return m ? m.replace(/\/$/, "") : "";
@@ -46,11 +112,11 @@
       const hintEl = document.getElementById("reset-hint");
       const password = document.getElementById("reset-password").value.trim();
       if (!token) {
-        hintEl.textContent = "Ссылка недействительна: отсутствует токен.";
+        hintEl.textContent = tr("noToken", "Ссылка недействительна: отсутствует токен.");
         return;
       }
       if (!password) {
-        hintEl.textContent = "Введите новый пароль.";
+        hintEl.textContent = tr("needPassword", "Введите новый пароль.");
         return;
       }
       try {
@@ -61,16 +127,15 @@
         });
         const data = await res.json();
         if (!res.ok) {
-          hintEl.textContent = data.error || "Не удалось сменить пароль.";
+          hintEl.textContent = data.error || tr("failed", "Не удалось сменить пароль.");
           return;
         }
-        statusEl.textContent = "Пароль успешно обновлён. Теперь вы можете войти в Атон.";
+        statusEl.textContent = tr("success", "Пароль успешно обновлён. Теперь вы можете войти в Атон.");
         hintEl.textContent = "";
       } catch (err) {
-        hintEl.textContent = "Ошибка сети.";
+        hintEl.textContent = tr("network", "Ошибка сети.");
       }
     });
   </script>
 </body>
 </html>
-

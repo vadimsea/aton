@@ -9,14 +9,19 @@
   <meta name="theme-color" content="#020617" />
   <meta name="color-scheme" content="dark light" />
   <meta name="aton-api-base" content="https://aton-api.onrender.com" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=97" />
 </head>
 <body>
   <div id="app" style="align-items:center;justify-content:center;">
     <div class="aton-shell" style="max-width:480px;max-height:none;">
       <div class="aton-main" style="padding:20px;">
+        <div class="aton-lang-switcher" style="justify-content:flex-end;margin-bottom:10px;">
+          <button type="button" class="aton-lang-btn" data-lang="ru" title="Русский">🇷🇺</button>
+          <button type="button" class="aton-lang-btn" data-lang="de" title="Deutsch">🇩🇪</button>
+          <button type="button" class="aton-lang-btn" data-lang="en" title="English">🇬🇧</button>
+        </div>
         <div class="aton-topbar-left" style="margin-bottom:12px;">
-          <div class="aton-topbar-title">Восстановление доступа</div>
+          <div class="aton-topbar-title" data-i18n="forgotTitle">Восстановление доступа</div>
           <div class="aton-topbar-status" id="forgot-status">
             Укажите email, к которому привязан ваш аккаунт. Мы отправим письмо со ссылкой для сброса пароля.
           </div>
@@ -24,7 +29,7 @@
         <form id="forgot-form" class="aton-auth-form">
           <label class="aton-input-label">Email</label>
           <input type="email" id="forgot-email" class="aton-input" autocomplete="email" />
-          <button type="submit" class="aton-primary-button">Отправить ссылку</button>
+          <button type="submit" class="aton-primary-button" data-i18n="sendLink">Отправить ссылку</button>
           <div class="aton-auth-hint" id="forgot-hint"></div>
         </form>
       </div>
@@ -32,6 +37,61 @@
   </div>
 
   <script>
+    const LANG_KEY = "aton_lang";
+    const I18N = {
+      en: {
+        title: "Aton — account recovery",
+        forgotTitle: "Account recovery",
+        forgotStatus: "Enter the email linked to your account. We will send a password reset link.",
+        sendLink: "Send link",
+        needEmail: "Enter the email you used during registration.",
+        sending: "Sending email…",
+        sendFailed: "Failed to send email.",
+        sent: "If this email exists in the system, a recovery link has been sent.",
+        network: "Network error. Try again.",
+      },
+      de: {
+        title: "Aton — Zugang wiederherstellen",
+        forgotTitle: "Zugang wiederherstellen",
+        forgotStatus: "Geben Sie die E-Mail ein, die mit Ihrem Konto verknuepft ist. Wir senden einen Link zum Zuruecksetzen des Passworts.",
+        sendLink: "Link senden",
+        needEmail: "Geben Sie die E-Mail ein, die Sie bei der Registrierung verwendet haben.",
+        sending: "E-Mail wird gesendet…",
+        sendFailed: "E-Mail konnte nicht gesendet werden.",
+        sent: "Wenn diese E-Mail im System vorhanden ist, wurde ein Wiederherstellungslink gesendet.",
+        network: "Netzwerkfehler. Versuchen Sie es erneut.",
+      },
+    };
+    function currentLang() {
+      const v = localStorage.getItem(LANG_KEY);
+      return v === "de" || v === "en" ? v : "ru";
+    }
+    function tr(key, ru) {
+      const lang = currentLang();
+      return lang === "ru" ? ru : (I18N[lang] && I18N[lang][key]) || ru;
+    }
+    function applyLang() {
+      const lang = currentLang();
+      document.documentElement.lang = lang === "en" ? "en-GB" : lang;
+      document.title = tr("title", "Атон — восстановление доступа");
+      document.getElementById("forgot-status").textContent = tr("forgotStatus", "Укажите email, к которому привязан ваш аккаунт. Мы отправим письмо со ссылкой для сброса пароля.");
+      document.querySelectorAll("[data-i18n]").forEach((el) => {
+        const key = el.getAttribute("data-i18n");
+        const ru = key === "forgotTitle" ? "Восстановление доступа" : "Отправить ссылку";
+        el.textContent = tr(key, ru);
+      });
+      document.querySelectorAll(".aton-lang-btn").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.lang === lang);
+        btn.setAttribute("aria-pressed", btn.dataset.lang === lang ? "true" : "false");
+      });
+    }
+    document.querySelectorAll(".aton-lang-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        localStorage.setItem(LANG_KEY, btn.dataset.lang);
+        applyLang();
+      });
+    });
+    applyLang();
     function atonApiBase() {
       const m = document.querySelector('meta[name="aton-api-base"]')?.getAttribute("content")?.trim();
       return m ? m.replace(/\/$/, "") : "";
@@ -42,10 +102,10 @@
       const hintEl = document.getElementById("forgot-hint");
       const email = emailInput.value.trim();
       if (!email) {
-        hintEl.textContent = "Введите email, который вы использовали при регистрации.";
+        hintEl.textContent = tr("needEmail", "Введите email, который вы использовали при регистрации.");
         return;
       }
-      hintEl.textContent = "Отправляем письмо…";
+      hintEl.textContent = tr("sending", "Отправляем письмо…");
       try {
         const res = await fetch(`${atonApiBase()}/api/password/reset-request`, {
           method: "POST",
@@ -54,15 +114,14 @@
         });
         const data = await res.json();
         if (!res.ok) {
-          hintEl.textContent = data.error || "Не удалось отправить письмо.";
+          hintEl.textContent = data.error || tr("sendFailed", "Не удалось отправить письмо.");
           return;
         }
-        hintEl.textContent = "Если такой email есть в системе, на него отправлена ссылка для восстановления.";
+        hintEl.textContent = tr("sent", "Если такой email есть в системе, на него отправлена ссылка для восстановления.");
       } catch (err) {
-        hintEl.textContent = "Ошибка сети. Попробуйте ещё раз.";
+        hintEl.textContent = tr("network", "Ошибка сети. Попробуйте ещё раз.");
       }
     });
   </script>
 </body>
 </html>
-

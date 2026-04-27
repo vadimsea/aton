@@ -146,6 +146,46 @@ body {
   flex: 1;
 }
 
+.aton-lang-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  margin-right: 6px;
+}
+
+.aton-lang-switcher--topbar {
+  margin: 0 2px 0 0;
+}
+
+.aton-lang-btn {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.65);
+  color: #fff;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.aton-lang-btn.active {
+  border-color: var(--aton-accent-blue);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.18);
+}
+
+[data-theme="light"] .aton-lang-btn {
+  background: #fff;
+  color: #111827;
+  border-color: rgba(15, 23, 42, 0.18);
+}
+
 /* Дублирует тему и друзей с топбара: в шапке сайдбара, на мобиле — в одной строке с логотипом */
 .aton-sidebar-toolbar {
   display: none;
@@ -4996,4 +5036,3 @@ body {
     flex-shrink: 0;
   }
 }
-
