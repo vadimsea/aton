@@ -2191,6 +2191,42 @@ function createApp() {
     }
   }
 
+  function messagesForChatId(chatId) {
+    if (!chatId || !currentUser) return [];
+    return allMessages.filter((msg) => {
+      if (!msg) return false;
+      if (String(chatId).startsWith("group:") || String(chatId).startsWith("channel:")) {
+        return msg.chatId === chatId;
+      }
+      if (isPrivateDirectChat(chatId)) {
+        return messageBelongsToDmId(msg, chatId);
+      }
+      return msg.chatId === chatId;
+    });
+  }
+
+  function updateVisibleMessageMeta() {
+    if (!messagesEl || !currentUser || !currentChatId) return;
+    const byId = new Map(messagesForChatId(currentChatId).map((m) => [String(m.id || ""), m]));
+    for (const row of messagesEl.querySelectorAll(".aton-message-row[data-message-id]")) {
+      const id = row.getAttribute("data-message-id");
+      const msg = byId.get(String(id || ""));
+      if (!msg) continue;
+      const meta = row.querySelector(".aton-message-meta");
+      if (!meta) continue;
+      const isSelf = isMessageFromSelf(msg, currentUser, currentChatId);
+      meta.className = "aton-message-meta" + (isSelf ? " aton-message-meta--self" : "");
+      const timeLabel = formatTimeLabel(msg.time);
+      const editedLabel = msg.editedAt ? ` · ${t("изм.")}` : "";
+      const pinnedLabel = msg.pinned ? " ★" : "";
+      const st =
+        msg.status && ["sent", "delivered", "read"].includes(msg.status) ? msg.status : "sent";
+      const showAck = isSelf && isPrivateDirectChat(currentChatId);
+      const ack = showAck ? messageAckHtml(st) : "";
+      meta.innerHTML = `<span class="aton-message-time">${escHtml(timeLabel)}${escHtml(editedLabel)}${escHtml(pinnedLabel)}</span>${ack}`;
+    }
+  }
+
   /**
    * Личка: GET /messages обновляет статусы на сервере (чужие «sent» → «delivered» для вашей выборки).
    * С markRead (открытие чата): затем POST /read — чужие «sent|delivered» → «read»; у собеседника ваши исходящие станут «прочитано».
@@ -2202,6 +2238,7 @@ function createApp() {
     const token = chatId;
     receiptsInFlight = token;
     try {
+      const beforeIds = messagesForChatId(chatId).map((m) => String(m.id || "")).filter(Boolean).join("|");
       const list = await api(`/api/messages?chatId=${encodeURIComponent(chatId)}`);
       if (receiptsInFlight !== token) return;
       if (!Array.isArray(list)) return;
@@ -2224,10 +2261,13 @@ function createApp() {
           renderMessages();
         } else {
           if (receiptsMessagesRenderTimer) clearTimeout(receiptsMessagesRenderTimer);
-          receiptsMessagesRenderTimer = setTimeout(() => {
-            receiptsMessagesRenderTimer = 0;
+          receiptsMessagesRenderTimer = 0;
+          const afterIds = messagesForChatId(chatId).map((m) => String(m.id || "")).filter(Boolean).join("|");
+          if (beforeIds === afterIds) {
+            updateVisibleMessageMeta();
+          } else {
             renderMessages({ deferIfVoice: true });
-          }, 80);
+          }
         }
       }
     } catch (e) {
