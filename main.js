@@ -2010,6 +2010,8 @@ function createApp() {
   let receiptsMessagesRenderTimer = 0;
   /** Стабилизация скролла: при смене чата — вниз; при мерже в том же чате — якорь, если смотрели историю. */
   let lastMessagesRenderChatId = null;
+  let warmOpenChatId = null;
+  let warmOpenChatMessagesPromise = null;
   const QUICK_REACTION_EMOJI = "👍";
   const MESSAGE_REACTION_EMOJIS = ["👍", "❤️", "🔥", "😁", "😢", "👏", "🤯", "👎"];
   /** Дебаунс pull по chatId — иначе при событиях в двух личках съедалось бы одно из них. */
@@ -2239,10 +2241,16 @@ function createApp() {
     receiptsInFlight = token;
     try {
       const beforeIds = messagesForChatId(chatId).map((m) => String(m.id || "")).filter(Boolean).join("|");
+      let paintedOpenChatFromList = false;
       const list = await api(`/api/messages?chatId=${encodeURIComponent(chatId)}`);
       if (receiptsInFlight !== token) return;
       if (!Array.isArray(list)) return;
       allMessages = applyMessagesForChatInAll(allMessages, chatId, list);
+      if (markRead && currentChatId === chatId) {
+        renderChatList();
+        renderMessages({ deferIfVoice: true });
+        paintedOpenChatFromList = true;
+      }
       if (markRead && isPrivateDirectChat(chatId)) {
         const r = await api("/api/messages/read", {
           method: "POST",
@@ -2258,7 +2266,11 @@ function createApp() {
         if (markRead) {
           if (receiptsMessagesRenderTimer) clearTimeout(receiptsMessagesRenderTimer);
           receiptsMessagesRenderTimer = 0;
-          renderMessages();
+          if (paintedOpenChatFromList) {
+            updateVisibleMessageMeta();
+          } else {
+            renderMessages();
+          }
         } else {
           if (receiptsMessagesRenderTimer) clearTimeout(receiptsMessagesRenderTimer);
           receiptsMessagesRenderTimer = 0;
@@ -2320,26 +2332,75 @@ function createApp() {
 
   /** После F5: открываем тот же чат, что и до перезагрузки (если он ещё доступен). */
   function restoreLastOpenChatIfValid() {
-    if (!currentUser || !currentUser.verified) return;
-    const saved = getLastChatId(currentUser.username);
-    if (!saved || typeof saved !== "string") return;
+    if (!currentUser || !currentUser.verified) return false;
+    let saved = getLastChatId(currentUser.username);
+    if (!saved) {
+      try {
+        const currentName = String(currentUser.username || "").toLowerCase();
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i) || "";
+          if (key.startsWith(LAST_CHAT_KEY_PREFIX) && key.slice(LAST_CHAT_KEY_PREFIX.length).toLowerCase() === currentName) {
+            saved = localStorage.getItem(key) || "";
+            break;
+          }
+        }
+      } catch (_) {}
+    }
+    if (!saved || typeof saved !== "string") return false;
     if (saved.startsWith("group:") || saved.startsWith("channel:")) {
       if (!allChats.some((c) => c.id === saved)) {
-        return;
+        return false;
       }
     } else if (String(saved).includes("|")) {
       const parts = saved.split("|");
-      if (parts.length !== 2) return;
+      if (parts.length !== 2) return false;
       const [a, b] = parts;
-      if (a !== currentUser.username && b !== currentUser.username) {
-        return;
+      const currentName = String(currentUser.username || "").toLowerCase();
+      const aLower = String(a || "").toLowerCase();
+      const bLower = String(b || "").toLowerCase();
+      if (aLower !== currentName && bLower !== currentName) {
+        return false;
       }
     } else {
-      return;
+      return false;
     }
     currentChatId = saved;
-    switchSocketChat(saved);
-    void pullChatReceipts(saved);
+    switchSocketChat(currentChatId);
+    if (warmOpenChatId === saved && warmOpenChatMessagesPromise) {
+      void warmOpenChatMessagesPromise.then((list) => {
+        if (!Array.isArray(list) || currentChatId !== saved || !currentUser) return;
+        allMessages = applyMessagesForChatInAll(allMessages, currentChatId, list);
+        renderChatList();
+        renderMessages({ deferIfVoice: true });
+        updateTopbarTitle();
+      });
+    }
+    void pullChatReceipts(currentChatId);
+    return true;
+  }
+
+  function startWarmOpenChatPrefetch() {
+    const snap = readSessionSnapshot();
+    let username = snap && snap.verified && snap.username ? String(snap.username) : "";
+    if (!username) {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i) || "";
+          if (key.startsWith(LAST_CHAT_KEY_PREFIX)) {
+            username = key.slice(LAST_CHAT_KEY_PREFIX.length);
+            break;
+          }
+        }
+      } catch (_) {}
+    }
+    if (!username || !getToken()) return;
+    const saved = getLastChatId(username);
+    if (!saved || typeof saved !== "string") return;
+    if (!String(saved).includes("|") && !String(saved).startsWith("group:") && !String(saved).startsWith("channel:")) return;
+    warmOpenChatId = saved;
+    warmOpenChatMessagesPromise = api(`/api/messages?chatId=${encodeURIComponent(saved)}`)
+      .then((list) => (Array.isArray(list) ? list : []))
+      .catch(() => null);
   }
 
   function ensureToastStack() {
@@ -3072,11 +3133,11 @@ function createApp() {
 
       if (version !== bootstrapVersion) return;
       applyCurrentUserUI();
+      restoreLastOpenChatIfValid();
       renderChatList();
       renderMessages({ deferIfVoice: true });
       updateTopbarTitle();
       updateFriendsBadge();
-      restoreLastOpenChatIfValid();
 
       await maybeMergeLocalPeerAliasesOnce();
       if (version !== bootstrapVersion) return;
@@ -6949,6 +7010,8 @@ function createApp() {
       })
       .catch((e) => console.error("bootstrap after online", e));
   });
+
+  startWarmOpenChatPrefetch();
 
   (async () => {
     try {
