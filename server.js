@@ -305,6 +305,19 @@ function emitMessageStatusForChat(chatId, payload) {
   io.to(chatId).emit("message:status", payload);
 }
 
+function emitMessageUpdated(msg) {
+  if (!msg || !msg.chatId) return;
+  if (isDirectMessageChatId(String(msg.chatId))) {
+    const parts = String(msg.chatId).split("|");
+    if (parts.length === 2 && parts[0] && parts[1]) {
+      io.to(`user:${parts[0]}`).emit("message:updated", msg);
+      io.to(`user:${parts[1]}`).emit("message:updated", msg);
+      return;
+    }
+  }
+  io.to(msg.chatId).emit("message:updated", msg);
+}
+
 // Rate limiting — защита от brute-force
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 минут
@@ -2952,7 +2965,9 @@ app.post("/api/messages/:id/react", authMiddleware, requireVerified, async (req,
       where: { id },
       data: { reactions },
     });
-    res.json(messageFromPrismaRow(updated));
+    const msg = messageFromPrismaRow(updated);
+    emitMessageUpdated(msg);
+    res.json(msg);
   } catch (err) {
     console.error("POST /api/messages/:id/react:", err);
     res.status(500).json({ error: "Ошибка сервера" });

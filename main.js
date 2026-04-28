@@ -2419,6 +2419,21 @@ function createApp() {
     }
   });
 
+  socket.on("message:updated", (msg) => {
+    if (!msg || !msg.id) return;
+    let found = false;
+    allMessages = allMessages.map((m) => {
+      if (m.id !== msg.id) return m;
+      found = true;
+      return { ...m, ...msg };
+    });
+    if (!found) return;
+    renderChatList();
+    if (currentChatId && messageBelongsToOpenChat(msg, currentChatId)) {
+      renderMessages({ deferIfVoice: true });
+    }
+  });
+
   socket.on("golos:noreply", (p) => {
     if (!p || !p.chatId || !currentUser) return;
     const gid = chatIdForUsers(currentUser.username, GOLOS_ATON_USERNAME);
