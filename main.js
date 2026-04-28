@@ -492,6 +492,8 @@ const I18N = {
     de: "Zugriff auf das Mikrofon fehlgeschlagen.",
   },
   "Ошибка": { en: "Error", de: "Fehler" },
+  "Оставить реакцию": { en: "Add reaction", de: "Reaktion hinzufuegen" },
+  "Изменить реакцию": { en: "Change reaction", de: "Reaktion aendern" },
   "Не удалось запустить мессенджер. Обновите страницу (Ctrl+F5) или зайдите позже. Если снова так — откройте консоль (F12) и сделайте скриншот.": {
     en: "Failed to start the messenger. Refresh the page (Ctrl+F5) or try again later. If it happens again, open the console (F12) and take a screenshot.",
     de: "Messenger konnte nicht gestartet werden. Aktualisieren Sie die Seite (Ctrl+F5) oder versuchen Sie es spaeter erneut. Wenn es wieder passiert, oeffnen Sie die Konsole (F12) und machen Sie einen Screenshot.",
@@ -2008,6 +2010,8 @@ function createApp() {
   let receiptsMessagesRenderTimer = 0;
   /** Стабилизация скролла: при смене чата — вниз; при мерже в том же чате — якорь, если смотрели историю. */
   let lastMessagesRenderChatId = null;
+  const QUICK_REACTION_EMOJI = "👍";
+  const MESSAGE_REACTION_EMOJIS = ["👍", "❤️", "🔥", "😁", "😢", "👏", "🤯", "👎"];
   /** Дебаунс pull по chatId — иначе при событиях в двух личках съедалось бы одно из них. */
   const messageStatusPullTimers = new Map();
   /**
@@ -2092,8 +2096,83 @@ function createApp() {
     }
   }
 
+  function closeReactionPicker() {
+    if (openReactionPicker) {
+      openReactionPicker.remove();
+      openReactionPicker = null;
+    }
+  }
+
+  function getOwnReaction(message) {
+    if (!currentUser || !Array.isArray(message && message.reactions)) return null;
+    return message.reactions.find((r) => r && r.user === currentUser.username) || null;
+  }
+
+  function getReactionSummary(message) {
+    const summary = new Map();
+    const reactions = Array.isArray(message && message.reactions) ? message.reactions : [];
+    for (const reaction of reactions) {
+      if (!reaction || typeof reaction.emoji !== "string" || !reaction.emoji.trim()) continue;
+      const emoji = reaction.emoji.trim();
+      const entry = summary.get(emoji) || { emoji, count: 0, users: [], reactedByMe: false };
+      entry.count += 1;
+      if (reaction.user) entry.users.push(reaction.user);
+      if (currentUser && reaction.user === currentUser.username) entry.reactedByMe = true;
+      summary.set(emoji, entry);
+    }
+    return [...summary.values()].sort((a, b) => {
+      if (a.reactedByMe !== b.reactedByMe) return a.reactedByMe ? -1 : 1;
+      const ai = MESSAGE_REACTION_EMOJIS.indexOf(a.emoji);
+      const bi = MESSAGE_REACTION_EMOJIS.indexOf(b.emoji);
+      const ao = ai === -1 ? 999 : ai;
+      const bo = bi === -1 ? 999 : bi;
+      return ao - bo || b.count - a.count || a.emoji.localeCompare(b.emoji);
+    });
+  }
+
+  async function toggleMessageReaction(message, emoji) {
+    if (!message || !message.id || !emoji) return;
+    const updated = await api(`/api/messages/${message.id}/react`, {
+      method: "POST",
+      body: JSON.stringify({ emoji }),
+    });
+    allMessages = allMessages.map((m) => (m.id === updated.id ? updated : m));
+    closeReactionPicker();
+    renderMessages();
+  }
+
+  function positionReactionPicker(picker, anchorRect) {
+    const gap = 8;
+    picker.style.position = "fixed";
+    picker.style.left = "0";
+    picker.style.top = "0";
+    picker.style.visibility = "hidden";
+    document.body.appendChild(picker);
+
+    const pickerRect = picker.getBoundingClientRect();
+    const viewportPadding = 8;
+    const preferredLeft = anchorRect.left + anchorRect.width / 2 - pickerRect.width / 2;
+    const left = Math.min(
+      Math.max(viewportPadding, preferredLeft),
+      Math.max(viewportPadding, window.innerWidth - pickerRect.width - viewportPadding)
+    );
+    const topAbove = anchorRect.top - pickerRect.height - gap;
+    const topBelow = anchorRect.bottom + gap;
+    const top = topAbove >= viewportPadding ? topAbove : Math.min(topBelow, window.innerHeight - pickerRect.height - viewportPadding);
+
+    picker.style.left = `${left}px`;
+    picker.style.top = `${Math.max(viewportPadding, top)}px`;
+    picker.style.visibility = "";
+  }
+
   // Закрываем админское меню чатов при клике вне него
   document.addEventListener("click", (e) => {
+    if (openReactionPicker) {
+      const t = e.target;
+      if (!(t && t.closest && (t.closest(".aton-reaction-picker") || t.closest(".aton-message-react-trigger")))) {
+        closeReactionPicker();
+      }
+    }
     if (!openChatMenu) return;
     const t = e.target;
     if (t && t.closest && t.closest(".aton-chat-menu-btn")) return;
@@ -2757,12 +2836,15 @@ function createApp() {
 
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
+    closeReactionPicker();
     if (voicePreviewEl && !voicePreviewEl.hidden) {
       e.preventDefault();
       clearVoicePreview();
       setMicButtonIdle();
     }
   });
+
+  messagesEl.addEventListener("scroll", closeReactionPicker, { passive: true });
 
   function showToast(message) {
     const prev = document.querySelector(".aton-toast");
@@ -4851,6 +4933,7 @@ function createApp() {
     }
     clearRenderMessagesVoiceListener();
     renderMessagesDeferredPending = false;
+    closeReactionPicker();
     const privateDmUi = Boolean(
       currentUser && currentChatId && isPrivateDirectChat(currentChatId)
     );
@@ -5078,49 +5161,38 @@ function createApp() {
       actions.className = "aton-message-actions";
 
       const reactBtn = document.createElement("button");
-      reactBtn.className = "aton-message-action-button";
-      reactBtn.textContent = "😊";
-      reactBtn.title = "Оставить реакцию";
+      reactBtn.className = "aton-message-action-button aton-message-react-trigger";
+      const ownReaction = getOwnReaction(msg);
+      reactBtn.textContent = ownReaction ? ownReaction.emoji : "♡";
+      reactBtn.title = ownReaction ? t("Изменить реакцию") : t("Оставить реакцию");
+      reactBtn.setAttribute("aria-label", reactBtn.title);
+      if (ownReaction) reactBtn.classList.add("is-active");
       reactBtn.addEventListener("click", (event) => {
         event.stopPropagation();
-        if (openReactionPicker) {
-          openReactionPicker.remove();
-          openReactionPicker = null;
-        }
+        closeReactionPicker();
         const picker = document.createElement("div");
         picker.className = "aton-reaction-picker";
-        const emojis = ["👍", "✨", "😊", "🔥", "❤️"];
-        emojis.forEach((emoji) => {
+        picker.setAttribute("role", "menu");
+        picker.setAttribute("aria-label", t("Оставить реакцию"));
+        MESSAGE_REACTION_EMOJIS.forEach((emoji) => {
           const btn = document.createElement("button");
           btn.type = "button";
           btn.className = "aton-reaction-picker-item";
+          if (ownReaction && ownReaction.emoji === emoji) btn.classList.add("is-active");
           btn.textContent = emoji;
+          btn.title = emoji;
+          btn.setAttribute("aria-label", emoji);
           btn.addEventListener("click", async (e) => {
             e.stopPropagation();
             try {
-              const updated = await api(`/api/messages/${msg.id}/react`, {
-                method: "POST",
-                body: JSON.stringify({ emoji }),
-              });
-              allMessages = allMessages.map((m) =>
-                m.id === updated.id ? updated : m
-              );
-              if (openReactionPicker) {
-                openReactionPicker.remove();
-                openReactionPicker = null;
-              }
-              renderMessages();
+              await toggleMessageReaction(msg, emoji);
             } catch (err) {
               alert(err.message);
             }
           });
           picker.appendChild(btn);
         });
-        const rect = reactBtn.getBoundingClientRect();
-        picker.style.position = "fixed";
-        picker.style.top = `${rect.bottom + 6}px`;
-        picker.style.left = `${rect.left}px`;
-        document.body.appendChild(picker);
+        positionReactionPicker(picker, bubble.getBoundingClientRect());
         openReactionPicker = picker;
       });
       actions.appendChild(reactBtn);
@@ -5193,18 +5265,38 @@ function createApp() {
         actions.appendChild(delBtn);
       }
 
-      // Панель с реакциями, если есть
-      if (Array.isArray(msg.reactions) && msg.reactions.length > 0) {
+      bubble.addEventListener("dblclick", async (event) => {
+        const interactive = event.target && event.target.closest && event.target.closest("button,a,input,textarea,.aton-audio-player");
+        if (interactive) return;
+        event.preventDefault();
+        event.stopPropagation();
+        try {
+          await toggleMessageReaction(msg, QUICK_REACTION_EMOJI);
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+
+      const reactionSummary = getReactionSummary(msg);
+      if (reactionSummary.length > 0) {
         const reactionsBar = document.createElement("div");
         reactionsBar.className = "aton-message-reactions";
-        const counts = {};
-        msg.reactions.forEach((r) => {
-          counts[r.emoji] = (counts[r.emoji] || 0) + 1;
-        });
-        Object.entries(counts).forEach(([emoji, count]) => {
-          const pill = document.createElement("span");
+        reactionSummary.forEach((reaction) => {
+          const pill = document.createElement("button");
+          pill.type = "button";
           pill.className = "aton-reaction-pill";
-          pill.textContent = `${emoji} ${count}`;
+          if (reaction.reactedByMe) pill.classList.add("is-active");
+          pill.textContent = reaction.count > 1 ? `${reaction.emoji} ${reaction.count}` : reaction.emoji;
+          pill.title = reaction.users.join(", ");
+          pill.setAttribute("aria-label", `${reaction.emoji} ${reaction.count}`);
+          pill.addEventListener("click", async (event) => {
+            event.stopPropagation();
+            try {
+              await toggleMessageReaction(msg, reaction.emoji);
+            } catch (err) {
+              alert(err.message);
+            }
+          });
           reactionsBar.appendChild(pill);
         });
         bubble.appendChild(reactionsBar);

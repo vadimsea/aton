@@ -2460,31 +2460,47 @@ body {
 .aton-message-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
-  margin-top: 4px;
+  gap: 4px;
+  margin-top: 6px;
   flex-wrap: wrap;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transform: translateY(2px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 .aton-message-bubble:hover .aton-message-actions,
 .aton-message-actions:focus-within {
   opacity: 1;
+  transform: translateY(0);
 }
 
 .aton-message-action-button {
   border: none;
-  background: transparent;
-  color: rgba(148, 163, 184, 0.9);
+  background: rgba(15, 23, 42, 0.18);
+  color: rgba(148, 163, 184, 0.95);
   cursor: pointer;
-  font-size: 11px;
+  font-size: 13px;
+  line-height: 1;
   border-radius: 999px;
-  padding: 0 5px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
 }
 
 .aton-message-action-button:hover {
-  background: rgba(15, 23, 42, 0.95);
+  background: rgba(15, 23, 42, 0.72);
   color: #f97316;
+  transform: translateY(-1px);
+}
+
+.aton-message-action-button.is-active,
+.aton-message-react-trigger.is-active {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
 }
 
 .aton-user-verify-button {
@@ -2526,40 +2542,88 @@ body {
 }
 
 .aton-message-reactions {
-  margin-top: 4px;
+  margin-top: 6px;
   display: inline-flex;
-  gap: 4px;
+  gap: 5px;
+  flex-wrap: wrap;
 }
 
 .aton-reaction-pill {
-  padding: 2px 6px;
+  border: 1px solid rgba(55, 65, 81, 0.9);
+  padding: 2px 7px;
   border-radius: 999px;
   background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(55, 65, 81, 0.9);
-  font-size: 11px;
+  color: #e5e7eb;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.2;
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.aton-reaction-pill:hover {
+  background: rgba(30, 41, 59, 0.96);
+  transform: translateY(-1px);
+}
+
+.aton-reaction-pill.is-active {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: rgba(56, 189, 248, 0.78);
+  color: #e0f2fe;
 }
 
 .aton-reaction-picker {
   z-index: 80;
-  padding: 4px 6px;
+  padding: 6px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.98);
-  border: 1px solid rgba(55, 65, 81, 0.9);
-  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.9);
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.42);
   display: inline-flex;
-  gap: 2px;
+  gap: 3px;
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  animation: aton-reaction-pop 0.14s ease-out;
 }
 
 .aton-reaction-picker-item {
   border: none;
   background: transparent;
   cursor: pointer;
-  font-size: 15px;
-  padding: 2px 4px;
+  font-size: 20px;
+  line-height: 1;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.14s ease, transform 0.14s ease;
 }
 
 .aton-reaction-picker-item:hover {
-  transform: translateY(-1px);
+  background: rgba(148, 163, 184, 0.16);
+  transform: translateY(-3px) scale(1.08);
+}
+
+.aton-reaction-picker-item.is-active {
+  background: rgba(56, 189, 248, 0.22);
+}
+
+@keyframes aton-reaction-pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* ——— Голос Атона: панель, ожидание, пустое состояние (единая система) ——— */
@@ -4921,9 +4985,9 @@ body {
 
   .aton-message-action-button {
     font-size: 13px;
-    padding: 2px 8px;
-    min-width: 28px;
-    min-height: 28px;
+    padding: 0 8px;
+    min-width: 30px;
+    height: 30px;
   }
 
   .aton-message-reply-preview {
@@ -4936,20 +5000,20 @@ body {
   }
 
   .aton-reaction-pill {
-    padding: 4px 8px;
+    padding: 4px 9px;
     font-size: 13px;
   }
 
   .aton-reaction-picker {
-    padding: 6px 8px;
+    padding: 7px;
     gap: 4px;
   }
 
   .aton-reaction-picker-item {
     font-size: 20px;
-    padding: 4px 6px;
-    min-width: 36px;
-    min-height: 36px;
+    width: 38px;
+    height: 38px;
+    padding: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
