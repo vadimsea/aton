@@ -4912,8 +4912,6 @@ body {
   }
 
   /* Внутри чата на мобиле — прячем лишние кнопки */
-  .aton-shell--has-chat .aton-topbar-right #aton-filter-private,
-  .aton-shell--has-chat .aton-topbar-right #aton-filter-group,
   .aton-shell--has-chat .aton-topbar-right #aton-moderation,
   .aton-shell--has-chat .aton-topbar-right .aton-user-pill {
     display: none !important;

@@ -1814,14 +1814,6 @@ function createApp() {
       <button class="aton-topbar-icon" id="aton-theme-toggle" title="${t("Сменить тему")}">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       </button>
-      <button class="aton-topbar-icon" id="aton-filter-private" title="${t("Личные диалоги")}">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        <span class="aton-topbar-icon-badge" id="aton-filter-private-badge"></span>
-      </button>
-      <button class="aton-topbar-icon" id="aton-filter-group" title="${t("Группы и каналы")}">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        <span class="aton-topbar-icon-badge" id="aton-filter-group-badge"></span>
-      </button>
       <button class="aton-topbar-icon" id="aton-admin-users" title="Все пользователи" style="display:none;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
       </button>
@@ -2627,12 +2619,8 @@ function createApp() {
   const createGroupButton = document.getElementById("aton-create-group");
   const forgotLink = document.getElementById("aton-forgot");
   const contactsEl = document.getElementById("aton-contacts");
-  const filterPrivateBtn = document.getElementById("aton-filter-private");
-  const filterGroupBtn = document.getElementById("aton-filter-group");
   const adminUsersButton = document.getElementById("aton-admin-users");
   const moderationButton = document.getElementById("aton-moderation");
-  const filterPrivateBadge = document.getElementById("aton-filter-private-badge");
-  const filterGroupBadge = document.getElementById("aton-filter-group-badge");
   const themeToggle = document.getElementById("aton-theme-toggle");
   const friendsBtn = document.getElementById("aton-friends-btn");
   const friendsBadge = document.getElementById("aton-friends-badge");
@@ -3361,16 +3349,12 @@ function createApp() {
       const tb = document.getElementById("aton-topbar");
       if (tb) tb.classList.add("aton-topbar--guest");
       userPill.style.display = "none";
-      if (filterPrivateBtn) filterPrivateBtn.style.display = "none";
-      if (filterGroupBtn) filterGroupBtn.style.display = "none";
       if (adminUsersButton) adminUsersButton.style.display = "none";
       if (moderationButton) moderationButton.style.display = "none";
       setComposeEnabled(false);
       createGroupButton.disabled = true;
       createGroupButton.style.display = "none";
       searchInput.disabled = true;
-      if (filterPrivateBtn) filterPrivateBtn.disabled = true;
-      if (filterGroupBtn) filterGroupBtn.disabled = true;
       // Чаты и поле ввода сообщений скрыты до авторизации
       chatsRoot.style.display = "none";
       compose.style.display = "none";
@@ -3437,8 +3421,6 @@ function createApp() {
         ? tf("В сети как {name}", { name: displayName })
         : tf("Недавно были в сети как {name}", { name: displayName });
       userPill.style.display = "inline-flex";
-      if (filterPrivateBtn) filterPrivateBtn.style.display = "inline-flex";
-      if (filterGroupBtn) filterGroupBtn.style.display = "inline-flex";
       if (friendsBtn) friendsBtn.style.display = user.verified ? "inline-flex" : "none";
       if (sidebarToolbar) {
         sidebarToolbar.removeAttribute("hidden");
@@ -3474,8 +3456,6 @@ function createApp() {
       createGroupButton.disabled = false;
       createGroupButton.style.display = "inline-flex";
       searchInput.disabled = false;
-      if (filterPrivateBtn) filterPrivateBtn.disabled = false;
-      if (filterGroupBtn) filterGroupBtn.disabled = false;
       typingIndicator.style.display = "none";
       chatsRoot.style.display = "flex";
       // Показываем низ только если уже выбран чат
@@ -4719,13 +4699,6 @@ function createApp() {
       });
     privateIdsSorted.forEach((id) => appendPrivateListRow(id));
 
-    // Обновляем бейджи на иконках в топбаре
-    if (filterPrivateBadge) {
-      filterPrivateBadge.textContent = privateUnreadTotal > 0 ? privateUnreadTotal : "";
-    }
-    if (filterGroupBadge) {
-      filterGroupBadge.textContent = groupUnreadTotal > 0 ? groupUnreadTotal : "";
-    }
   }
 
   function renderPublicLandingState(container) {
@@ -6907,32 +6880,6 @@ function createApp() {
 
   if (pendingInviteToken) {
     openInviteJoinFlow(pendingInviteToken);
-  }
-
-  if (filterPrivateBtn) {
-    filterPrivateBtn.addEventListener("click", () => {
-      chatFilter = chatFilter === "private" ? "all" : "private";
-      if (chatFilter === "private") {
-        filterPrivateBtn.classList.add("active");
-        filterGroupBtn && filterGroupBtn.classList.remove("active");
-      } else {
-        filterPrivateBtn.classList.remove("active");
-      }
-      renderChatList();
-    });
-  }
-
-  if (filterGroupBtn) {
-    filterGroupBtn.addEventListener("click", () => {
-      chatFilter = chatFilter === "group" ? "all" : "group";
-      if (chatFilter === "group") {
-        filterGroupBtn.classList.add("active");
-        filterPrivateBtn && filterPrivateBtn.classList.remove("active");
-      } else {
-        filterGroupBtn.classList.remove("active");
-      }
-      renderChatList();
-    });
   }
 
   let refreshUserDataDebounce = null;
