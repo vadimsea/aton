@@ -211,6 +211,9 @@ const I18N = {
     en: "Replying to a message from {name}…",
     de: "Antwort auf eine Nachricht von {name}…",
   },
+  "Ответ на сообщение": { en: "Replying to message", de: "Antwort auf Nachricht" },
+  "Отменить ответ": { en: "Cancel reply", de: "Antwort abbrechen" },
+  "Вы": { en: "You", de: "Sie" },
   "Редактировать": { en: "Edit", de: "Bearbeiten" },
   "Измените текст сообщения:": { en: "Edit message text:", de: "Nachrichtentext bearbeiten:" },
   "Снять закрепление": { en: "Unpin", de: "Fixierung aufheben" },
@@ -1841,6 +1844,14 @@ function createApp() {
       <span class="aton-compose-record-timer" id="aton-compose-record-timer">0:00</span>
       <span class="aton-compose-record-text">${t("Идёт запись. Отпустите кнопку микрофона, чтобы остановить.")}</span>
     </div>
+    <div class="aton-reply-compose" id="aton-reply-compose" hidden>
+      <div class="aton-reply-compose-accent" aria-hidden="true"></div>
+      <div class="aton-reply-compose-body">
+        <div class="aton-reply-compose-label" id="aton-reply-compose-label"></div>
+        <div class="aton-reply-compose-text" id="aton-reply-compose-text"></div>
+      </div>
+      <button type="button" class="aton-reply-compose-close" id="aton-reply-compose-close" title="${t("Отменить ответ")}" aria-label="${t("Отменить ответ")}">×</button>
+    </div>
     <div class="aton-compose-row">
       <textarea class="aton-compose-input" id="aton-input" rows="1" placeholder="${t("Сообщение…")}" disabled></textarea>
       <div class="aton-compose-actions">
@@ -2589,6 +2600,10 @@ function createApp() {
   const userNameLabel = document.getElementById("aton-user-name");
   const inputMessage = document.getElementById("aton-input");
   const sendButton = document.getElementById("aton-send");
+  const replyComposeEl = document.getElementById("aton-reply-compose");
+  const replyComposeLabelEl = document.getElementById("aton-reply-compose-label");
+  const replyComposeTextEl = document.getElementById("aton-reply-compose-text");
+  const replyComposeCloseBtn = document.getElementById("aton-reply-compose-close");
 
   function adjustComposeInputHeight() {
     if (!inputMessage || inputMessage.tagName !== "TEXTAREA") return;
@@ -2680,6 +2695,52 @@ function createApp() {
   typingIndicator.textContent = t("Печатаете сообщение…");
   typingIndicator.style.display = "none";
   compose.insertBefore(typingIndicator, compose.firstChild);
+
+  function messageReplyExcerpt(msg) {
+    if (!msg) return t("Сообщение без текста");
+    const raw = msg.text ? String(msg.text).trim() : "";
+    if (raw) return `${raw.slice(0, 120)}${raw.length > 120 ? "…" : ""}`;
+    if (msg.type === "image") return t("📷 Фото");
+    if (msg.type === "audio") return t("Голосовое сообщение");
+    return t("Сообщение без текста");
+  }
+
+  function messageReplyAuthorLabel(msg) {
+    if (!msg || !currentUser) return "";
+    if (msg.from === currentUser.username) return t("Вы");
+    return displayNameForPeer(currentUser.username, msg.from, userByUsername(msg.from));
+  }
+
+  function clearReplyToMessage() {
+    replyToMessage = null;
+    if (replyComposeEl) replyComposeEl.hidden = true;
+    if (replyComposeLabelEl) replyComposeLabelEl.textContent = "";
+    if (replyComposeTextEl) replyComposeTextEl.textContent = "";
+    if (!inputMessage || !inputMessage.value.trim()) {
+      typingIndicator.style.display = "none";
+    }
+  }
+
+  function setReplyToMessage(msg) {
+    if (!msg) {
+      clearReplyToMessage();
+      return;
+    }
+    replyToMessage = msg;
+    if (replyComposeLabelEl) {
+      replyComposeLabelEl.textContent = `${t("Ответ на сообщение")} · ${messageReplyAuthorLabel(msg)}`;
+    }
+    if (replyComposeTextEl) {
+      replyComposeTextEl.textContent = messageReplyExcerpt(msg);
+    }
+    if (replyComposeEl) replyComposeEl.hidden = false;
+    typingIndicator.style.display = "none";
+    inputMessage.focus();
+  }
+
+  if (replyComposeCloseBtn) {
+    replyComposeCloseBtn.addEventListener("click", clearReplyToMessage);
+  }
 
   const ATON_MIC_ICON_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>`;
   const ATON_MIC_STOP_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>`;
@@ -5068,13 +5129,18 @@ function createApp() {
       renderPublicLandingState(messagesEl);
       setComposeEnabled(false);
       compose.style.display = "none";
+      clearReplyToMessage();
       return;
     }
     if (!currentChatId) {
       renderEmptyState(messagesEl);
       setComposeEnabled(false);
       compose.style.display = "none";
+      clearReplyToMessage();
       return;
+    }
+    if (replyToMessage && !messageBelongsToOpenChat(replyToMessage, currentChatId)) {
+      clearReplyToMessage();
     }
 
     // Для групп/каналов: если чата нет в allChats, пользователь не участник.
@@ -5085,6 +5151,7 @@ function createApp() {
         renderJoinChatState(messagesEl, preview);
         setComposeEnabled(false);
         compose.style.display = "none";
+        clearReplyToMessage();
         return;
       }
     }
@@ -5169,23 +5236,21 @@ function createApp() {
         text.appendChild(textNode);
       }
       if (msg.replyTo) {
-        const replied = filtered.find((m) => m.id === msg.replyTo);
+        const replied =
+          filtered.find((m) => m.id === msg.replyTo) ||
+          allMessages.find((m) => m && m.id === msg.replyTo);
         if (replied) {
           const replyPreview = document.createElement("div");
           replyPreview.className = "aton-message-reply-preview";
-          if (privateDmUi) {
-            const t = replied.text || "";
-            replyPreview.textContent = `${t.slice(0, 80)}${t.length > 80 ? "…" : ""}`;
-          } else {
-            const replyWho = displayNameForPeer(
-              current.username,
-              replied.from,
-              userByUsername(replied.from)
-            );
-            replyPreview.textContent = `${replyWho}: ${replied.text.slice(0, 60)}${
-              replied.text.length > 60 ? "…" : ""
-            }`;
-          }
+          const replyWho = messageReplyAuthorLabel(replied);
+          const replyAuthor = document.createElement("div");
+          replyAuthor.className = "aton-message-reply-author";
+          replyAuthor.textContent = replyWho;
+          const replyText = document.createElement("div");
+          replyText.className = "aton-message-reply-text";
+          replyText.textContent = messageReplyExcerpt(replied);
+          replyPreview.appendChild(replyAuthor);
+          replyPreview.appendChild(replyText);
           bubble.appendChild(replyPreview);
         }
       }
@@ -5304,10 +5369,7 @@ function createApp() {
       replyBtn.textContent = "↩";
       replyBtn.title = t("Ответить");
       replyBtn.addEventListener("click", () => {
-        replyToMessage = msg;
-        typingIndicator.textContent = tf("Ответ на сообщение от {name}…", { name: msg.from });
-        typingIndicator.style.display = "block";
-        inputMessage.focus();
+        setReplyToMessage(msg);
       });
       actions.appendChild(replyBtn);
 
@@ -5471,8 +5533,7 @@ function createApp() {
     allMessages.push(tempMsg);
     inputMessage.value = "";
     adjustComposeInputHeight();
-    replyToMessage = null;
-    typingIndicator.style.display = "none";
+    clearReplyToMessage();
     renderMessages();
 
     sendButton.dataset.sending = "1";
@@ -5518,12 +5579,9 @@ function createApp() {
 
     // Локальный индикатор «печатает…»
     if (typingTimeoutId) clearTimeout(typingTimeoutId);
-    if (!replyToMessage) {
-      typingIndicator.textContent = t("Печатаете сообщение…");
-    }
-    typingIndicator.style.display = inputMessage.value.trim() || event.key !== "Enter"
-      ? "block"
-      : "none";
+    typingIndicator.textContent = t("Печатаете сообщение…");
+    typingIndicator.style.display =
+      !replyToMessage && (inputMessage.value.trim() || event.key !== "Enter") ? "block" : "none";
     typingTimeoutId = setTimeout(() => {
       if (!replyToMessage) typingIndicator.style.display = "none";
     }, 1200);
