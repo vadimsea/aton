@@ -349,20 +349,13 @@ const I18N = {
   "Профиль пользователя": { en: "User profile", de: "Benutzerprofil" },
   "Настройки профиля": { en: "Profile settings", de: "Profileinstellungen" },
   "Личный профиль": { en: "Personal profile", de: "Persoenliches Profil" },
+  "Профиль верифицирован": { en: "Profile verified", de: "Profil verifiziert" },
+  "Профиль не верифицирован": { en: "Profile not verified", de: "Profil nicht verifiziert" },
+  "Email аккаунта": { en: "Account email", de: "Konto-E-Mail" },
+  "Email нельзя изменить": { en: "Email cannot be changed", de: "E-Mail kann nicht geaendert werden" },
+  "Данные аккаунта": { en: "Account details", de: "Kontodaten" },
   "Загрузить аватар": { en: "Upload avatar", de: "Avatar hochladen" },
   "Отображаемое имя": { en: "Display name", de: "Anzeigename" },
-  "Как видеть себя в чатах (только у вас)": {
-    en: "How you see yourself in chats (only for you)",
-    de: "Wie Sie sich in Chats sehen (nur fuer Sie)",
-  },
-  "Только в этом браузере, для других не меняется": {
-    en: "Only in this browser, unchanged for others",
-    de: "Nur in diesem Browser, fuer andere unveraendert",
-  },
-  "Не отправляется на сервер. Пустое поле — показывается имя из профиля выше.": {
-    en: "Not sent to the server. Empty value shows the profile name above.",
-    de: "Wird nicht an den Server gesendet. Leer zeigt den Profilnamen oben.",
-  },
   "Статус": { en: "Status", de: "Status" },
   "Например: «Пишу при свете Атена»": {
     en: "For example: \"Writing by Aten's light\"",
@@ -6134,6 +6127,13 @@ function createApp() {
     const avatarHtml = user.avatarDataUrl
       ? `<img id="aton-profile-avatar-preview" src="${escHtml(user.avatarDataUrl)}" alt="" />`
       : `<span id="aton-profile-avatar-letter">${escHtml((user.displayName || user.username || "?").slice(0, 1).toUpperCase())}</span><img id="aton-profile-avatar-preview" src="" alt="" hidden />`;
+    const displayName = user.displayName || user.username || "";
+    const publicId = user.publicId || user.username || "";
+    const email = user.email || currentUser.email || "";
+    const profileVerified = Boolean(user.isVerified || currentUser.isVerified);
+    const verifiedText = profileVerified ? t("Профиль верифицирован") : t("Профиль не верифицирован");
+    const verifiedClass = profileVerified ? " is-verified" : "";
+    const verifiedMark = profileVerified ? "✔" : "!";
 
     profilePage.innerHTML = `
       <div class="aton-profile-page-scroll">
@@ -6145,8 +6145,12 @@ function createApp() {
             </div>
             <div class="aton-profile-hero-copy">
               <div class="aton-profile-kicker">${escHtml(t("Личный профиль"))}</div>
-              <h1>${escHtml(t("Профиль пользователя"))}</h1>
-              <p>${escHtml(t("Настройте, как вы выглядите в Атоне."))}</p>
+              <h1>${escHtml(displayName)}</h1>
+              <div class="aton-profile-public-id">@${escHtml(publicId)}</div>
+              <div class="aton-profile-status-row">
+                <span class="aton-profile-verify-pill${verifiedClass}"><span>${verifiedMark}</span>${escHtml(verifiedText)}</span>
+                <span class="aton-profile-email-pill">${escHtml(email || "—")}</span>
+              </div>
               <label class="aton-profile-avatar-upload">
                 ${escHtml(t("Загрузить аватар"))}
                 <input type="file" id="aton-profile-avatar" accept="image/*" hidden />
@@ -6156,14 +6160,15 @@ function createApp() {
         </section>
 
         <section class="aton-profile-form">
+          <div class="aton-profile-section-title">${escHtml(t("Данные аккаунта"))}</div>
+          <div class="aton-profile-field">
+            <label class="aton-input-label" for="aton-profile-email">${escHtml(t("Email аккаунта"))}</label>
+            <input type="email" id="aton-profile-email" class="aton-input" value="${escHtml(email)}" readonly />
+            <div class="aton-profile-help">${escHtml(t("Email нельзя изменить"))}</div>
+          </div>
           <div class="aton-profile-field">
             <label class="aton-input-label" for="aton-profile-name">${escHtml(t("Отображаемое имя"))}</label>
             <input type="text" id="aton-profile-name" class="aton-input" />
-          </div>
-          <div class="aton-profile-field">
-            <label class="aton-input-label" for="aton-profile-local-name">${escHtml(t("Как видеть себя в чатах (только у вас)"))}</label>
-            <input type="text" id="aton-profile-local-name" class="aton-input" placeholder="${escHtml(t("Только в этом браузере, для других не меняется"))}" />
-            <div class="aton-profile-help">${escHtml(t("Не отправляется на сервер. Пустое поле — показывается имя из профиля выше."))}</div>
           </div>
           <div class="aton-profile-field">
             <label class="aton-input-label" for="aton-profile-bio">${escHtml(t("Статус"))}</label>
@@ -6183,7 +6188,6 @@ function createApp() {
     `;
 
   const nameInput = profilePage.querySelector("#aton-profile-name");
-  const localNameInput = profilePage.querySelector("#aton-profile-local-name");
   const bioInput = profilePage.querySelector("#aton-profile-bio");
   const publicIdInput = profilePage.querySelector("#aton-profile-public-id");
   const avatarInput = profilePage.querySelector("#aton-profile-avatar");
@@ -6191,7 +6195,6 @@ function createApp() {
   const avatarLetter = profilePage.querySelector("#aton-profile-avatar-letter");
 
   nameInput.value = user.displayName || user.username;
-  if (localNameInput) localNameInput.value = getLocalSelfDisplayName(user.username);
   bioInput.value = user.bio || "";
   publicIdInput.value = user.publicId || user.username;
 
@@ -6215,9 +6218,6 @@ function createApp() {
 
   profilePage.querySelector("#aton-profile-save").addEventListener("click", async () => {
     try {
-      if (localNameInput) {
-        setLocalSelfDisplayName(currentUser.username, localNameInput.value);
-      }
       const displayName = nameInput.value.trim() || user.username;
       const bio = bioInput.value.trim();
       const publicId = publicIdInput.value.trim();
