@@ -348,7 +348,6 @@ const I18N = {
   },
   "Профиль пользователя": { en: "User profile", de: "Benutzerprofil" },
   "Настройки профиля": { en: "Profile settings", de: "Profileinstellungen" },
-  "Личный профиль": { en: "Personal profile", de: "Persoenliches Profil" },
   "Профиль верифицирован": { en: "Profile verified", de: "Profil verifiziert" },
   "Профиль не верифицирован": { en: "Profile not verified", de: "Profil nicht verifiziert" },
   "Email аккаунта": { en: "Account email", de: "Konto-E-Mail" },
@@ -6144,7 +6143,6 @@ function createApp() {
               ${avatarHtml}
             </div>
             <div class="aton-profile-hero-copy">
-              <div class="aton-profile-kicker">${escHtml(t("Личный профиль"))}</div>
               <h1>${escHtml(displayName)}</h1>
               <div class="aton-profile-public-id">@${escHtml(publicId)}</div>
               <div class="aton-profile-status-row">
