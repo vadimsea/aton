@@ -1731,25 +1731,7 @@ function createApp() {
   `;
   authLoginBlock.appendChild(authLangSwitcher);
 
-  const authLoggedBlock = document.createElement("div");
-  authLoggedBlock.className = "aton-auth-logged";
-  authLoggedBlock.style.display = "none";
-  authLoggedBlock.innerHTML = `
-    <div class="aton-auth-logged-row">
-      <div class="aton-auth-logged-avatar" id="aton-logged-avatar"></div>
-      <div class="aton-auth-logged-info">
-        <div class="aton-auth-logged-user" id="aton-logged-user"></div>
-        <div class="aton-auth-logged-status" id="aton-logged-status">${t("В сети")}</div>
-      </div>
-      <div class="aton-auth-logged-actions">
-        <button type="button" class="aton-profile-mobile-btn" id="aton-profile-mobile-btn">${t("Профиль")}</button>
-        <button type="button" class="aton-logout-button" id="aton-logout" title="${t("Выйти")}">⏻</button>
-      </div>
-    </div>
-  `;
-
   authRoot.appendChild(authLoginBlock);
-  authRoot.appendChild(authLoggedBlock);
   sidebar.appendChild(authRoot);
 
   // === Список чатов и профиль ===
@@ -2628,9 +2610,6 @@ function createApp() {
   const profileLink = document.getElementById("aton-profile-link");
   const searchInput = document.getElementById("aton-user-search");
   const searchResultsEl = document.getElementById("aton-search-results");
-  const loggedUserLabel = document.getElementById("aton-logged-user");
-  const loggedStatusEl = document.getElementById("aton-logged-status");
-  const logoutButton = document.getElementById("aton-logout");
   const backButton = document.getElementById("aton-back-btn");
   const createGroupButton = document.getElementById("aton-create-group");
   const forgotLink = document.getElementById("aton-forgot");
@@ -2671,17 +2650,9 @@ function createApp() {
   syncLangButtons();
 
   if (getToken()) {
+    authRoot.style.display = "none";
     authLoginBlock.style.display = "none";
-    authLoggedBlock.style.display = "block";
     const snap0 = readSessionSnapshot();
-    if (loggedUserLabel) {
-      loggedUserLabel.textContent = snap0
-        ? String(snap0.displayName || snap0.username || "").trim() || t("Подключение…")
-        : t("Подключение…");
-    }
-    if (loggedStatusEl) {
-      loggedStatusEl.textContent = "";
-    }
     if (statusEl) {
       statusEl.textContent =
         snap0 && snap0.verified
@@ -3379,8 +3350,8 @@ function createApp() {
           allMessages = [];
           contacts = { friends: [], blocked: [], requestsIn: [], requestsOut: [] };
           currentChatId = null;
+          authRoot.style.display = "none";
           authLoginBlock.style.display = "none";
-          authLoggedBlock.style.display = "block";
           if (hintEl) {
             hintEl.textContent = "";
           }
@@ -3389,8 +3360,8 @@ function createApp() {
           }
         } else {
           currentUser = null;
+          authRoot.style.display = "";
           authLoginBlock.style.display = "block";
-          authLoggedBlock.style.display = "none";
           if (hintEl) {
             hintEl.textContent = t("Не удалось загрузить данные. Проверьте сеть и обновите страницу.");
           }
@@ -3408,8 +3379,8 @@ function createApp() {
       mainView = "chat";
       if (profilePage) profilePage.hidden = true;
       if (chat) chat.hidden = false;
+      authRoot.style.display = "";
       authLoginBlock.style.display = "block";
-      authLoggedBlock.style.display = "none";
       statusEl.textContent = t("Войдите по форме слева");
       const tb = document.getElementById("aton-topbar");
       if (tb) tb.classList.add("aton-topbar--guest");
@@ -3435,44 +3406,15 @@ function createApp() {
       if (friendsOverlay) friendsOverlay.hidden = true;
     } else {
       hasOnboardingAutoFocused = false;
+      authRoot.style.display = "none";
       authLoginBlock.style.display = "none";
-      authLoggedBlock.style.display = "block";
       const tb = document.getElementById("aton-topbar");
       if (tb) tb.classList.remove("aton-topbar--guest");
       const full = userByUsername(user.username) || user;
       const displayName = selfDisplayNameForUi(user, full);
       const publicId = full.publicId || full.username;
-      loggedUserLabel.innerHTML = "";
-      const nameSpan = document.createElement("span");
-      nameSpan.textContent = displayName;
-      loggedUserLabel.appendChild(nameSpan);
-      if (full.isVerified) {
-        const badge = document.createElement("span");
-        badge.className = "aton-verified-badge";
-        badge.textContent = "✔";
-        badge.title = t("Верифицировано");
-        loggedUserLabel.appendChild(badge);
-      }
-      const idSpan = document.createElement("span");
-      idSpan.className = "aton-logged-id";
-      idSpan.textContent = `@${publicId}`;
-      loggedUserLabel.appendChild(idSpan);
-
-      // Sidebar avatar
-      const loggedAvatar = document.getElementById("aton-logged-avatar");
-      if (loggedAvatar) {
-        loggedAvatar.innerHTML = "";
-        if (full.avatarDataUrl) {
-          const avatarImg = document.createElement("img");
-          avatarImg.src = full.avatarDataUrl;
-          loggedAvatar.appendChild(avatarImg);
-        } else {
-          loggedAvatar.textContent = (displayName[0] || "?").toUpperCase();
-        }
-      }
 
       // Sidebar online status
-      const loggedStatus = document.getElementById("aton-logged-status");
       const lastSeenIso = full.lastSeen;
       let isOnline = false;
       if (lastSeenIso) {
@@ -3481,7 +3423,6 @@ function createApp() {
       }
       userPill.classList.toggle("online", isOnline);
       userPill.classList.toggle("offline", !isOnline);
-      if (loggedStatus) loggedStatus.textContent = isOnline ? t("В сети") : t("Не в сети");
       statusEl.textContent = isOnline
         ? tf("В сети как {name}", { name: displayName })
         : tf("Недавно были в сети как {name}", { name: displayName });
@@ -3627,10 +3568,6 @@ function createApp() {
     updateTopbarTitle();
   }
   document.addEventListener("aton:session-expired", performFullLogout);
-
-  if (logoutButton) {
-    logoutButton.addEventListener("click", () => performFullLogout());
-  }
 
   if (backButton) {
     backButton.addEventListener("click", () => {
@@ -6179,6 +6116,7 @@ function createApp() {
           </div>
           <div class="aton-profile-actions">
             <button type="button" id="aton-profile-cancel" class="aton-new-chat-button">${escHtml(t("Отмена"))}</button>
+            <button type="button" id="aton-profile-logout" class="aton-profile-logout-button">${escHtml(t("Выйти"))}</button>
             <button type="button" id="aton-profile-save" class="aton-primary-button">${escHtml(t("Сохранить"))}</button>
           </div>
         </section>
@@ -6213,6 +6151,7 @@ function createApp() {
 
   profilePage.querySelector("#aton-profile-back").addEventListener("click", closeProfilePage);
   profilePage.querySelector("#aton-profile-cancel").addEventListener("click", closeProfilePage);
+  profilePage.querySelector("#aton-profile-logout").addEventListener("click", performFullLogout);
 
   profilePage.querySelector("#aton-profile-save").addEventListener("click", async () => {
     try {
@@ -6272,18 +6211,6 @@ function createApp() {
 
   profileLink.addEventListener("click", openProfilePage);
   userPill.addEventListener("click", openProfilePage);
-
-  // Sidebar avatar click opens profile
-  const loggedAvatarEl = document.getElementById("aton-logged-avatar");
-  if (loggedAvatarEl) {
-    loggedAvatarEl.style.cursor = "pointer";
-    loggedAvatarEl.title = "Открыть профиль";
-    loggedAvatarEl.addEventListener("click", openProfilePage);
-  }
-  const profileMobileBtn = document.getElementById("aton-profile-mobile-btn");
-  if (profileMobileBtn) {
-    profileMobileBtn.addEventListener("click", openProfilePage);
-  }
 
   // Theme toggle
   const THEME_KEY = "aton_theme";
@@ -6897,10 +6824,8 @@ function createApp() {
 
   const hasToken = Boolean(getToken());
   if (hasToken) {
+    authRoot.style.display = "none";
     authLoginBlock.style.display = "none";
-    const snapInit = readSessionSnapshot();
-    authLoggedBlock.style.display =
-      snapInit && snapInit.verified ? "block" : "none";
   }
 
   const joinUrlMatch = window.location.pathname.match(/^\/join\/([^/]+)\/?$/);
