@@ -131,6 +131,10 @@ const I18N = {
   "Пауза": { en: "Pause", de: "Pause" },
   "Не удалось загрузить": { en: "Failed to load", de: "Laden fehlgeschlagen" },
   "Нет сети или сервер не отвечает": { en: "No network or server unavailable", de: "Kein Netzwerk oder Server nicht erreichbar" },
+  "Сервер слишком долго не отвечает. Подождите и обновите страницу.": {
+    en: "The server is taking too long. Wait and refresh the page.",
+    de: "Der Server braucht zu lange. Warten und Seite neu laden.",
+  },
   "Сессия устарела. Войдите снова — так бывает, если вы входили с другого устройства или браузера.": {
     en: "Session expired. Please sign in again — this can happen if you signed in from another device or browser.",
     de: "Sitzung abgelaufen. Bitte erneut anmelden — das kann passieren, wenn Sie sich von einem anderen Geraet oder Browser angemeldet haben.",
@@ -687,6 +691,9 @@ function getApiBase() {
 }
 
 const API_BASE = getApiBase();
+
+/** Без таймаута зависший fetch к API блокирует bootstrap и экран «замирает». */
+const DEFAULT_API_FETCH_TIMEOUT_MS = 55_000;
 
 const socket = API_BASE
   ? io(API_BASE, { auth: { token: localStorage.getItem(TOKEN_KEY) || "" } })
@@ -1563,14 +1570,42 @@ async function api(path, options = {}) {
   }
   const token = getToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_API_FETCH_TIMEOUT_MS;
+  const parentSig = options.signal;
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), timeoutMs);
+  const onParentAbort = () => {
+    clearTimeout(tid);
+    ctrl.abort();
+  };
+  if (parentSig) {
+    if (parentSig.aborted) {
+      clearTimeout(tid);
+      ctrl.abort();
+    } else {
+      parentSig.addEventListener("abort", onParentAbort, { once: true });
+    }
+  }
+  const { signal: _omitSig, timeoutMs: _omitTm, ...fetchRest } = options;
   let res;
   try {
-    res = await fetch(API_BASE + path, { ...options, headers });
+    res = await fetch(API_BASE + path, { ...fetchRest, headers, signal: ctrl.signal });
   } catch (cause) {
-    const err = new Error(t("Нет сети или сервер не отвечает"));
+    if (parentSig?.aborted) throw cause;
+    const aborted =
+      cause &&
+      (cause.name === "AbortError" ||
+        (typeof DOMException !== "undefined" && cause instanceof DOMException && cause.name === "AbortError"));
+    const err = aborted
+      ? new Error(t("Сервер слишком долго не отвечает. Подождите и обновите страницу."))
+      : new Error(t("Нет сети или сервер не отвечает"));
     err.cause = cause;
     err.isNetwork = true;
+    if (aborted) err.isTimeout = true;
     throw err;
+  } finally {
+    clearTimeout(tid);
+    if (parentSig) parentSig.removeEventListener("abort", onParentAbort);
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -1596,7 +1631,43 @@ async function api(path, options = {}) {
 }
 
 async function fetchJsonPublic(path, options = {}) {
-  const res = await fetch(API_BASE + path, { ...options });
+  const timeoutMs = options.timeoutMs ?? DEFAULT_API_FETCH_TIMEOUT_MS;
+  const parentSig = options.signal;
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), timeoutMs);
+  const onParentAbort = () => {
+    clearTimeout(tid);
+    ctrl.abort();
+  };
+  if (parentSig) {
+    if (parentSig.aborted) {
+      clearTimeout(tid);
+      ctrl.abort();
+    } else {
+      parentSig.addEventListener("abort", onParentAbort, { once: true });
+    }
+  }
+  const { signal: _omitSig, timeoutMs: _omitTm, ...fetchRest } = options;
+  let res;
+  try {
+    res = await fetch(API_BASE + path, { ...fetchRest, signal: ctrl.signal });
+  } catch (cause) {
+    if (parentSig?.aborted) throw cause;
+    const aborted =
+      cause &&
+      (cause.name === "AbortError" ||
+        (typeof DOMException !== "undefined" && cause instanceof DOMException && cause.name === "AbortError"));
+    const err = aborted
+      ? new Error(t("Сервер слишком долго не отвечает. Подождите и обновите страницу."))
+      : new Error(t("Нет сети или сервер не отвечает"));
+    err.cause = cause;
+    err.isNetwork = true;
+    if (aborted) err.isTimeout = true;
+    throw err;
+  } finally {
+    clearTimeout(tid);
+    if (parentSig) parentSig.removeEventListener("abort", onParentAbort);
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const err = new Error(data.error || t("Ошибка соединения с сервером"));
