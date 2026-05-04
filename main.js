@@ -1,6 +1,24 @@
 // Атон — фронтенд мессенджера, работающий с Node.js backend (server.js)
 
 const TOKEN_KEY = "aton_token";
+
+function getToken() {
+  try {
+    return localStorage.getItem(TOKEN_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
+function setToken(token) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* iOS «приватно» / отключённое хранилище — иначе падает весь скрипт до createApp */
+  }
+}
+
 /** Кэш последнего успешного /api/me — чтобы при обрыве сети не показывать форму входа. */
 const SESSION_ME_CACHE_KEY = "aton_me_cache_v1";
 /** Системный ассистент (сервер: тот же username). */
@@ -696,8 +714,8 @@ const API_BASE = getApiBase();
 const DEFAULT_API_FETCH_TIMEOUT_MS = 55_000;
 
 const socket = API_BASE
-  ? io(API_BASE, { auth: { token: localStorage.getItem(TOKEN_KEY) || "" } })
-  : io({ auth: { token: localStorage.getItem(TOKEN_KEY) || "" } });
+  ? io(API_BASE, { auth: { token: getToken() || "" } })
+  : io({ auth: { token: getToken() || "" } });
 const LOCAL_PINS_KEY = "aton_pinned_chats";
 const LOCAL_READS_KEY = "aton_chat_reads";
 const LAST_CHAT_KEY_PREFIX = "aton_last_chat_";
@@ -1463,15 +1481,6 @@ function playIncomingMessageSound() {
   } else {
     beep();
   }
-}
-
-function getToken() {
-  return localStorage.getItem(TOKEN_KEY) || null;
-}
-
-function setToken(token) {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
 }
 
 /** Сообщаем API удалить сессию в БД (не полагаемся только на очистку localStorage). */
