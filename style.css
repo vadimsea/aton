@@ -853,6 +853,10 @@ body {
   border-bottom: 1px solid rgba(148, 163, 184, 0.28);
 }
 
+.aton-peer-action-bar[hidden] {
+  display: none !important;
+}
+
 .aton-peer-action-inner {
   display: flex;
   flex-wrap: wrap;
@@ -2167,6 +2171,10 @@ body {
     max(12px, env(safe-area-inset-right, 0px));
   gap: 6px;
   overflow: hidden;
+}
+
+.aton-chat[hidden] {
+  display: none !important;
 }
 
 .aton-messages {

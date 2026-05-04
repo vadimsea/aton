@@ -3771,6 +3771,11 @@ function createApp() {
     const inner = document.getElementById("aton-peer-action-bar-inner");
     const wrap = document.getElementById("aton-peer-action-bar");
     if (!inner || !wrap) return;
+    if (mainView === "profile") {
+      wrap.hidden = true;
+      inner.innerHTML = "";
+      return;
+    }
     const peer = currentChatPeer();
     if (
       !currentUser ||
