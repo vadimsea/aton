@@ -2006,6 +2006,7 @@ function createApp() {
   let hasOnboardingAutoFocused = false;
   let bootstrapVersion = 0;
   let receiptsInFlight = null;
+  const receiptPullsInFlight = new Map();
   /** Свертка renderMessages после receipt-pull: иначе серия message:status снова дёргает ГС. */
   let receiptsMessagesRenderTimer = 0;
   /** Стабилизация скролла: при смене чата — вниз; при мерже в том же чате — якорь, если смотрели историю. */
@@ -2237,56 +2238,68 @@ function createApp() {
   async function pullChatReceipts(chatId, opts = {}) {
     const markRead = opts.markRead !== false;
     if (!chatId || !currentUser || !currentUser.verified) return;
-    const token = chatId;
-    receiptsInFlight = token;
-    try {
-      const beforeIds = messagesForChatId(chatId).map((m) => String(m.id || "")).filter(Boolean).join("|");
-      let paintedOpenChatFromList = false;
-      const list = await api(`/api/messages?chatId=${encodeURIComponent(chatId)}`);
-      if (receiptsInFlight !== token) return;
-      if (!Array.isArray(list)) return;
-      allMessages = applyMessagesForChatInAll(allMessages, chatId, list);
-      if (markRead && currentChatId === chatId) {
-        renderChatList();
-        renderMessages({ deferIfVoice: true });
-        paintedOpenChatFromList = true;
-      }
-      if (markRead && isPrivateDirectChat(chatId)) {
-        const r = await api("/api/messages/read", {
-          method: "POST",
-          body: JSON.stringify({ chatId, userId: currentUser.id }),
-        });
-        if (receiptsInFlight !== token) return;
-        if (r && Array.isArray(r.messages)) {
-          allMessages = applyMessagesForChatInAll(allMessages, chatId, r.messages);
-        }
-      }
-      renderChatList();
-      if (currentChatId === chatId) {
-        if (markRead) {
-          if (receiptsMessagesRenderTimer) clearTimeout(receiptsMessagesRenderTimer);
-          receiptsMessagesRenderTimer = 0;
-          if (paintedOpenChatFromList) {
-            updateVisibleMessageMeta();
-          } else {
-            renderMessages();
-          }
-        } else {
-          if (receiptsMessagesRenderTimer) clearTimeout(receiptsMessagesRenderTimer);
-          receiptsMessagesRenderTimer = 0;
-          const afterIds = messagesForChatId(chatId).map((m) => String(m.id || "")).filter(Boolean).join("|");
-          if (beforeIds === afterIds) {
-            updateVisibleMessageMeta();
-          } else {
-            renderMessages({ deferIfVoice: true });
-          }
-        }
-      }
-    } catch (e) {
-      console.warn("pullChatReceipts", e);
-    } finally {
-      if (receiptsInFlight === token) receiptsInFlight = null;
+    const inflightKey = `${chatId}|${markRead ? "read" : "peek"}`;
+    if (receiptPullsInFlight.has(inflightKey)) {
+      return receiptPullsInFlight.get(inflightKey);
     }
+    const pullPromise = (async () => {
+      const token = chatId;
+      receiptsInFlight = token;
+      try {
+        const beforeIds = messagesForChatId(chatId).map((m) => String(m.id || "")).filter(Boolean).join("|");
+        let paintedOpenChatFromList = false;
+        const list =
+          warmOpenChatId === chatId && warmOpenChatMessagesPromise
+            ? await warmOpenChatMessagesPromise
+            : await api(`/api/messages?chatId=${encodeURIComponent(chatId)}`);
+        if (receiptsInFlight !== token) return;
+        if (!Array.isArray(list)) return;
+        allMessages = applyMessagesForChatInAll(allMessages, chatId, list);
+        if (markRead && currentChatId === chatId) {
+          renderChatList();
+          renderMessages({ deferIfVoice: true });
+          paintedOpenChatFromList = true;
+        }
+        if (markRead && isPrivateDirectChat(chatId)) {
+          const r = await api("/api/messages/read", {
+            method: "POST",
+            body: JSON.stringify({ chatId, userId: currentUser.id }),
+          });
+          if (receiptsInFlight !== token) return;
+          if (r && Array.isArray(r.messages)) {
+            allMessages = applyMessagesForChatInAll(allMessages, chatId, r.messages);
+          }
+        }
+        renderChatList();
+        if (currentChatId === chatId) {
+          if (markRead) {
+            if (receiptsMessagesRenderTimer) clearTimeout(receiptsMessagesRenderTimer);
+            receiptsMessagesRenderTimer = 0;
+            if (paintedOpenChatFromList) {
+              updateVisibleMessageMeta();
+            } else {
+              renderMessages();
+            }
+          } else {
+            if (receiptsMessagesRenderTimer) clearTimeout(receiptsMessagesRenderTimer);
+            receiptsMessagesRenderTimer = 0;
+            const afterIds = messagesForChatId(chatId).map((m) => String(m.id || "")).filter(Boolean).join("|");
+            if (beforeIds === afterIds) {
+              updateVisibleMessageMeta();
+            } else {
+              renderMessages({ deferIfVoice: true });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("pullChatReceipts", e);
+      } finally {
+        if (receiptsInFlight === token) receiptsInFlight = null;
+        receiptPullsInFlight.delete(inflightKey);
+      }
+    })();
+    receiptPullsInFlight.set(inflightKey, pullPromise);
+    return pullPromise;
   }
 
   function getPeerFromDmChatId(chatId) {
