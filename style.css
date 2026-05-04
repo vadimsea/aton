@@ -1877,6 +1877,38 @@ body {
   line-height: 1.35;
 }
 
+.aton-profile-language-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.aton-profile-lang-btn {
+  width: auto;
+  min-width: 136px;
+  height: 42px;
+  border-radius: 14px;
+  padding: 0 13px;
+  gap: 9px;
+  justify-content: flex-start;
+  background: rgba(15, 23, 42, 0.36);
+  color: #e5e7eb;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1;
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+.aton-profile-lang-btn:hover {
+  background: rgba(30, 41, 59, 0.62);
+  border-color: rgba(56, 189, 248, 0.34);
+}
+
+.aton-profile-lang-btn.active {
+  background: rgba(37, 99, 235, 0.16);
+}
+
 .aton-profile-actions {
   display: flex;
   justify-content: flex-end;
@@ -4615,6 +4647,22 @@ body {
   color: #64748b;
 }
 
+[data-theme="light"] .aton-profile-lang-btn {
+  background: #ffffff;
+  color: #111827;
+  border-color: rgba(15, 23, 42, 0.14);
+}
+
+[data-theme="light"] .aton-profile-lang-btn:hover {
+  background: #f8fafc;
+  border-color: rgba(37, 99, 235, 0.24);
+}
+
+[data-theme="light"] .aton-profile-lang-btn.active {
+  background: #eff6ff;
+  border-color: rgba(37, 99, 235, 0.38);
+}
+
 [data-theme="light"] .aton-profile-actions .aton-new-chat-button {
   background: rgba(37, 99, 235, 0.08);
   border-color: rgba(37, 99, 235, 0.18);
@@ -4847,6 +4895,16 @@ body {
 
   .aton-profile-status-row {
     gap: 6px;
+  }
+
+  .aton-profile-language-options {
+    flex-direction: column;
+  }
+
+  .aton-profile-lang-btn {
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
   }
 
   .aton-profile-verify-pill,

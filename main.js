@@ -350,6 +350,14 @@ const I18N = {
   "Настройки профиля": { en: "Profile settings", de: "Profileinstellungen" },
   "Профиль верифицирован": { en: "Profile verified", de: "Profil verifiziert" },
   "Профиль не верифицирован": { en: "Profile not verified", de: "Profil nicht verifiziert" },
+  "Язык интерфейса": { en: "Interface language", de: "Sprache der Oberflaeche" },
+  "Русский": { en: "Russian", de: "Russisch" },
+  "Немецкий": { en: "German", de: "Deutsch" },
+  "Английский": { en: "English", de: "Englisch" },
+  "После смены языка страница обновится": {
+    en: "The page will reload after changing language",
+    de: "Nach dem Sprachwechsel wird die Seite neu geladen",
+  },
   "Email аккаунта": { en: "Account email", de: "Konto-E-Mail" },
   "Email нельзя изменить": { en: "Email cannot be changed", de: "E-Mail kann nicht geaendert werden" },
   "Данные аккаунта": { en: "Account details", de: "Kontodaten" },
@@ -502,8 +510,17 @@ const I18N = {
 };
 
 function detectPreferredLanguage() {
-  const saved = localStorage.getItem(LANG_KEY);
+  let saved = null;
+  try {
+    saved = localStorage.getItem(LANG_KEY);
+  } catch {}
   if (saved === "ru" || saved === "en" || saved === "de") return saved;
+  const browserLangs = Array.isArray(navigator.languages) && navigator.languages.length
+    ? navigator.languages
+    : [navigator.language || ""];
+  const normalized = browserLangs.map((lang) => String(lang || "").toLowerCase());
+  if (normalized.some((lang) => lang.startsWith("de"))) return "de";
+  if (normalized.some((lang) => lang.startsWith("en"))) return "en";
   return "ru";
 }
 
@@ -2624,34 +2641,28 @@ function createApp() {
   const sidebarThemeBtn = document.getElementById("aton-sidebar-theme-btn");
   const friendsSidebarBadge = document.getElementById("aton-sidebar-friends-badge");
   const notifyPermissionBtn = document.getElementById("aton-notify-permission");
-  const authLangSwitcherEl = document.getElementById("aton-auth-lang-switcher");
-  const sidebarLangSwitcher = document.getElementById("aton-sidebar-lang-switcher");
-  const langButtons = [
-    ...(authLangSwitcherEl ? Array.from(authLangSwitcherEl.querySelectorAll(".aton-lang-btn")) : []),
-    ...(sidebarLangSwitcher ? Array.from(sidebarLangSwitcher.querySelectorAll(".aton-lang-btn")) : []),
-  ];
-
   function syncLangButtons() {
-    for (const btn of langButtons) {
+    for (const btn of document.querySelectorAll(".aton-lang-btn")) {
       const lang = btn.getAttribute("data-lang");
       btn.classList.toggle("active", lang === currentLang);
       btn.setAttribute("aria-pressed", lang === currentLang ? "true" : "false");
     }
   }
 
-  for (const btn of langButtons) {
-    btn.addEventListener("click", () => {
-      const lang = btn.getAttribute("data-lang");
-      if (!lang || lang === currentLang) return;
-      setLanguage(lang);
-      window.location.reload();
-    });
-  }
+  document.addEventListener("click", (event) => {
+    const btn = event.target.closest(".aton-lang-btn");
+    if (!btn) return;
+    const lang = btn.getAttribute("data-lang");
+    if (!lang || lang === currentLang) return;
+    setLanguage(lang);
+    window.location.reload();
+  });
   syncLangButtons();
 
   if (getToken()) {
     authRoot.style.display = "none";
     authLoginBlock.style.display = "none";
+    sidebarLangFooter.style.display = "none";
     const snap0 = readSessionSnapshot();
     if (statusEl) {
       statusEl.textContent =
@@ -3352,6 +3363,7 @@ function createApp() {
           currentChatId = null;
           authRoot.style.display = "none";
           authLoginBlock.style.display = "none";
+          sidebarLangFooter.style.display = "none";
           if (hintEl) {
             hintEl.textContent = "";
           }
@@ -3362,6 +3374,7 @@ function createApp() {
           currentUser = null;
           authRoot.style.display = "";
           authLoginBlock.style.display = "block";
+          sidebarLangFooter.style.display = "";
           if (hintEl) {
             hintEl.textContent = t("Не удалось загрузить данные. Проверьте сеть и обновите страницу.");
           }
@@ -3381,6 +3394,7 @@ function createApp() {
       if (chat) chat.hidden = false;
       authRoot.style.display = "";
       authLoginBlock.style.display = "block";
+      sidebarLangFooter.style.display = "";
       statusEl.textContent = t("Войдите по форме слева");
       const tb = document.getElementById("aton-topbar");
       if (tb) tb.classList.add("aton-topbar--guest");
@@ -3408,6 +3422,7 @@ function createApp() {
       hasOnboardingAutoFocused = false;
       authRoot.style.display = "none";
       authLoginBlock.style.display = "none";
+      sidebarLangFooter.style.display = "none";
       const tb = document.getElementById("aton-topbar");
       if (tb) tb.classList.remove("aton-topbar--guest");
       const full = userByUsername(user.username) || user;
@@ -6114,6 +6129,24 @@ function createApp() {
             <input type="text" id="aton-profile-public-id" class="aton-input" placeholder="${escHtml(t("Удобный ID, по которому вас можно найти (@id)"))}" />
             <div class="aton-profile-help">${escHtml(t("ID может содержать латинские буквы, цифры, подчёркивание и дефис (3–32 символа). Должен быть уникальным."))}</div>
           </div>
+          <div class="aton-profile-field">
+            <div class="aton-input-label">${escHtml(t("Язык интерфейса"))}</div>
+            <div class="aton-profile-language-options" role="group" aria-label="${escHtml(t("Язык интерфейса"))}">
+              <button type="button" class="aton-lang-btn aton-profile-lang-btn" data-lang="ru" title="${escHtml(t("Русский"))}" aria-label="${escHtml(t("Русский"))}">
+                <span class="aton-flag aton-flag--ru" aria-hidden="true"></span>
+                <span>${escHtml(t("Русский"))}</span>
+              </button>
+              <button type="button" class="aton-lang-btn aton-profile-lang-btn" data-lang="de" title="${escHtml(t("Немецкий"))}" aria-label="${escHtml(t("Немецкий"))}">
+                <span class="aton-flag aton-flag--de" aria-hidden="true"></span>
+                <span>${escHtml(t("Немецкий"))}</span>
+              </button>
+              <button type="button" class="aton-lang-btn aton-profile-lang-btn" data-lang="en" title="${escHtml(t("Английский"))}" aria-label="${escHtml(t("Английский"))}">
+                <span class="aton-flag aton-flag--gb" aria-hidden="true"></span>
+                <span>${escHtml(t("Английский"))}</span>
+              </button>
+            </div>
+            <div class="aton-profile-help">${escHtml(t("После смены языка страница обновится"))}</div>
+          </div>
           <div class="aton-profile-actions">
             <button type="button" id="aton-profile-cancel" class="aton-new-chat-button">${escHtml(t("Отмена"))}</button>
             <button type="button" id="aton-profile-logout" class="aton-profile-logout-button">${escHtml(t("Выйти"))}</button>
@@ -6176,6 +6209,7 @@ function createApp() {
 
       applyCurrentUserUI();
       renderProfilePage();
+      syncLangButtons();
       renderChatList();
       renderMessages();
       updateTopbarTitle();
@@ -6195,6 +6229,7 @@ function createApp() {
     chat.hidden = true;
     if (peerActionBar) peerActionBar.hidden = true;
     renderProfilePage();
+    syncLangButtons();
     applyCurrentUserUI();
     updateTopbarTitle();
   }
@@ -6826,6 +6861,7 @@ function createApp() {
   if (hasToken) {
     authRoot.style.display = "none";
     authLoginBlock.style.display = "none";
+    sidebarLangFooter.style.display = "none";
   }
 
   const joinUrlMatch = window.location.pathname.match(/^\/join\/([^/]+)\/?$/);
