@@ -1,0 +1,40 @@
+name: Deploy static site
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - index.html
+      - main.js
+      - style.css
+      - forgot.html
+      - reset.html
+      - admin-users.html
+      - golos-aton-avatar.png
+      - .github/workflows/deploy-site.yml
+
+jobs:
+  ftp-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare static bundle
+        run: |
+          mkdir site-deploy
+          cp index.html main.js style.css forgot.html reset.html admin-users.html golos-aton-avatar.png site-deploy/
+
+      - name: Upload to FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: ${{ secrets.FTP_PORT }}
+          protocol: ftp
+          local-dir: ./site-deploy/
+          server-dir: ${{ secrets.FTP_REMOTE_DIR }}
+          dangerous-clean-slate: false
