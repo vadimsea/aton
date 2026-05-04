@@ -1758,8 +1758,8 @@ function createApp() {
   chatsRoot.innerHTML = `
     <div class="aton-chats-header">
       <span>${t("Чаты")}</span>
+      <button class="aton-new-chat-button aton-create-group-button" id="aton-create-group" disabled style="display:none;">${t("+ Группа")}</button>
     </div>
-    <button class="aton-new-chat-button" id="aton-create-group" disabled style="display:none;">${t("+ Группа")}</button>
     <div class="aton-search">
       <input type="text" class="aton-search-input" id="aton-user-search" placeholder="${t("Поиск по имени или @username…")}" disabled />
       <div class="aton-search-results" id="aton-search-results"></div>
@@ -2158,14 +2158,16 @@ function createApp() {
 
     const pickerRect = picker.getBoundingClientRect();
     const viewportPadding = 8;
-    const preferredLeft = anchorRect.left + anchorRect.width / 2 - pickerRect.width / 2;
+    const pickerWidth = Math.min(pickerRect.width, window.innerWidth - viewportPadding * 2);
+    const pickerHeight = Math.min(pickerRect.height, window.innerHeight - viewportPadding * 2);
+    const preferredLeft = anchorRect.left + anchorRect.width / 2 - pickerWidth / 2;
     const left = Math.min(
       Math.max(viewportPadding, preferredLeft),
-      Math.max(viewportPadding, window.innerWidth - pickerRect.width - viewportPadding)
+      Math.max(viewportPadding, window.innerWidth - pickerWidth - viewportPadding)
     );
-    const topAbove = anchorRect.top - pickerRect.height - gap;
+    const topAbove = anchorRect.top - pickerHeight - gap;
     const topBelow = anchorRect.bottom + gap;
-    const top = topAbove >= viewportPadding ? topAbove : Math.min(topBelow, window.innerHeight - pickerRect.height - viewportPadding);
+    const top = topAbove >= viewportPadding ? topAbove : Math.min(topBelow, window.innerHeight - pickerHeight - viewportPadding);
 
     picker.style.left = `${left}px`;
     picker.style.top = `${Math.max(viewportPadding, top)}px`;
