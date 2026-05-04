@@ -1695,6 +1695,7 @@ function createApp() {
       </div>
     </div>
   `;
+  const sidebarHeader = sidebar.querySelector(".aton-sidebar-header");
 
   const authRoot = document.createElement("div");
   authRoot.className = "aton-auth";
@@ -2660,6 +2661,7 @@ function createApp() {
   syncLangButtons();
 
   if (getToken()) {
+    if (sidebarHeader) sidebarHeader.style.display = "none";
     authRoot.style.display = "none";
     authLoginBlock.style.display = "none";
     sidebarLangFooter.style.display = "none";
@@ -3361,6 +3363,7 @@ function createApp() {
           allMessages = [];
           contacts = { friends: [], blocked: [], requestsIn: [], requestsOut: [] };
           currentChatId = null;
+          if (sidebarHeader) sidebarHeader.style.display = "none";
           authRoot.style.display = "none";
           authLoginBlock.style.display = "none";
           sidebarLangFooter.style.display = "none";
@@ -3372,6 +3375,7 @@ function createApp() {
           }
         } else {
           currentUser = null;
+          if (sidebarHeader) sidebarHeader.style.display = "";
           authRoot.style.display = "";
           authLoginBlock.style.display = "block";
           sidebarLangFooter.style.display = "";
@@ -3392,6 +3396,7 @@ function createApp() {
       mainView = "chat";
       if (profilePage) profilePage.hidden = true;
       if (chat) chat.hidden = false;
+      if (sidebarHeader) sidebarHeader.style.display = "";
       authRoot.style.display = "";
       authLoginBlock.style.display = "block";
       sidebarLangFooter.style.display = "";
@@ -3420,6 +3425,7 @@ function createApp() {
       if (friendsOverlay) friendsOverlay.hidden = true;
     } else {
       hasOnboardingAutoFocused = false;
+      if (sidebarHeader) sidebarHeader.style.display = "none";
       authRoot.style.display = "none";
       authLoginBlock.style.display = "none";
       sidebarLangFooter.style.display = "none";
@@ -6859,6 +6865,7 @@ function createApp() {
 
   const hasToken = Boolean(getToken());
   if (hasToken) {
+    if (sidebarHeader) sidebarHeader.style.display = "none";
     authRoot.style.display = "none";
     authLoginBlock.style.display = "none";
     sidebarLangFooter.style.display = "none";
