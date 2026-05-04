@@ -347,6 +347,8 @@ const I18N = {
     de: "Melden Sie sich zuerst an oder registrieren Sie sich.",
   },
   "Профиль пользователя": { en: "User profile", de: "Benutzerprofil" },
+  "Настройки профиля": { en: "Profile settings", de: "Profileinstellungen" },
+  "Личный профиль": { en: "Personal profile", de: "Persoenliches Profil" },
   "Загрузить аватар": { en: "Upload avatar", de: "Avatar hochladen" },
   "Отображаемое имя": { en: "Display name", de: "Anzeigename" },
   "Как видеть себя в чатах (только у вас)": {
@@ -1893,6 +1895,11 @@ function createApp() {
   chat.appendChild(golosVoiceBar);
   chat.appendChild(compose);
 
+  const profilePage = document.createElement("div");
+  profilePage.className = "aton-profile-page";
+  profilePage.id = "aton-profile-page";
+  profilePage.hidden = true;
+
   const peerActionBar = document.createElement("div");
   peerActionBar.className = "aton-peer-action-bar";
   peerActionBar.id = "aton-peer-action-bar";
@@ -1932,6 +1939,7 @@ function createApp() {
 
   main.appendChild(topbar);
   main.appendChild(peerActionBar);
+  main.appendChild(profilePage);
   main.appendChild(chat);
   document.body.appendChild(friendsOverlay);
 
@@ -2006,6 +2014,7 @@ function createApp() {
   let openReactionPicker = null;
   let openChatMenu = null;
   let currentSocketChat = null;
+  let mainView = "chat";
   let hasOnboardingAutoFocused = false;
   let bootstrapVersion = 0;
   let receiptsInFlight = null;
@@ -3404,6 +3413,9 @@ function createApp() {
   function applyCurrentUserUI() {
     const user = currentUser;
     if (!user) {
+      mainView = "chat";
+      if (profilePage) profilePage.hidden = true;
+      if (chat) chat.hidden = false;
       authLoginBlock.style.display = "block";
       authLoggedBlock.style.display = "none";
       statusEl.textContent = t("Войдите по форме слева");
@@ -3526,6 +3538,7 @@ function createApp() {
     shell.classList.toggle("aton-shell--guest-landing", !currentUser);
     shell.classList.toggle("aton-shell--no-chat", !currentChatId);
     shell.classList.toggle("aton-shell--has-chat", Boolean(currentChatId));
+    shell.classList.toggle("aton-shell--profile", mainView === "profile");
   }
 
   form.addEventListener("submit", async (event) => {
@@ -3629,6 +3642,10 @@ function createApp() {
 
   if (backButton) {
     backButton.addEventListener("click", () => {
+      if (mainView === "profile") {
+        closeProfilePage();
+        return;
+      }
       switchSocketChat(null);
       currentChatId = null;
       applyCurrentUserUI();
@@ -5124,6 +5141,7 @@ function createApp() {
     shell.classList.toggle("aton-shell--guest-landing", !current);
     shell.classList.toggle("aton-shell--no-chat", !currentChatId);
     shell.classList.toggle("aton-shell--has-chat", Boolean(currentChatId));
+    shell.classList.toggle("aton-shell--profile", mainView === "profile");
 
     if (!current) {
       renderPublicLandingState(messagesEl);
@@ -6102,71 +6120,70 @@ function createApp() {
   }
 
   // Профиль и аватар
-  async function openProfileModal() {
+  function renderProfilePage() {
     if (!currentUser) {
       alert(t("Сначала войдите или зарегистрируйтесь."));
       return;
     }
     const user = userByUsername(currentUser.username) || currentUser;
+    const avatarHtml = user.avatarDataUrl
+      ? `<img id="aton-profile-avatar-preview" src="${escHtml(user.avatarDataUrl)}" alt="" />`
+      : `<span id="aton-profile-avatar-letter">${escHtml((user.displayName || user.username || "?").slice(0, 1).toUpperCase())}</span><img id="aton-profile-avatar-preview" src="" alt="" hidden />`;
 
-    const overlay = document.createElement("div");
-    overlay.style.position = "fixed";
-    overlay.style.inset = "0";
-    overlay.style.background = "rgba(15,23,42,0.8)";
-    overlay.style.backdropFilter = "blur(12px)";
-    overlay.style.display = "flex";
-    overlay.style.alignItems = "center";
-    overlay.style.justifyContent = "center";
-    overlay.style.zIndex = "50";
+    profilePage.innerHTML = `
+      <div class="aton-profile-page-scroll">
+        <section class="aton-profile-hero">
+          <button type="button" class="aton-profile-back" id="aton-profile-back">${escHtml(t("Назад к чатам"))}</button>
+          <div class="aton-profile-hero-main">
+            <div class="aton-profile-avatar-large">
+              ${avatarHtml}
+            </div>
+            <div class="aton-profile-hero-copy">
+              <div class="aton-profile-kicker">${escHtml(t("Личный профиль"))}</div>
+              <h1>${escHtml(t("Профиль пользователя"))}</h1>
+              <p>${escHtml(t("Настройте, как вы выглядите в Атоне."))}</p>
+              <label class="aton-profile-avatar-upload">
+                ${escHtml(t("Загрузить аватар"))}
+                <input type="file" id="aton-profile-avatar" accept="image/*" hidden />
+              </label>
+            </div>
+          </div>
+        </section>
 
-    const modal = document.createElement("div");
-    modal.style.background = "rgba(15,23,42,0.98)";
-    modal.style.borderRadius = "18px";
-    modal.style.border = "1px solid rgba(148,163,184,0.7)";
-    modal.style.padding = "18px 20px 16px";
-    modal.style.width = "320px";
-    modal.style.color = "#e5e7eb";
-    modal.innerHTML = `
-      <div style="font-size:14px;font-weight:500;margin-bottom:8px;">${escHtml(t("Профиль пользователя"))}</div>
-      <div style="font-size:11px;color:#9ca3af;margin-bottom:10px;">${escHtml(t("Настройте, как вы выглядите в Атоне."))}</div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-        <div style="width:40px;height:40px;border-radius:999px;overflow:hidden;background:#020617;border:1px solid rgba(55,65,81,0.9);flex-shrink:0;">
-          <img id="aton-profile-avatar-preview" src="${
-            user.avatarDataUrl || ""
-          }" style="width:100%;height:100%;object-fit:cover;display:${
-            user.avatarDataUrl ? "block" : "none"
-          };" />
-        </div>
-        <label style="font-size:11px;cursor:pointer;color:#38bdf8;">
-          ${escHtml(t("Загрузить аватар"))}
-          <input type="file" id="aton-profile-avatar" accept="image/*" style="display:none;" />
-        </label>
-      </div>
-      <label class="aton-input-label">${escHtml(t("Отображаемое имя"))}</label>
-      <input type="text" id="aton-profile-name" class="aton-input" style="margin-bottom:6px;" />
-      <label class="aton-input-label" style="margin-top:4px;">${escHtml(t("Как видеть себя в чатах (только у вас)"))}</label>
-      <input type="text" id="aton-profile-local-name" class="aton-input" style="margin-bottom:4px;" placeholder="${escHtml(t("Только в этом браузере, для других не меняется"))}" />
-      <div style="font-size:10px;color:#6b7280;margin-bottom:8px;line-height:1.35;">${escHtml(t("Не отправляется на сервер. Пустое поле — показывается имя из профиля выше."))}</div>
-      <label class="aton-input-label">${escHtml(t("Статус"))}</label>
-      <input type="text" id="aton-profile-bio" class="aton-input" placeholder="${escHtml(t("Например: «Пишу при свете Атена»"))}" />
-      <label class="aton-input-label" style="margin-top:6px;">${escHtml(t("ID профиля"))}</label>
-      <input type="text" id="aton-profile-public-id" class="aton-input" placeholder="${escHtml(t("Удобный ID, по которому вас можно найти (@id)"))}" />
-      <div style="font-size:10px;color:#6b7280;margin-top:2px;">${escHtml(t("ID может содержать латинские буквы, цифры, подчёркивание и дефис (3–32 символа). Должен быть уникальным."))}</div>
-      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">
-        <button id="aton-profile-cancel" class="aton-new-chat-button">${escHtml(t("Отмена"))}</button>
-        <button id="aton-profile-save" class="aton-primary-button" style="margin-top:0;padding-inline:14px;">${escHtml(t("Сохранить"))}</button>
+        <section class="aton-profile-form">
+          <div class="aton-profile-field">
+            <label class="aton-input-label" for="aton-profile-name">${escHtml(t("Отображаемое имя"))}</label>
+            <input type="text" id="aton-profile-name" class="aton-input" />
+          </div>
+          <div class="aton-profile-field">
+            <label class="aton-input-label" for="aton-profile-local-name">${escHtml(t("Как видеть себя в чатах (только у вас)"))}</label>
+            <input type="text" id="aton-profile-local-name" class="aton-input" placeholder="${escHtml(t("Только в этом браузере, для других не меняется"))}" />
+            <div class="aton-profile-help">${escHtml(t("Не отправляется на сервер. Пустое поле — показывается имя из профиля выше."))}</div>
+          </div>
+          <div class="aton-profile-field">
+            <label class="aton-input-label" for="aton-profile-bio">${escHtml(t("Статус"))}</label>
+            <input type="text" id="aton-profile-bio" class="aton-input" placeholder="${escHtml(t("Например: «Пишу при свете Атена»"))}" />
+          </div>
+          <div class="aton-profile-field">
+            <label class="aton-input-label" for="aton-profile-public-id">${escHtml(t("ID профиля"))}</label>
+            <input type="text" id="aton-profile-public-id" class="aton-input" placeholder="${escHtml(t("Удобный ID, по которому вас можно найти (@id)"))}" />
+            <div class="aton-profile-help">${escHtml(t("ID может содержать латинские буквы, цифры, подчёркивание и дефис (3–32 символа). Должен быть уникальным."))}</div>
+          </div>
+          <div class="aton-profile-actions">
+            <button type="button" id="aton-profile-cancel" class="aton-new-chat-button">${escHtml(t("Отмена"))}</button>
+            <button type="button" id="aton-profile-save" class="aton-primary-button">${escHtml(t("Сохранить"))}</button>
+          </div>
+        </section>
       </div>
     `;
 
-  overlay.appendChild(modal);
-  document.body.appendChild(overlay);
-
-  const nameInput = modal.querySelector("#aton-profile-name");
-  const localNameInput = modal.querySelector("#aton-profile-local-name");
-  const bioInput = modal.querySelector("#aton-profile-bio");
-  const publicIdInput = modal.querySelector("#aton-profile-public-id");
-  const avatarInput = modal.querySelector("#aton-profile-avatar");
-  const avatarPreview = modal.querySelector("#aton-profile-avatar-preview");
+  const nameInput = profilePage.querySelector("#aton-profile-name");
+  const localNameInput = profilePage.querySelector("#aton-profile-local-name");
+  const bioInput = profilePage.querySelector("#aton-profile-bio");
+  const publicIdInput = profilePage.querySelector("#aton-profile-public-id");
+  const avatarInput = profilePage.querySelector("#aton-profile-avatar");
+  const avatarPreview = profilePage.querySelector("#aton-profile-avatar-preview");
+  const avatarLetter = profilePage.querySelector("#aton-profile-avatar-letter");
 
   nameInput.value = user.displayName || user.username;
   if (localNameInput) localNameInput.value = getLocalSelfDisplayName(user.username);
@@ -6182,16 +6199,16 @@ function createApp() {
     reader.onload = () => {
       newAvatarDataUrl = reader.result;
       avatarPreview.src = newAvatarDataUrl;
-      avatarPreview.style.display = "block";
+      avatarPreview.hidden = false;
+      if (avatarLetter) avatarLetter.hidden = true;
     };
     reader.readAsDataURL(file);
   });
 
-  modal.querySelector("#aton-profile-cancel").addEventListener("click", () => {
-    overlay.remove();
-  });
+  profilePage.querySelector("#aton-profile-back").addEventListener("click", closeProfilePage);
+  profilePage.querySelector("#aton-profile-cancel").addEventListener("click", closeProfilePage);
 
-  modal.querySelector("#aton-profile-save").addEventListener("click", async () => {
+  profilePage.querySelector("#aton-profile-save").addEventListener("click", async () => {
     try {
       if (localNameInput) {
         setLocalSelfDisplayName(currentUser.username, localNameInput.value);
@@ -6215,8 +6232,8 @@ function createApp() {
       if (idx !== -1) allUsers[idx] = updated;
       else allUsers.push(updated);
 
-      overlay.remove();
       applyCurrentUserUI();
+      renderProfilePage();
       renderChatList();
       renderMessages();
       updateTopbarTitle();
@@ -6226,19 +6243,43 @@ function createApp() {
   });
 }
 
-  profileLink.addEventListener("click", openProfileModal);
-  userPill.addEventListener("click", openProfileModal);
+  function openProfilePage() {
+    if (!currentUser) {
+      alert(t("Сначала войдите или зарегистрируйтесь."));
+      return;
+    }
+    mainView = "profile";
+    profilePage.hidden = false;
+    chat.hidden = true;
+    if (peerActionBar) peerActionBar.hidden = true;
+    renderProfilePage();
+    applyCurrentUserUI();
+    updateTopbarTitle();
+  }
+
+  function closeProfilePage() {
+    mainView = "chat";
+    profilePage.hidden = true;
+    chat.hidden = false;
+    applyCurrentUserUI();
+    renderMessages({ deferIfVoice: true });
+    updateTopbarTitle();
+    updatePeerActionBar();
+  }
+
+  profileLink.addEventListener("click", openProfilePage);
+  userPill.addEventListener("click", openProfilePage);
 
   // Sidebar avatar click opens profile
   const loggedAvatarEl = document.getElementById("aton-logged-avatar");
   if (loggedAvatarEl) {
     loggedAvatarEl.style.cursor = "pointer";
     loggedAvatarEl.title = "Открыть профиль";
-    loggedAvatarEl.addEventListener("click", openProfileModal);
+    loggedAvatarEl.addEventListener("click", openProfilePage);
   }
   const profileMobileBtn = document.getElementById("aton-profile-mobile-btn");
   if (profileMobileBtn) {
-    profileMobileBtn.addEventListener("click", openProfileModal);
+    profileMobileBtn.addEventListener("click", openProfilePage);
   }
 
   // Theme toggle
@@ -6777,6 +6818,12 @@ function createApp() {
       statusEl.classList.remove("aton-topbar-status--online");
       if (!current) {
         setTitle(t("Добро пожаловать"), false);
+        return;
+      }
+      if (mainView === "profile") {
+        setTitle(t("Профиль пользователя"), false);
+        statusEl.textContent = t("Настройки профиля");
+        statusEl.removeAttribute("title");
         return;
       }
       if (!currentChatId) {
