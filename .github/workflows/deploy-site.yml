@@ -1,19 +1,12 @@
 name: Deploy static site
 
+# Ручной деплой: раннеры GitHub часто не достучаться до FTP hoster.by (ETIMEDOUT / ENETUNREACH),
+# из-за чего каждый push в main с статикой даёт красный CI и письмо.
+# Заливка: npm run deploy:site (без VPN, FTP_REMOTE_DIR=. в .env.deploy) или Total Commander.
+# Секреты: FTP_REMOTE_DIR должен совпадать с реальным путём — для vh141.hoster.by это «.» (корень сессии),
+# подкаталога public_html на FTP нет.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - index.html
-      - main.js
-      - style.css
-      - forgot.html
-      - reset.html
-      - admin-users.html
-      - golos-aton-avatar.png
-      - .github/workflows/deploy-site.yml
 
 jobs:
   ftp-deploy:
