@@ -18,7 +18,7 @@ const I18N = {
   "Отправить повторно": { en: "Resend", de: "Erneut senden" },
   "Выйти": { en: "Log out", de: "Abmelden" },
   "Письмо отправлено повторно.": { en: "Email sent again.", de: "E-Mail wurde erneut gesendet." },
-  "АТОН": { en: "ATON", de: "ATON" },
+  "АТОН": { en: "ATEN", de: "ATEN" },
   "мессенджер под светом диска": {
     en: "messenger under the disk light",
     de: "Messenger unter dem Licht der Scheibe",
@@ -49,7 +49,7 @@ const I18N = {
     de: "Name, Status und Avatar einstellen",
   },
   "Назад к чатам": { en: "Back to chats", de: "Zurueck zu Chats" },
-  "Атон": { en: "Aton", de: "Aton" },
+  "Атон": { en: "ATEN", de: "ATEN" },
   "Войдите, чтобы открыть чаты": {
     en: "Sign in to open chats",
     de: "Melden Sie sich an, um Chats zu oeffnen",
@@ -87,7 +87,7 @@ const I18N = {
   "Исходящие заявки": { en: "Outgoing requests", de: "Ausgehende Anfragen" },
   "Друзья": { en: "Friends", de: "Freunde" },
   "Заблокированные": { en: "Blocked", de: "Blockiert" },
-  "Голос Атона": { en: "Aton Voice", de: "Aton Stimme" },
+  "Голос Атона": { en: "ATEN Voice", de: "ATEN Stimme" },
   "🎙 Голосовое": { en: "🎙 Voice", de: "🎙 Sprache" },
   "Сообщение без текста": { en: "Message without text", de: "Nachricht ohne Text" },
   "Подключение…": { en: "Connecting…", de: "Verbindung…"},
@@ -111,10 +111,10 @@ const I18N = {
   "Отменить заявку": { en: "Cancel request", de: "Anfrage abbrechen" },
   "Разблокировать": { en: "Unblock", de: "Entsperren" },
   "Голос, не бот": { en: "Voice, not a bot", de: "Stimme, kein Bot" },
-  "Голос Атона думает": { en: "Aton Voice is thinking", de: "Aton Stimme denkt nach" },
+  "Голос Атона думает": { en: "ATEN Voice is thinking", de: "ATEN Stimme denkt nach" },
   "Настройте, как вы выглядите в Атоне.": {
-    en: "Set up how you appear in Aton.",
-    de: "Stellen Sie ein, wie Sie in Aton erscheinen.",
+    en: "Set up how you appear in ATEN.",
+    de: "Stellen Sie ein, wie Sie in ATEN erscheinen.",
   },
   "Отправлено": { en: "Sent", de: "Gesendet" },
   "Доставлено": { en: "Delivered", de: "Zugestellt" },
@@ -365,8 +365,8 @@ const I18N = {
   "Отображаемое имя": { en: "Display name", de: "Anzeigename" },
   "Статус": { en: "Status", de: "Status" },
   "Например: «Пишу при свете Атена»": {
-    en: "For example: \"Writing by Aten's light\"",
-    de: "Zum Beispiel: \"Ich schreibe im Licht Atons\"",
+    en: "For example: \"Writing by ATEN's light\"",
+    de: "Zum Beispiel: \"Ich schreibe im Licht ATENs\"",
   },
   "ID профиля": { en: "Profile ID", de: "Profil-ID" },
   "Удобный ID, по которому вас можно найти (@id)": {
@@ -421,7 +421,7 @@ const I18N = {
     en: "Open a conversation on the left or find a user by @username.",
     de: "Oeffnen Sie links einen Dialog oder suchen Sie einen Nutzer per @username.",
   },
-  "Голос Атона думает": { en: "Aton Voice is thinking", de: "Aton Stimme denkt nach" },
+  "Голос Атона думает": { en: "ATEN Voice is thinking", de: "ATEN Stimme denkt nach" },
   "Часто 3–15 с; с голосом дольше — распознавание, ответ и озвучка. Ниже в ленте.": {
     en: "Usually 3-15 sec; voice takes longer for recognition, reply, and speech. It will appear below in the feed.",
     de: "Meist 3-15 Sek.; mit Stimme dauert es laenger fuer Erkennung, Antwort und Sprachausgabe. Es erscheint unten im Verlauf.",
@@ -449,8 +449,8 @@ const I18N = {
   },
   "Принцип, не служба": { en: "Principle, not service", de: "Prinzip, kein Dienst" },
   "Голос из позиции Атона — не помощник и не сервис": {
-    en: "A voice from Aton's position - not an assistant or a service",
-    de: "Eine Stimme aus Atons Position - kein Assistent und kein Dienst",
+    en: "A voice from ATEN's position - not an assistant or a service",
+    de: "Eine Stimme aus ATENs Position - kein Assistent und kein Dienst",
   },
   "Когда вкладка в фоне, вы будете видеть уведомления о сообщениях": {
     en: "When the tab is in the background, you will see message notifications",
@@ -530,8 +530,8 @@ document.documentElement.lang = currentLang === "en" ? "en-GB" : currentLang;
 function applyDocumentLanguageMeta() {
   const titles = {
     ru: "Атон — веб‑мессенджер для личных и групповых диалогов",
-    en: "Aton — web messenger for private and group chats",
-    de: "Aton — Web-Messenger fuer private und Gruppen-Chats",
+    en: "ATEN — web messenger for private and group chats",
+    de: "ATEN — Web-Messenger fuer private und Gruppen-Chats",
   };
   document.title = titles[currentLang] || titles.ru;
 }
