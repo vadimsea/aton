@@ -2818,7 +2818,8 @@ body {
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 800;
   line-height: 1;
   user-select: none;
 }
@@ -2826,42 +2827,45 @@ body {
 .aton-message-ack-tick {
   display: inline-block;
   margin-left: -0.1em;
-  opacity: 0.88;
+  color: rgba(28, 25, 23, 0.58);
+  opacity: 1;
+  text-shadow: 0 0 0 currentColor;
 }
 
 .aton-message-ack--delivered .aton-message-ack-tick {
-  opacity: 0.72;
+  color: rgba(28, 25, 23, 0.58);
+  opacity: 1;
 }
 
 .aton-message-ack--read .aton-message-ack-tick {
-  color: #67e8f9;
+  color: #0ea5e9;
   opacity: 1;
 }
 
 [data-theme="light"] .aton-message-ack--read .aton-message-ack-tick {
-  color: #2563eb;
+  color: #0b63f6;
 }
 
 /* На своём пузыре (тёплый/зелёный фон) старый «бирюзовый» сливался; «прочитано» — явный синий, как в Telegram */
 .aton-message-bubble.self .aton-message-ack--read .aton-message-ack-tick {
-  color: #1d4ed8;
+  color: #0758d8;
   opacity: 1;
 }
 .aton-message-bubble.self .aton-message-ack--delivered .aton-message-ack-tick {
-  color: rgba(28, 25, 23, 0.42);
-  opacity: 0.95;
+  color: rgba(28, 25, 23, 0.58);
+  opacity: 1;
 }
 .aton-message-bubble.self
   .aton-message-ack:not(.aton-message-ack--delivered):not(.aton-message-ack--read)
   .aton-message-ack-tick {
-  color: rgba(28, 25, 23, 0.5);
-  opacity: 0.9;
+  color: rgba(28, 25, 23, 0.58);
+  opacity: 1;
 }
 [data-theme="light"] .aton-message-bubble.self .aton-message-ack--read .aton-message-ack-tick {
-  color: #1d4ed8;
+  color: #0758d8;
 }
 [data-theme="light"] .aton-message-bubble.self .aton-message-ack--delivered .aton-message-ack-tick {
-  color: rgba(15, 23, 42, 0.45);
+  color: rgba(15, 23, 42, 0.62);
 }
 
 .aton-search-friend-ok {
