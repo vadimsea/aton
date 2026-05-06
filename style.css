@@ -456,19 +456,18 @@ body {
 }
 
 .aton-create-group-button {
-  width: 30px;
-  height: 30px;
-  min-width: 30px;
-  min-height: 30px;
-  padding: 0;
-  display: inline-grid;
-  place-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   border: 1px solid rgba(96, 165, 250, 0.28);
-  border-radius: 10px;
+  border-radius: 8px;
   background: rgba(15, 23, 42, 0.04);
   color: #60a5fa;
-  font-size: 19px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
   line-height: 1;
   letter-spacing: 0;
   text-transform: none;
@@ -485,6 +484,13 @@ body {
 .aton-create-group-button:focus-visible {
   outline: 2px solid rgba(96, 165, 250, 0.7);
   outline-offset: 2px;
+}
+
+.aton-create-group-plus {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 0;
+  margin-top: -1px;
 }
 
 .aton-search {
@@ -5155,13 +5161,10 @@ body {
   }
 
   .aton-create-group-button {
-    width: 34px;
-    height: 34px;
-    min-width: 34px;
-    min-height: 34px;
-    padding: 0;
-    border-radius: 11px;
-    font-size: 20px;
+    min-height: 30px;
+    padding: 0 11px;
+    border-radius: 9px;
+    font-size: 12px;
   }
 
   /* ===== SEARCH ===== */

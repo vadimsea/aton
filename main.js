@@ -1840,7 +1840,8 @@ function createApp() {
     <div class="aton-chats-header">
       <span>${t("Чаты")}</span>
       <button class="aton-new-chat-button aton-create-group-button" id="aton-create-group" disabled style="display:none;" title="${escHtml(t("Создать группу"))}" aria-label="${escHtml(t("Создать группу"))}">
-        <span aria-hidden="true">+</span>
+        <span aria-hidden="true" class="aton-create-group-plus">+</span>
+        <span>${t("группа")}</span>
       </button>
     </div>
     <div class="aton-search">
