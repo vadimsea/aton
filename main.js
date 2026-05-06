@@ -5291,7 +5291,10 @@ function createApp() {
         img.src = msg.imageDataUrl;
         img.className = "aton-message-image";
         img.addEventListener("click", () => {
-          openImageLightbox(msg.imageDataUrl);
+          const gallery = messagesForChatId(currentChatId)
+            .filter((item) => item && item.type === "image" && item.imageDataUrl)
+            .map((item) => String(item.imageDataUrl));
+          openImageLightbox(msg.imageDataUrl, gallery);
         });
         text.appendChild(img);
       }
@@ -7214,9 +7217,15 @@ function createApp() {
 
 window.addEventListener("DOMContentLoaded", createApp);
 
-function openImageLightbox(src) {
+function openImageLightbox(src, gallery = []) {
   const existing = document.querySelector(".aton-image-lightbox");
   if (existing) existing.remove();
+  const images = Array.isArray(gallery)
+    ? gallery.map((url) => String(url || "")).filter(Boolean)
+    : [];
+  if (!images.includes(src)) images.unshift(src);
+  let currentIndex = Math.max(0, images.indexOf(src));
+
   const overlay = document.createElement("div");
   overlay.className = "aton-image-lightbox";
   const closeBtn = document.createElement("button");
@@ -7224,20 +7233,59 @@ function openImageLightbox(src) {
   closeBtn.className = "aton-image-lightbox-close";
   closeBtn.setAttribute("aria-label", t("Закрыть"));
   closeBtn.textContent = "×";
+  const prevBtn = document.createElement("button");
+  prevBtn.type = "button";
+  prevBtn.className = "aton-image-lightbox-nav aton-image-lightbox-nav--prev";
+  prevBtn.setAttribute("aria-label", t("Назад"));
+  prevBtn.textContent = "‹";
+  const nextBtn = document.createElement("button");
+  nextBtn.type = "button";
+  nextBtn.className = "aton-image-lightbox-nav aton-image-lightbox-nav--next";
+  nextBtn.setAttribute("aria-label", t("Вперёд"));
+  nextBtn.textContent = "›";
+  const counter = document.createElement("div");
+  counter.className = "aton-image-lightbox-counter";
   const img = document.createElement("img");
-  img.src = src;
+  const render = () => {
+    img.src = images[currentIndex] || src;
+    const hasMany = images.length > 1;
+    prevBtn.hidden = !hasMany;
+    nextBtn.hidden = !hasMany;
+    counter.hidden = !hasMany;
+    counter.textContent = hasMany ? `${currentIndex + 1} / ${images.length}` : "";
+  };
+  const step = (delta) => {
+    if (images.length < 2) return;
+    currentIndex = (currentIndex + delta + images.length) % images.length;
+    render();
+  };
   const close = () => {
     document.removeEventListener("keydown", onKeydown);
     overlay.remove();
   };
   const onKeydown = (event) => {
     if (event.key === "Escape") close();
+    if (event.key === "ArrowLeft") step(-1);
+    if (event.key === "ArrowRight") step(1);
   };
   closeBtn.addEventListener("click", (event) => {
     event.stopPropagation();
     close();
   });
+  prevBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    step(-1);
+  });
+  nextBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    step(1);
+  });
+  img.addEventListener("click", (event) => event.stopPropagation());
+  render();
   overlay.appendChild(img);
+  overlay.appendChild(prevBtn);
+  overlay.appendChild(nextBtn);
+  overlay.appendChild(counter);
   overlay.appendChild(closeBtn);
   overlay.addEventListener("click", (event) => {
     if (event.target === overlay) close();
