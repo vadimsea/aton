@@ -7,6 +7,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QListWidgetItem>
 #include <QPushButton>
 #include <QSplitter>
 #include <QStackedWidget>
@@ -134,6 +135,8 @@ QWidget *MainWindow::buildMessengerPage()
     m_chatList = new QListWidget(sidebar);
     m_chatList->addItem("Loading chats...");
     sidebarLayout->addWidget(m_chatList, 1);
+    connect(m_chatList, &QListWidget::itemActivated, this, &MainWindow::openSelectedChat);
+    connect(m_chatList, &QListWidget::currentItemChanged, this, &MainWindow::openSelectedChat);
 
     auto *logoutButton = new QPushButton("Log out", sidebar);
     sidebarLayout->addWidget(logoutButton);
@@ -179,11 +182,13 @@ QWidget *MainWindow::buildMessengerPage()
     composerLayout->setSpacing(10);
     m_composer = new QLineEdit(composer);
     m_composer->setPlaceholderText("Message...");
-    auto *sendButton = new QPushButton("Send", composer);
-    sendButton->setObjectName("PrimaryButton");
+    m_sendButton = new QPushButton("Send", composer);
+    m_sendButton->setObjectName("PrimaryButton");
     composerLayout->addWidget(m_composer, 1);
-    composerLayout->addWidget(sendButton);
+    composerLayout->addWidget(m_sendButton);
     contentLayout->addWidget(composer);
+    connect(m_sendButton, &QPushButton::clicked, this, &MainWindow::sendComposerText);
+    connect(m_composer, &QLineEdit::returnPressed, this, &MainWindow::sendComposerText);
 
     splitter->addWidget(sidebar);
     splitter->addWidget(content);
@@ -231,6 +236,16 @@ void MainWindow::wireApi()
         }
         if (endpoint == "/api/chats") {
             renderChats(body);
+            return;
+        }
+        if (endpoint.startsWith("/api/messages?chatId=")) {
+            renderMessages(body);
+            return;
+        }
+        if (endpoint == "/api/messages") {
+            if (!m_currentChatId.isEmpty()) {
+                m_apiClient->getMessages(m_currentChatId);
+            }
             return;
         }
         setStatusText(QString("Loaded %1").arg(endpoint));
@@ -291,8 +306,68 @@ void MainWindow::renderChats(const QJsonDocument &body)
             title = chat.value("name").toString(chat.value("id").toString("Chat"));
         }
         const auto type = chat.value("type").toString("group");
-        m_chatList->addItem(QString("%1  ·  %2").arg(title, type));
+        const auto id = chat.value("id").toString();
+        auto *item = new QListWidgetItem(QString("%1  ·  %2").arg(title, type));
+        item->setData(Qt::UserRole, id);
+        m_chatList->addItem(item);
     }
+    if (m_chatList->count() > 0) {
+        m_chatList->setCurrentRow(0);
+    }
+}
+
+void MainWindow::renderMessages(const QJsonDocument &body)
+{
+    if (!m_messageList) return;
+    m_messageList->clear();
+    const auto messages = body.array();
+    if (messages.isEmpty()) {
+        m_messageList->addItem("No messages yet");
+        return;
+    }
+    for (const auto &value : messages) {
+        const auto msg = value.toObject();
+        const auto from = msg.value("from").toString(msg.value("senderUsername").toString("user"));
+        const auto type = msg.value("type").toString("text");
+        QString text;
+        if (type == "text") {
+            text = msg.value("text").toString();
+        } else if (type == "image") {
+            text = "[image]";
+        } else if (type == "audio") {
+            text = "[voice message]";
+        } else {
+            text = QString("[%1]").arg(type);
+        }
+        m_messageList->addItem(QString("%1: %2").arg(from, text));
+    }
+    m_messageList->scrollToBottom();
+}
+
+void MainWindow::openSelectedChat()
+{
+    if (!m_apiClient || !m_chatList) return;
+    auto *item = m_chatList->currentItem();
+    if (!item) return;
+    const auto chatId = item->data(Qt::UserRole).toString();
+    if (chatId.isEmpty() || chatId == m_currentChatId) return;
+    m_currentChatId = chatId;
+    setStatusText(QString("Loading %1").arg(item->text()));
+    m_apiClient->getMessages(m_currentChatId);
+}
+
+void MainWindow::sendComposerText()
+{
+    if (!m_apiClient || !m_composer) return;
+    const auto text = m_composer->text().trimmed();
+    if (m_currentChatId.isEmpty()) {
+        setStatusText("Select a chat first");
+        return;
+    }
+    if (text.isEmpty()) return;
+    m_composer->clear();
+    setStatusText("Sending...");
+    m_apiClient->sendTextMessage(m_currentChatId, text);
 }
 
 void MainWindow::setStatusText(const QString &text)

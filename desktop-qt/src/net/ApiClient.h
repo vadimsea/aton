@@ -21,6 +21,8 @@ public:
     void logout();
     void getMe();
     void getChats();
+    void getMessages(const QString &chatId);
+    void sendTextMessage(const QString &chatId, const QString &text);
 
 signals:
     void requestSucceeded(QString endpoint, QJsonDocument body);

@@ -29,6 +29,9 @@ private:
     void handleLogin();
     void loadAuthenticatedData();
     void renderChats(const QJsonDocument &body);
+    void renderMessages(const QJsonDocument &body);
+    void openSelectedChat();
+    void sendComposerText();
     void setStatusText(const QString &text);
 
     ApiClient *m_apiClient;
@@ -44,6 +47,8 @@ private:
     QListWidget *m_chatList = nullptr;
     QListWidget *m_messageList = nullptr;
     QLineEdit *m_composer = nullptr;
+    QPushButton *m_sendButton = nullptr;
+    QString m_currentChatId;
 };
 
 } // namespace aten

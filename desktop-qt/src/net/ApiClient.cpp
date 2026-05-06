@@ -55,6 +55,21 @@ void ApiClient::getChats()
     getJson("/api/chats");
 }
 
+void ApiClient::getMessages(const QString &chatId)
+{
+    const auto encoded = QString::fromUtf8(QUrl::toPercentEncoding(chatId));
+    getJson(QString("/api/messages?chatId=%1").arg(encoded));
+}
+
+void ApiClient::sendTextMessage(const QString &chatId, const QString &text)
+{
+    QJsonObject payload;
+    payload.insert("chatId", chatId);
+    payload.insert("type", "text");
+    payload.insert("text", text);
+    postJson("/api/messages", payload);
+}
+
 void ApiClient::getJson(const QString &endpoint)
 {
     auto *reply = m_network.get(makeRequest(endpoint));
@@ -99,7 +114,13 @@ void ApiClient::handleReply(QNetworkReply *reply, const QString &endpoint)
 QNetworkRequest ApiClient::makeRequest(const QString &endpoint) const
 {
     QUrl url = m_apiBaseUrl;
-    url.setPath(endpoint);
+    const auto marker = endpoint.indexOf("?");
+    if (marker >= 0) {
+        url.setPath(endpoint.left(marker));
+        url.setQuery(endpoint.mid(marker + 1));
+    } else {
+        url.setPath(endpoint);
+    }
 
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
