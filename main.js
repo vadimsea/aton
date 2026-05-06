@@ -2421,6 +2421,7 @@ function createApp() {
 
   function openChatFromNotification(chatId) {
     if (!chatId || !currentUser) return;
+    leaveProfileForChatSelection();
     currentChatId = chatId;
     switchSocketChat(currentChatId);
     setLastChatId(currentUser.username, currentChatId);
@@ -4242,6 +4243,7 @@ function createApp() {
       item.appendChild(main);
       item.appendChild(metaWrap);
       item.addEventListener("click", () => {
+        leaveProfileForChatSelection();
         currentChatId = dmId;
         switchSocketChat(currentChatId);
         if (current.username) setLastChatId(current.username, currentChatId);
@@ -4276,6 +4278,7 @@ function createApp() {
       }
 
       const openThisChat = () => {
+        leaveProfileForChatSelection();
         currentChatId = chatMeta.id;
         switchSocketChat(currentChatId);
         if (current.username) setLastChatId(current.username, currentChatId);
@@ -5757,6 +5760,7 @@ function createApp() {
 
     function openDmWithUserFromSearch(u) {
       if (!current) return;
+      leaveProfileForChatSelection();
       currentChatId = chatIdForUsers(current.username, u.username);
       switchSocketChat(currentChatId);
       if (current.username) setLastChatId(current.username, currentChatId);
@@ -5987,6 +5991,7 @@ function createApp() {
       `;
       const main = item.querySelector(".aton-search-main");
       main.addEventListener("click", () => {
+        leaveProfileForChatSelection();
         currentChatId = chat.id;
         switchSocketChat(currentChatId);
         if (current.username) setLastChatId(current.username, currentChatId);
@@ -6040,6 +6045,7 @@ function createApp() {
 
       // Клик по названию — открывает превью, НЕ добавляет в список чатов
       main.addEventListener("click", () => {
+        leaveProfileForChatSelection();
         currentChatId = chat.id;
         switchSocketChat(currentChatId);
         // Намеренно НЕ сохраняем в lastChatId — это ещё не «мой» чат
@@ -6057,6 +6063,7 @@ function createApp() {
         try {
           await api(`/api/chats/${chat.id}/join`, { method: "POST" });
           await bootstrapData();
+          leaveProfileForChatSelection();
           currentChatId = chat.id;
           switchSocketChat(currentChatId);
           if (current.username) setLastChatId(current.username, currentChatId);
@@ -6185,6 +6192,7 @@ function createApp() {
             body: JSON.stringify({ title, type, visibility, description }),
           });
           allChats.push(chat);
+          leaveProfileForChatSelection();
           currentChatId = chat.id;
           switchSocketChat(currentChatId);
           if (current.username) setLastChatId(current.username, currentChatId);
@@ -6365,6 +6373,15 @@ function createApp() {
     updateTopbarTitle();
   }
 
+  function leaveProfileForChatSelection() {
+    if (mainView !== "profile") return;
+    mainView = "chat";
+    if (profilePage) profilePage.hidden = true;
+    if (chat) chat.hidden = false;
+    if (peerActionBar) peerActionBar.hidden = true;
+    shell.classList.remove("aton-shell--profile");
+  }
+
   function closeProfilePage() {
     mainView = "chat";
     profilePage.hidden = true;
@@ -6518,6 +6535,7 @@ function createApp() {
         const ignoreBtn = row.querySelector(".aton-report-ignore");
 
         openBtn.addEventListener("click", () => {
+          leaveProfileForChatSelection();
           currentChatId = r.chatId;
           switchSocketChat(currentChatId);
           overlay.remove();
@@ -7063,6 +7081,7 @@ function createApp() {
         if (!cid) throw new Error(t("Не удалось вступить в чат"));
         window.history.replaceState({}, "", "/");
         overlay.remove();
+        leaveProfileForChatSelection();
         currentChatId = cid;
         switchSocketChat(cid);
         const u = currentUser;

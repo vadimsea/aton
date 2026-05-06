@@ -908,7 +908,16 @@ void MainWindow::openSelectedChat()
     auto *item = m_chatList->currentItem();
     if (!item) return;
     const auto chatId = item->data(Qt::UserRole).toString();
-    if (chatId.isEmpty() || chatId == m_currentChatId) return;
+    if (chatId.isEmpty()) return;
+    if (m_stack && m_stack->currentWidget() != m_messengerPage) {
+        m_stack->setCurrentWidget(m_messengerPage);
+    }
+    if (chatId == m_currentChatId) {
+        if (m_messageList && m_messageList->count() == 0) {
+            m_apiClient->getMessages(m_currentChatId);
+        }
+        return;
+    }
     m_currentChatId = chatId;
     setStatusText(QString("Loading %1").arg(item->text()));
     m_apiClient->getMessages(m_currentChatId);
