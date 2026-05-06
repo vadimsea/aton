@@ -14,6 +14,7 @@
 #include <QPainterPath>
 #include <QPixmap>
 #include <QPushButton>
+#include <QSizePolicy>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStatusBar>
@@ -233,6 +234,14 @@ void MainWindow::buildUi()
     rootLayout->addWidget(m_stack);
     setCentralWidget(root);
     statusBar()->hide();
+
+    for (auto *button : findChildren<QPushButton *>()) {
+        button->setCursor(Qt::PointingHandCursor);
+    }
+    if (m_chatList) {
+        m_chatList->setCursor(Qt::PointingHandCursor);
+        m_chatList->viewport()->setCursor(Qt::PointingHandCursor);
+    }
 }
 
 QWidget *MainWindow::buildAuthPage()
@@ -399,14 +408,14 @@ QWidget *MainWindow::buildAuthPage()
 
     auto *hero = new QWidget(main);
     auto *heroLayout = new QVBoxLayout(hero);
-    heroLayout->setContentsMargins(64, 18, 64, 96);
+    heroLayout->setContentsMargins(64, 8, 64, 36);
     heroLayout->setSpacing(12);
     heroLayout->setAlignment(Qt::AlignCenter);
     auto *heroLogo = new QLabel(hero);
     heroLogo->setObjectName("AtenHeroLogo");
-    heroLogo->setFixedSize(360, 360);
+    heroLogo->setFixedSize(300, 300);
     heroLogo->setAlignment(Qt::AlignCenter);
-    heroLogo->setPixmap(makeAtenMarkPixmap(360, true));
+    heroLogo->setPixmap(makeAtenMarkPixmap(300, true));
     heroLogo->setScaledContents(true);
     m_authHeroEyebrowLabel = new QLabel(hero);
     m_authHeroEyebrowLabel->setObjectName("HeroEyebrow");
@@ -417,10 +426,13 @@ QWidget *MainWindow::buildAuthPage()
     infoFont.setBold(true);
     m_authInfoTitleLabel->setFont(infoFont);
     m_authInfoTitleLabel->setAlignment(Qt::AlignCenter);
+    m_authInfoTitleLabel->setMinimumHeight(34);
     m_authInfoTextLabel = new QLabel(hero);
     m_authInfoTextLabel->setObjectName("HeroText");
     m_authInfoTextLabel->setWordWrap(true);
     m_authInfoTextLabel->setMaximumWidth(760);
+    m_authInfoTextLabel->setMinimumHeight(84);
+    m_authInfoTextLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::MinimumExpanding);
     m_authInfoTextLabel->setAlignment(Qt::AlignCenter);
     heroLayout->addStretch(1);
     heroLayout->addWidget(heroLogo, 0, Qt::AlignCenter);
