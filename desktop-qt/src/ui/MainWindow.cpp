@@ -1,6 +1,7 @@
 #include "ui/MainWindow.h"
 
 #include <QHBoxLayout>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
@@ -8,6 +9,7 @@
 #include <QListWidget>
 #include <QPushButton>
 #include <QSplitter>
+#include <QStackedWidget>
 #include <QStatusBar>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -30,6 +32,7 @@ MainWindow::MainWindow(ApiClient *apiClient, SessionStore *sessionStore, QWidget
 
     buildUi();
     wireApi();
+    refreshSessionUi();
 
     if (m_apiClient) {
         m_apiClient->getHealth();
@@ -39,11 +42,74 @@ MainWindow::MainWindow(ApiClient *apiClient, SessionStore *sessionStore, QWidget
 void MainWindow::buildUi()
 {
     auto *root = new QWidget(this);
-    auto *rootLayout = new QHBoxLayout(root);
+    auto *rootLayout = new QVBoxLayout(root);
+    rootLayout->setContentsMargins(0, 0, 0, 0);
+    rootLayout->setSpacing(0);
+    m_stack = new QStackedWidget(root);
+    m_authPage = buildAuthPage();
+    m_messengerPage = buildMessengerPage();
+    m_stack->addWidget(m_authPage);
+    m_stack->addWidget(m_messengerPage);
+    rootLayout->addWidget(m_stack);
+    setCentralWidget(root);
+    statusBar()->hide();
+}
+
+QWidget *MainWindow::buildAuthPage()
+{
+    auto *page = new QWidget(this);
+    auto *outer = new QVBoxLayout(page);
+    outer->setContentsMargins(0, 0, 0, 0);
+    outer->setAlignment(Qt::AlignCenter);
+
+    auto *panel = new QWidget(page);
+    panel->setObjectName("AuthPanel");
+    panel->setFixedWidth(380);
+    auto *layout = new QVBoxLayout(panel);
+    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setSpacing(12);
+
+    auto *title = new QLabel("ATEN", panel);
+    auto titleFont = title->font();
+    titleFont.setPointSize(24);
+    titleFont.setBold(true);
+    title->setFont(titleFont);
+    auto *subtitle = new QLabel("Desktop messenger", panel);
+    subtitle->setObjectName("MutedText");
+
+    m_loginInput = new QLineEdit(panel);
+    m_loginInput->setPlaceholderText("Email or username");
+    m_passwordInput = new QLineEdit(panel);
+    m_passwordInput->setPlaceholderText("Password");
+    m_passwordInput->setEchoMode(QLineEdit::Password);
+    m_loginButton = new QPushButton("Sign in", panel);
+    m_loginButton->setObjectName("PrimaryButton");
+    m_statusLabel = new QLabel("Connecting to API...", panel);
+    m_statusLabel->setObjectName("MutedText");
+    m_statusLabel->setWordWrap(true);
+
+    layout->addWidget(title);
+    layout->addWidget(subtitle);
+    layout->addSpacing(12);
+    layout->addWidget(m_loginInput);
+    layout->addWidget(m_passwordInput);
+    layout->addWidget(m_loginButton);
+    layout->addWidget(m_statusLabel);
+    outer->addWidget(panel);
+
+    connect(m_loginButton, &QPushButton::clicked, this, &MainWindow::handleLogin);
+    connect(m_passwordInput, &QLineEdit::returnPressed, this, &MainWindow::handleLogin);
+    return page;
+}
+
+QWidget *MainWindow::buildMessengerPage()
+{
+    auto *page = new QWidget(this);
+    auto *rootLayout = new QHBoxLayout(page);
     rootLayout->setContentsMargins(0, 0, 0, 0);
     rootLayout->setSpacing(0);
 
-    auto *splitter = new QSplitter(Qt::Horizontal, root);
+    auto *splitter = new QSplitter(Qt::Horizontal, page);
     splitter->setChildrenCollapsible(false);
 
     auto *sidebar = new QWidget(splitter);
@@ -61,11 +127,25 @@ void MainWindow::buildUi()
     brand->setFont(font);
     sidebarLayout->addWidget(brand);
 
+    m_accountLabel = new QLabel("Not signed in", sidebar);
+    m_accountLabel->setObjectName("MutedText");
+    sidebarLayout->addWidget(m_accountLabel);
+
     m_chatList = new QListWidget(sidebar);
-    m_chatList->addItem("Aton Voice");
-    m_chatList->addItem("akhenaten");
-    m_chatList->addItem("Vadimtest");
+    m_chatList->addItem("Loading chats...");
     sidebarLayout->addWidget(m_chatList, 1);
+
+    auto *logoutButton = new QPushButton("Log out", sidebar);
+    sidebarLayout->addWidget(logoutButton);
+    connect(logoutButton, &QPushButton::clicked, this, [this]() {
+        if (m_apiClient) {
+            m_apiClient->logout();
+        }
+        if (m_sessionStore) {
+            m_sessionStore->clear();
+        }
+        refreshSessionUi();
+    });
 
     auto *content = new QWidget(splitter);
     auto *contentLayout = new QVBoxLayout(content);
@@ -110,8 +190,7 @@ void MainWindow::buildUi()
     splitter->setSizes({360, 920});
     rootLayout->addWidget(splitter);
 
-    setCentralWidget(root);
-    statusBar()->hide();
+    return page;
 }
 
 void MainWindow::wireApi()
@@ -125,6 +204,35 @@ void MainWindow::wireApi()
             setStatusText(QString("API online: %1").arg(service));
             return;
         }
+        if (endpoint == "/api/login") {
+            const auto obj = body.object();
+            const auto token = obj.value("token").toString();
+            if (!token.isEmpty() && m_sessionStore) {
+                m_sessionStore->setToken(token);
+            }
+            setStatusText("Signed in");
+            refreshSessionUi();
+            loadAuthenticatedData();
+            return;
+        }
+        if (endpoint == "/api/logout") {
+            setStatusText("Signed out");
+            return;
+        }
+        if (endpoint == "/api/me") {
+            const auto obj = body.object();
+            const auto userObj = obj.value("user").toObject(obj);
+            const auto name = userObj.value("displayName").toString(userObj.value("username").toString("ATEN user"));
+            if (m_accountLabel) {
+                m_accountLabel->setText(name);
+            }
+            setStatusText(QString("Signed in as %1").arg(name));
+            return;
+        }
+        if (endpoint == "/api/chats") {
+            renderChats(body);
+            return;
+        }
         setStatusText(QString("Loaded %1").arg(endpoint));
     });
 
@@ -133,10 +241,67 @@ void MainWindow::wireApi()
     });
 }
 
+void MainWindow::refreshSessionUi()
+{
+    const auto hasSession = m_sessionStore && m_sessionStore->hasToken();
+    if (m_stack) {
+        m_stack->setCurrentWidget(hasSession ? m_messengerPage : m_authPage);
+    }
+    if (hasSession) {
+        loadAuthenticatedData();
+    }
+}
+
+void MainWindow::handleLogin()
+{
+    if (!m_apiClient || !m_loginInput || !m_passwordInput) return;
+    const auto login = m_loginInput->text().trimmed();
+    const auto password = m_passwordInput->text();
+    if (login.isEmpty() || password.isEmpty()) {
+        setStatusText("Enter email/username and password");
+        return;
+    }
+    if (m_loginButton) {
+        m_loginButton->setEnabled(false);
+    }
+    setStatusText("Signing in...");
+    m_apiClient->login(login, password);
+}
+
+void MainWindow::loadAuthenticatedData()
+{
+    if (!m_apiClient || !m_sessionStore || !m_sessionStore->hasToken()) return;
+    m_apiClient->getMe();
+    m_apiClient->getChats();
+}
+
+void MainWindow::renderChats(const QJsonDocument &body)
+{
+    if (!m_chatList) return;
+    m_chatList->clear();
+    const auto chats = body.array();
+    if (chats.isEmpty()) {
+        m_chatList->addItem("No chats yet");
+        return;
+    }
+    for (const auto &value : chats) {
+        const auto chat = value.toObject();
+        auto title = chat.value("title").toString();
+        if (title.isEmpty()) {
+            title = chat.value("name").toString(chat.value("id").toString("Chat"));
+        }
+        const auto type = chat.value("type").toString("group");
+        m_chatList->addItem(QString("%1  ·  %2").arg(title, type));
+    }
+}
+
 void MainWindow::setStatusText(const QString &text)
 {
     if (m_statusLabel) {
         m_statusLabel->setText(text);
+    }
+    if (m_loginButton) {
+        m_loginButton->setEnabled(true);
     }
 }
 

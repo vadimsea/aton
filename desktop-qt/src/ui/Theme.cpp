@@ -13,6 +13,14 @@ QString Theme::styleSheet()
             font-family: "Inter", "Segoe UI", Arial, sans-serif;
             font-size: 14px;
         }
+        #AuthPanel {
+            background: #ffffff;
+            border: 1px solid #dbe4ef;
+            border-radius: 14px;
+        }
+        #MutedText {
+            color: #64748b;
+        }
         #Sidebar {
             background: #f9fafb;
             border-right: 1px solid #dbe4ef;

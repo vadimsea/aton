@@ -1,5 +1,6 @@
 #include "net/ApiClient.h"
 
+#include <QJsonObject>
 #include <QJsonParseError>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -26,6 +27,24 @@ void ApiClient::getHealth()
     getJson("/api/health");
 }
 
+void ApiClient::login(const QString &login, const QString &password)
+{
+    QJsonObject payload;
+    const auto trimmed = login.trimmed();
+    if (trimmed.contains("@")) {
+        payload.insert("email", trimmed);
+    } else {
+        payload.insert("username", trimmed);
+    }
+    payload.insert("password", password);
+    postJson("/api/login", payload);
+}
+
+void ApiClient::logout()
+{
+    postJson("/api/logout", {});
+}
+
 void ApiClient::getMe()
 {
     getJson("/api/me");
@@ -39,26 +58,42 @@ void ApiClient::getChats()
 void ApiClient::getJson(const QString &endpoint)
 {
     auto *reply = m_network.get(makeRequest(endpoint));
-    connect(reply, &QNetworkReply::finished, this, [this, reply, endpoint]() {
-        reply->deleteLater();
+    connect(reply, &QNetworkReply::finished, this, [this, reply, endpoint]() { handleReply(reply, endpoint); });
+}
 
-        const auto status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        const auto bytes = reply->readAll();
+void ApiClient::postJson(const QString &endpoint, const QJsonObject &payload)
+{
+    auto *reply = m_network.post(makeRequest(endpoint), QJsonDocument(payload).toJson(QJsonDocument::Compact));
+    connect(reply, &QNetworkReply::finished, this, [this, reply, endpoint]() { handleReply(reply, endpoint); });
+}
 
-        if (reply->error() != QNetworkReply::NoError || status >= 400) {
-            emit requestFailed(endpoint, reply->errorString());
-            return;
+void ApiClient::handleReply(QNetworkReply *reply, const QString &endpoint)
+{
+    reply->deleteLater();
+
+    const auto status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const auto bytes = reply->readAll();
+    QJsonParseError parseError;
+    const auto doc = QJsonDocument::fromJson(bytes, &parseError);
+
+    if (reply->error() != QNetworkReply::NoError || status >= 400) {
+        auto message = reply->errorString();
+        if (parseError.error == QJsonParseError::NoError && doc.isObject()) {
+            const auto apiError = doc.object().value("error").toString();
+            if (!apiError.isEmpty()) {
+                message = apiError;
+            }
         }
+        emit requestFailed(endpoint, message);
+        return;
+    }
 
-        QJsonParseError parseError;
-        const auto doc = QJsonDocument::fromJson(bytes, &parseError);
-        if (parseError.error != QJsonParseError::NoError) {
-            emit requestFailed(endpoint, parseError.errorString());
-            return;
-        }
+    if (parseError.error != QJsonParseError::NoError) {
+        emit requestFailed(endpoint, parseError.errorString());
+        return;
+    }
 
-        emit requestSucceeded(endpoint, doc);
-    });
+    emit requestSucceeded(endpoint, doc);
 }
 
 QNetworkRequest ApiClient::makeRequest(const QString &endpoint) const

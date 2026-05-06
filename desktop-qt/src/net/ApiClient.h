@@ -17,6 +17,8 @@ public:
 
     QUrl apiBaseUrl() const;
     void getHealth();
+    void login(const QString &login, const QString &password);
+    void logout();
     void getMe();
     void getChats();
 
@@ -26,7 +28,9 @@ signals:
 
 private:
     void getJson(const QString &endpoint);
+    void postJson(const QString &endpoint, const QJsonObject &payload);
     QNetworkRequest makeRequest(const QString &endpoint) const;
+    void handleReply(QNetworkReply *reply, const QString &endpoint);
 
     QUrl m_apiBaseUrl;
     SessionStore *m_sessionStore;

@@ -5,6 +5,9 @@
 class QLabel;
 class QLineEdit;
 class QListWidget;
+class QPushButton;
+class QStackedWidget;
+class QWidget;
 
 namespace aten {
 
@@ -19,12 +22,25 @@ public:
 
 private:
     void buildUi();
+    QWidget *buildAuthPage();
+    QWidget *buildMessengerPage();
     void wireApi();
+    void refreshSessionUi();
+    void handleLogin();
+    void loadAuthenticatedData();
+    void renderChats(const QJsonDocument &body);
     void setStatusText(const QString &text);
 
     ApiClient *m_apiClient;
     SessionStore *m_sessionStore;
+    QStackedWidget *m_stack = nullptr;
+    QWidget *m_authPage = nullptr;
+    QWidget *m_messengerPage = nullptr;
+    QLineEdit *m_loginInput = nullptr;
+    QLineEdit *m_passwordInput = nullptr;
+    QPushButton *m_loginButton = nullptr;
     QLabel *m_statusLabel = nullptr;
+    QLabel *m_accountLabel = nullptr;
     QListWidget *m_chatList = nullptr;
     QListWidget *m_messageList = nullptr;
     QLineEdit *m_composer = nullptr;
