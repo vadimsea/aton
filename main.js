@@ -996,16 +996,14 @@ function isMessageFromSelf(msg, me, activeChatId) {
 }
 
 /**
- * Галочки исходящих в личке (как в Telegram): одна ✓ — отправлено; две ✓ серые — доставлено собеседнику
- * (он синхронизировал чат); две ✓ синие — прочитано (он открыл чат и прошёл POST /read).
+ * Галочки исходящих в личке, ближе к Telegram:
+ * одна серая ✓ — отправлено/доставлено; две синие ✓✓ — прочитано.
  */
 function messageAckHtml(status) {
   const s = status === "delivered" || status === "read" || status === "sent" ? status : "sent";
-  if (s === "sent") {
-    return `<span class="aton-message-ack" title="${escHtml(t("Отправлено"))}" aria-label="${escHtml(t("Отправлено"))}"><span class="aton-message-ack-tick" aria-hidden="true">✓</span></span>`;
-  }
-  if (s === "delivered") {
-    return `<span class="aton-message-ack aton-message-ack--delivered" title="${escHtml(t("Доставлено"))}" aria-label="${escHtml(t("Доставлено"))}"><span class="aton-message-ack-tick" aria-hidden="true">✓</span><span class="aton-message-ack-tick" aria-hidden="true">✓</span></span>`;
+  if (s === "sent" || s === "delivered") {
+    const label = s === "delivered" ? t("Доставлено") : t("Отправлено");
+    return `<span class="aton-message-ack" title="${escHtml(label)}" aria-label="${escHtml(label)}"><span class="aton-message-ack-tick" aria-hidden="true">✓</span></span>`;
   }
   return `<span class="aton-message-ack aton-message-ack--read" title="${escHtml(t("Прочитано"))}" aria-label="${escHtml(t("Прочитано"))}"><span class="aton-message-ack-tick" aria-hidden="true">✓</span><span class="aton-message-ack-tick" aria-hidden="true">✓</span></span>`;
 }
@@ -2621,6 +2619,14 @@ function createApp() {
     renderChatList();
     if (isOpenThread) {
       renderMessages({ deferIfVoice: true });
+      if (
+        currentUser &&
+        msg.from !== currentUser.username &&
+        isPrivateDirectChat(currentChatId) &&
+        document.visibilityState === "visible"
+      ) {
+        void pullChatReceipts(currentChatId, { markRead: true });
+      }
     }
   });
 
