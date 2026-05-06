@@ -278,6 +278,7 @@ const I18N = {
   "Доступ": { en: "Access", de: "Zugriff" },
   "Публичный": { en: "Public", de: "Oeffentlich" },
   "Приватный": { en: "Private", de: "Privat" },
+  "Название": { en: "Title", de: "Titel" },
   "Например: «Песни о Фивах»": { en: "For example: \"Songs of Thebes\"", de: "Zum Beispiel: \"Lieder ueber Theben\"" },
   "Описание": { en: "Description", de: "Beschreibung" },
   "необязательно": { en: "optional", de: "optional" },
@@ -6080,41 +6081,48 @@ function createApp() {
       }
 
       const overlay = document.createElement("div");
-      overlay.style.position = "fixed";
-      overlay.style.inset = "0";
-      overlay.style.background = "rgba(15,23,42,0.7)";
-      overlay.style.backdropFilter = "blur(10px)";
-      overlay.style.display = "flex";
-      overlay.style.alignItems = "center";
-      overlay.style.justifyContent = "center";
-      overlay.style.zIndex = "60";
+      overlay.className = "aton-create-chat-overlay";
 
       const modal = document.createElement("div");
-      modal.style.background = "rgba(15,23,42,0.98)";
-      modal.style.borderRadius = "16px";
-      modal.style.border = "1px solid rgba(148,163,184,0.7)";
-      modal.style.padding = "16px 18px 14px";
-      modal.style.width = "280px";
-      modal.style.color = "#e5e7eb";
+      modal.className = "aton-create-chat-panel";
       modal.innerHTML = `
-        <div style="font-size:14px;font-weight:500;margin-bottom:6px;">${escHtml(t("Новый чат"))}</div>
-        <div style="font-size:11px;color:#9ca3af;margin-bottom:8px;">${escHtml(t("Выберите тип и введите название."))}</div>
-        <label class="aton-input-label">${escHtml(t("Тип"))}</label>
-        <select id="aton-group-type" class="aton-input" style="margin-bottom:6px;">
-          <option value="group">${escHtml(t("группа"))}</option>
-          <option value="channel">${escHtml(t("канал"))}</option>
-        </select>
-        <label class="aton-input-label">${escHtml(t("Доступ"))}</label>
-        <select id="aton-group-visibility" class="aton-input" style="margin-bottom:6px;">
-          <option value="public">${escHtml(t("Публичный"))}</option>
-          <option value="private">${escHtml(t("Приватный"))}</option>
-        </select>
-        <input type="text" id="aton-group-title" class="aton-input" placeholder="${escHtml(t("Например: «Песни о Фивах»"))}" />
-        <label class="aton-input-label" style="margin-top:6px;">${escHtml(t("Описание"))} <span style="color:#475569;font-weight:400;">(${escHtml(t("необязательно"))})</span></label>
-        <textarea id="aton-group-desc" class="aton-input" rows="2" placeholder="${escHtml(t("О чём этот чат?"))}" style="resize:none;font-size:12px;line-height:1.5;padding:7px 10px;"></textarea>
-        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">
-          <button type="button" id="aton-group-cancel" class="aton-new-chat-button">${escHtml(t("Отмена"))}</button>
-          <button type="button" id="aton-group-create" class="aton-primary-button" style="margin-top:0;padding-inline:14px;">${escHtml(t("Создать"))}</button>
+        <div class="aton-create-chat-head">
+          <div>
+            <div class="aton-create-chat-title">${escHtml(t("Новый чат"))}</div>
+            <div class="aton-create-chat-subtitle">${escHtml(t("Выберите тип и введите название."))}</div>
+          </div>
+          <button type="button" id="aton-group-cancel" class="aton-create-chat-close" aria-label="${escHtml(t("Отмена"))}">×</button>
+        </div>
+
+        <div class="aton-create-chat-field">
+          <label class="aton-input-label">${escHtml(t("Тип"))}</label>
+          <div class="aton-create-chat-segment" data-role="type">
+            <button type="button" class="active" data-value="group">${escHtml(t("группа"))}</button>
+            <button type="button" data-value="channel">${escHtml(t("канал"))}</button>
+          </div>
+        </div>
+
+        <div class="aton-create-chat-field">
+          <label class="aton-input-label">${escHtml(t("Доступ"))}</label>
+          <div class="aton-create-chat-segment" data-role="visibility">
+            <button type="button" class="active" data-value="public">${escHtml(t("Публичный"))}</button>
+            <button type="button" data-value="private">${escHtml(t("Приватный"))}</button>
+          </div>
+        </div>
+
+        <div class="aton-create-chat-field">
+          <label class="aton-input-label" for="aton-group-title">${escHtml(t("Название"))}</label>
+          <input type="text" id="aton-group-title" class="aton-input" placeholder="${escHtml(t("Например: «Песни о Фивах»"))}" />
+        </div>
+
+        <div class="aton-create-chat-field">
+          <label class="aton-input-label" for="aton-group-desc">${escHtml(t("Описание"))} <span>${escHtml(t("необязательно"))}</span></label>
+          <textarea id="aton-group-desc" class="aton-input" rows="3" placeholder="${escHtml(t("О чём этот чат?"))}"></textarea>
+        </div>
+
+        <div class="aton-create-chat-actions">
+          <button type="button" id="aton-group-cancel-secondary" class="aton-create-chat-secondary">${escHtml(t("Отмена"))}</button>
+          <button type="button" id="aton-group-create" class="aton-create-chat-primary">${escHtml(t("Создать"))}</button>
         </div>
       `;
 
@@ -6123,23 +6131,43 @@ function createApp() {
 
       const titleInput = modal.querySelector("#aton-group-title");
       const descInput = modal.querySelector("#aton-group-desc");
-      const typeInput = modal.querySelector("#aton-group-type");
-      const visibilityInput = modal.querySelector("#aton-group-visibility");
       const cancelBtn = modal.querySelector("#aton-group-cancel");
+      const cancelSecondaryBtn = modal.querySelector("#aton-group-cancel-secondary");
       const createBtn = modal.querySelector("#aton-group-create");
+      let selectedType = "group";
+      let selectedVisibility = "public";
       titleInput.focus();
 
-      cancelBtn.addEventListener("click", () => overlay.remove());
+      const closeCreateChat = () => {
+        document.removeEventListener("keydown", onCreateChatKeydown);
+        overlay.remove();
+      };
+      const onCreateChatKeydown = (event) => {
+        if (event.key === "Escape") closeCreateChat();
+      };
+      document.addEventListener("keydown", onCreateChatKeydown);
+      overlay.addEventListener("click", (event) => {
+        if (event.target === overlay) closeCreateChat();
+      });
+      cancelBtn.addEventListener("click", closeCreateChat);
+      cancelSecondaryBtn.addEventListener("click", closeCreateChat);
+
+      modal.querySelectorAll(".aton-create-chat-segment").forEach((segment) => {
+        segment.addEventListener("click", (event) => {
+          const btn = event.target.closest("button[data-value]");
+          if (!btn) return;
+          segment.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item === btn));
+          if (segment.dataset.role === "type") selectedType = btn.dataset.value === "channel" ? "channel" : "group";
+          if (segment.dataset.role === "visibility") selectedVisibility = btn.dataset.value === "private" ? "private" : "public";
+        });
+      });
 
       createBtn.addEventListener("click", async () => {
         const title = titleInput.value.trim();
         if (!title) return;
         const description = descInput.value.trim() || null;
-        const type = typeInput.value === "channel" ? "channel" : "group";
-        const visibility =
-          visibilityInput && visibilityInput.value === "private"
-            ? "private"
-            : "public";
+        const type = selectedType;
+        const visibility = selectedVisibility;
         try {
           const chat = await api("/api/chats", {
             method: "POST",
@@ -6149,7 +6177,7 @@ function createApp() {
           currentChatId = chat.id;
           switchSocketChat(currentChatId);
           if (current.username) setLastChatId(current.username, currentChatId);
-          overlay.remove();
+          closeCreateChat();
           renderChatList();
           renderMessages();
           updateTopbarTitle();
