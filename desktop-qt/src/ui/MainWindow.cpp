@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <QHBoxLayout>
+#include <QDateTime>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -19,6 +20,7 @@
 #include <QStackedWidget>
 #include <QStatusBar>
 #include <QStyle>
+#include <QTextOption>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <utility>
@@ -47,6 +49,15 @@ QString messagePreview(const QJsonObject &msg)
     const auto text = msg.value("text").toString().simplified();
     if (text.isEmpty()) return "[message]";
     return text.size() > 52 ? text.left(49) + "..." : text;
+}
+
+QString compactTime(const QString &value)
+{
+    if (value.isEmpty()) return {};
+    auto dt = QDateTime::fromString(value, Qt::ISODateWithMs);
+    if (!dt.isValid()) dt = QDateTime::fromString(value, Qt::ISODate);
+    if (!dt.isValid()) return {};
+    return dt.toLocalTime().toString("HH:mm");
 }
 
 bool isDirectChatId(const QString &chatId)
@@ -165,6 +176,101 @@ QPixmap makeAtenMarkPixmap(int size, bool glow)
     painter.drawEllipse(QRectF(innerRect.left() + innerSize * 0.16, innerRect.top() + innerSize * 0.08, innerSize * 0.34, innerSize * 0.34));
 
     return pixmap;
+}
+
+QWidget *makeToolbarButton(const QString &text, QWidget *parent)
+{
+    auto *button = new QPushButton(text, parent);
+    button->setObjectName("HeaderIconButton");
+    button->setFixedSize(50, 50);
+    button->setCursor(Qt::PointingHandCursor);
+    return button;
+}
+
+QWidget *makeChatRowWidget(const ChatRow &row, QWidget *parent)
+{
+    auto *wrap = new QWidget(parent);
+    wrap->setObjectName("ChatRowWidget");
+    auto *layout = new QHBoxLayout(wrap);
+    layout->setContentsMargins(8, 9, 10, 9);
+    layout->setSpacing(12);
+
+    auto *avatar = new QLabel(wrap);
+    avatar->setObjectName(row.id.contains("golos_aton") || row.title.contains("Атон", Qt::CaseInsensitive) ? "VoiceAvatar" : "ChatAvatar");
+    avatar->setFixedSize(50, 50);
+    avatar->setAlignment(Qt::AlignCenter);
+    avatar->setText(row.title.left(1).toUpper());
+
+    auto *copy = new QWidget(wrap);
+    auto *copyLayout = new QVBoxLayout(copy);
+    copyLayout->setContentsMargins(0, 0, 0, 0);
+    copyLayout->setSpacing(2);
+    auto *title = new QLabel(row.title, copy);
+    title->setObjectName("ChatRowTitle");
+    title->setTextFormat(Qt::PlainText);
+    auto *subtitle = new QLabel(row.type == "private" ? "private" : row.type, copy);
+    subtitle->setObjectName("ChatRowSubtitle");
+    subtitle->setTextFormat(Qt::PlainText);
+    auto *preview = new QLabel(row.preview.isEmpty() ? "Нет сообщений" : row.preview, copy);
+    preview->setObjectName("ChatRowPreview");
+    preview->setTextFormat(Qt::PlainText);
+    preview->setMaximumWidth(220);
+    copyLayout->addWidget(title);
+    copyLayout->addWidget(subtitle);
+    copyLayout->addWidget(preview);
+
+    auto *meta = new QLabel(compactTime(row.lastTime), wrap);
+    meta->setObjectName("ChatRowTime");
+    meta->setAlignment(Qt::AlignTop | Qt::AlignRight);
+    meta->setMinimumWidth(44);
+
+    layout->addWidget(avatar);
+    layout->addWidget(copy, 1);
+    layout->addWidget(meta);
+    return wrap;
+}
+
+QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUsername, QWidget *parent)
+{
+    const auto from = msg.value("from").toString(msg.value("senderUsername").toString("user"));
+    const auto type = msg.value("type").toString("text");
+    QString text;
+    if (type == "text") {
+        text = msg.value("text").toString();
+    } else if (type == "image") {
+        text = "[image]";
+    } else if (type == "audio") {
+        text = "[voice message]";
+    } else {
+        text = QString("[%1]").arg(type);
+    }
+
+    const bool isSelf = !currentUsername.isEmpty() && from == currentUsername;
+    auto *row = new QWidget(parent);
+    row->setObjectName("MessageRow");
+    auto *rowLayout = new QHBoxLayout(row);
+    rowLayout->setContentsMargins(18, 8, 18, 8);
+    rowLayout->setSpacing(0);
+
+    auto *bubble = new QLabel(row);
+    bubble->setObjectName(isSelf ? "MessageBubbleSelf" : "MessageBubbleOther");
+    bubble->setWordWrap(true);
+    bubble->setTextFormat(Qt::PlainText);
+    bubble->setText(QString("%1%2").arg(text, compactTime(msg.value("createdAt").toString(msg.value("time").toString())).isEmpty()
+                                             ? QString()
+                                             : QString("\n%1").arg(compactTime(msg.value("createdAt").toString(msg.value("time").toString())))));
+    bubble->setMinimumWidth(190);
+    bubble->setMaximumWidth(450);
+    bubble->setContentsMargins(16, 12, 16, 12);
+
+    if (isSelf) {
+        rowLayout->addStretch(1);
+        rowLayout->addWidget(bubble);
+    } else {
+        rowLayout->addWidget(bubble);
+        rowLayout->addStretch(1);
+    }
+    return row;
 }
 
 QString trAuth(const QString &lang, const QString &key)
@@ -467,40 +573,65 @@ QWidget *MainWindow::buildAuthPage()
 QWidget *MainWindow::buildMessengerPage()
 {
     auto *page = new QWidget(this);
+    page->setObjectName("MessengerShell");
     auto *rootLayout = new QHBoxLayout(page);
     rootLayout->setContentsMargins(0, 0, 0, 0);
     rootLayout->setSpacing(0);
 
     auto *splitter = new QSplitter(Qt::Horizontal, page);
+    splitter->setObjectName("MessengerSplitter");
     splitter->setChildrenCollapsible(false);
 
     auto *sidebar = new QWidget(splitter);
     sidebar->setObjectName("Sidebar");
-    sidebar->setMinimumWidth(300);
-    sidebar->setMaximumWidth(420);
+    sidebar->setMinimumWidth(360);
+    sidebar->setMaximumWidth(430);
     auto *sidebarLayout = new QVBoxLayout(sidebar);
-    sidebarLayout->setContentsMargins(18, 18, 18, 14);
-    sidebarLayout->setSpacing(14);
+    sidebarLayout->setContentsMargins(12, 22, 10, 14);
+    sidebarLayout->setSpacing(12);
 
-    auto *brand = new QLabel("ATEN", sidebar);
-    auto font = brand->font();
-    font.setPointSize(17);
-    font.setBold(true);
-    brand->setFont(font);
-    sidebarLayout->addWidget(brand);
+    auto *chatTools = new QWidget(sidebar);
+    auto *chatToolsLayout = new QHBoxLayout(chatTools);
+    chatToolsLayout->setContentsMargins(0, 0, 10, 0);
+    chatToolsLayout->setSpacing(8);
+    auto *chatsLabel = new QLabel("ЧАТЫ", chatTools);
+    chatsLabel->setObjectName("SidebarSectionLabel");
+    auto *newGroupButton = new QPushButton("+ группа", chatTools);
+    newGroupButton->setObjectName("SmallPillButton");
+    newGroupButton->setCursor(Qt::PointingHandCursor);
+    chatToolsLayout->addWidget(chatsLabel, 1);
+    chatToolsLayout->addWidget(newGroupButton);
+    sidebarLayout->addWidget(chatTools);
 
-    m_accountLabel = new QLabel("Not signed in", sidebar);
-    m_accountLabel->setObjectName("MutedText");
-    sidebarLayout->addWidget(m_accountLabel);
+    auto *search = new QLineEdit(sidebar);
+    search->setObjectName("ChatSearch");
+    search->setPlaceholderText("Поиск по имени или @username...");
+    sidebarLayout->addWidget(search);
 
     m_chatList = new QListWidget(sidebar);
-    m_chatList->addItem("Loading chats...");
+    m_chatList->setObjectName("ChatList");
+    m_chatList->setSpacing(6);
+    m_chatList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_chatList->addItem("Загрузка чатов...");
     sidebarLayout->addWidget(m_chatList, 1);
     connect(m_chatList, &QListWidget::itemActivated, this, &MainWindow::openSelectedChat);
     connect(m_chatList, &QListWidget::currentItemChanged, this, &MainWindow::openSelectedChat);
 
-    auto *logoutButton = new QPushButton("Log out", sidebar);
-    sidebarLayout->addWidget(logoutButton);
+    auto *sidebarFooter = new QWidget(sidebar);
+    sidebarFooter->setObjectName("SidebarFooter");
+    auto *footerLayout = new QVBoxLayout(sidebarFooter);
+    footerLayout->setContentsMargins(12, 10, 12, 0);
+    footerLayout->setSpacing(8);
+    auto *profileLink = new QLabel("Профиль: настроить имя, статус и аватар", sidebarFooter);
+    profileLink->setObjectName("ProfileFooterLink");
+    m_accountLabel = new QLabel("Akhenaten", sidebarFooter);
+    m_accountLabel->setObjectName("MutedText");
+    auto *logoutButton = new QPushButton("Выйти", sidebarFooter);
+    logoutButton->setObjectName("SidebarLogoutButton");
+    footerLayout->addWidget(profileLink);
+    footerLayout->addWidget(m_accountLabel);
+    footerLayout->addWidget(logoutButton);
+    sidebarLayout->addWidget(sidebarFooter);
     connect(logoutButton, &QPushButton::clicked, this, [this]() {
         if (m_apiClient) {
             m_apiClient->logout();
@@ -512,48 +643,81 @@ QWidget *MainWindow::buildMessengerPage()
     });
 
     auto *content = new QWidget(splitter);
+    content->setObjectName("ChatContent");
     auto *contentLayout = new QVBoxLayout(content);
     contentLayout->setContentsMargins(0, 0, 0, 0);
     contentLayout->setSpacing(0);
 
     auto *header = new QWidget(content);
     header->setObjectName("ChatHeader");
-    auto *headerLayout = new QVBoxLayout(header);
-    headerLayout->setContentsMargins(18, 12, 18, 12);
-    headerLayout->setSpacing(2);
-    auto *chatTitle = new QLabel("Aton Voice", header);
-    auto titleFont = chatTitle->font();
+    auto *headerLayout = new QHBoxLayout(header);
+    headerLayout->setContentsMargins(16, 8, 14, 8);
+    headerLayout->setSpacing(12);
+    auto *chatCopy = new QWidget(header);
+    auto *chatCopyLayout = new QVBoxLayout(chatCopy);
+    chatCopyLayout->setContentsMargins(0, 0, 0, 0);
+    chatCopyLayout->setSpacing(2);
+    m_chatTitleLabel = new QLabel("Голос Атона ✓", chatCopy);
+    auto titleFont = m_chatTitleLabel->font();
     titleFont.setPointSize(14);
     titleFont.setBold(true);
-    chatTitle->setFont(titleFont);
-    m_statusLabel = new QLabel("Connecting to API...", header);
-    headerLayout->addWidget(chatTitle);
-    headerLayout->addWidget(m_statusLabel);
+    m_chatTitleLabel->setFont(titleFont);
+    m_statusLabel = new QLabel("Принцип, не служба", chatCopy);
+    m_statusLabel->setObjectName("ChatSubtitle");
+    chatCopyLayout->addWidget(m_chatTitleLabel);
+    chatCopyLayout->addWidget(m_statusLabel);
+    headerLayout->addWidget(chatCopy, 1);
+    headerLayout->addWidget(makeToolbarButton("🔔", header));
+    headerLayout->addWidget(makeToolbarButton("👥", header));
+    headerLayout->addWidget(makeToolbarButton("☼", header));
+    headerLayout->addWidget(makeToolbarButton("☰", header));
+    headerLayout->addWidget(makeToolbarButton("🛡", header));
+    auto *userPill = new QPushButton("●  Akhenaten ✓", header);
+    userPill->setObjectName("UserPillButton");
+    userPill->setCursor(Qt::PointingHandCursor);
+    headerLayout->addWidget(userPill);
     contentLayout->addWidget(header);
 
     m_messageList = new QListWidget(content);
-    m_messageList->addItem("Desktop client infrastructure is ready.");
-    m_messageList->addItem("Next step: auth and real chat loading.");
+    m_messageList->setObjectName("MessageList");
+    m_messageList->setSpacing(0);
+    m_messageList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_messageList->addItem("Выберите чат");
     contentLayout->addWidget(m_messageList, 1);
 
     auto *composer = new QWidget(content);
     composer->setObjectName("Composer");
-    auto *composerLayout = new QHBoxLayout(composer);
-    composerLayout->setContentsMargins(18, 12, 18, 12);
+    auto *composerOuter = new QVBoxLayout(composer);
+    composerOuter->setContentsMargins(30, 14, 28, 16);
+    composerOuter->setSpacing(0);
+    auto *composerBox = new QWidget(composer);
+    composerBox->setObjectName("ComposerBox");
+    auto *composerLayout = new QHBoxLayout(composerBox);
+    composerLayout->setContentsMargins(24, 18, 8, 18);
     composerLayout->setSpacing(10);
     m_composer = new QLineEdit(composer);
-    m_composer->setPlaceholderText("Message...");
-    m_sendButton = new QPushButton("Send", composer);
+    m_composer->setObjectName("ComposerInput");
+    m_composer->setPlaceholderText("Текст — Enter. Голос — удерживайте кнопку с микрофоном, отпустите для отправки");
+    auto *attachButton = new QPushButton("📎", composerBox);
+    attachButton->setObjectName("RoundComposerButton");
+    attachButton->setFixedSize(50, 50);
+    auto *micButton = new QPushButton("🎙", composerBox);
+    micButton->setObjectName("RoundComposerButton");
+    micButton->setFixedSize(50, 50);
+    m_sendButton = new QPushButton("ОТПРАВИТЬ", composerBox);
     m_sendButton->setObjectName("PrimaryButton");
     composerLayout->addWidget(m_composer, 1);
+    composerLayout->addWidget(attachButton);
+    composerLayout->addWidget(micButton);
     composerLayout->addWidget(m_sendButton);
+    composerOuter->addWidget(composerBox);
     contentLayout->addWidget(composer);
     connect(m_sendButton, &QPushButton::clicked, this, &MainWindow::sendComposerText);
     connect(m_composer, &QLineEdit::returnPressed, this, &MainWindow::sendComposerText);
 
     splitter->addWidget(sidebar);
     splitter->addWidget(content);
-    splitter->setSizes({360, 920});
+    splitter->setSizes({398, 1100});
     rootLayout->addWidget(splitter);
 
     return page;
@@ -856,17 +1020,19 @@ void MainWindow::renderSidebar()
     });
 
     if (rows.isEmpty()) {
-        m_chatList->addItem("No chats yet");
+        m_chatList->addItem("Нет чатов");
         return;
     }
 
     int selectedRow = 0;
     for (int i = 0; i < rows.size(); ++i) {
         const auto &row = rows[i];
-        const auto preview = row.preview.isEmpty() ? row.type : QString("%1\n%2").arg(row.type, row.preview);
-        auto *item = new QListWidgetItem(QString("%1\n%2").arg(row.title, preview));
+        auto *item = new QListWidgetItem();
         item->setData(Qt::UserRole, row.id);
+        item->setData(Qt::UserRole + 1, row.title);
+        item->setSizeHint(QSize(340, 88));
         m_chatList->addItem(item);
+        m_chatList->setItemWidget(item, makeChatRowWidget(row, m_chatList));
         if (row.id == previousChatId) selectedRow = i;
     }
     if (m_chatList->count() > 0) {
@@ -880,24 +1046,18 @@ void MainWindow::renderMessages(const QJsonDocument &body)
     m_messageList->clear();
     const auto messages = body.array();
     if (messages.isEmpty()) {
-        m_messageList->addItem("No messages yet");
+        auto *item = new QListWidgetItem("Нет сообщений");
+        item->setTextAlignment(Qt::AlignCenter);
+        m_messageList->addItem(item);
         return;
     }
     for (const auto &value : messages) {
         const auto msg = value.toObject();
-        const auto from = msg.value("from").toString(msg.value("senderUsername").toString("user"));
-        const auto type = msg.value("type").toString("text");
-        QString text;
-        if (type == "text") {
-            text = msg.value("text").toString();
-        } else if (type == "image") {
-            text = "[image]";
-        } else if (type == "audio") {
-            text = "[voice message]";
-        } else {
-            text = QString("[%1]").arg(type);
-        }
-        m_messageList->addItem(QString("%1: %2").arg(from, text));
+        auto *row = makeMessageRowWidget(msg, m_currentUsername, m_messageList);
+        auto *item = new QListWidgetItem();
+        item->setSizeHint(QSize(900, 112));
+        m_messageList->addItem(item);
+        m_messageList->setItemWidget(item, row);
     }
     m_messageList->scrollToBottom();
 }
@@ -919,7 +1079,11 @@ void MainWindow::openSelectedChat()
         return;
     }
     m_currentChatId = chatId;
-    setStatusText(QString("Loading %1").arg(item->text()));
+    if (m_chatTitleLabel) {
+        const auto title = item->data(Qt::UserRole + 1).toString();
+        m_chatTitleLabel->setText(title.isEmpty() ? "Чат" : title);
+    }
+    setStatusText("Загрузка сообщений...");
     m_apiClient->getMessages(m_currentChatId);
 }
 

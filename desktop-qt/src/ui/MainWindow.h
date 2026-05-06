@@ -72,6 +72,7 @@ private:
     QLabel *m_passwordConfirmLabel = nullptr;
     QLabel *m_authLangLabel = nullptr;
     QLabel *m_authStatusLabel = nullptr;
+    QLabel *m_chatTitleLabel = nullptr;
     QLabel *m_statusLabel = nullptr;
     QLabel *m_accountLabel = nullptr;
     QListWidget *m_chatList = nullptr;

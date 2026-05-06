@@ -110,13 +110,175 @@ QString Theme::styleSheet()
             background: #f9fafb;
             border-right: 1px solid #dbe4ef;
         }
+        #MessengerShell,
+        #ChatContent {
+            background: #ffffff;
+        }
+        #MessengerSplitter::handle {
+            background: #e5e7eb;
+            width: 1px;
+        }
+        #SidebarSectionLabel {
+            color: #64748b;
+            font-size: 12px;
+            letter-spacing: 0.18em;
+        }
+        QPushButton#SmallPillButton {
+            min-height: 30px;
+            border-radius: 11px;
+            background: #eef4ff;
+            border: 1px solid #bfdbfe;
+            color: #2563eb;
+            padding: 0 12px;
+            font-size: 13px;
+        }
+        QLineEdit#ChatSearch {
+            min-height: 32px;
+            max-height: 32px;
+            border-radius: 16px;
+            font-size: 14px;
+            padding: 0 12px;
+        }
+        QListWidget#ChatList {
+            padding: 8px 0 0 0;
+        }
+        QListWidget#ChatList::item {
+            min-height: 82px;
+            padding: 0;
+            border-radius: 10px;
+        }
+        QListWidget#ChatList::item:selected {
+            background: #dfe7ff;
+            border: 1px solid #a7c0ff;
+        }
+        #ChatRowWidget {
+            background: transparent;
+        }
+        #ChatAvatar {
+            border-radius: 25px;
+            background: #dbeafe;
+            border: 1px solid #bfdbfe;
+            color: #2563eb;
+            font-size: 20px;
+            font-weight: 800;
+        }
+        #VoiceAvatar {
+            border-radius: 25px;
+            background: qradialgradient(cx:0.45, cy:0.38, radius:0.85,
+                stop:0 #fef3c7, stop:0.42 #f59e0b, stop:1 #111827);
+            border: 2px solid #111827;
+            color: #111827;
+            font-size: 0px;
+        }
+        #ChatRowTitle {
+            color: #172033;
+            font-size: 18px;
+            font-weight: 800;
+        }
+        #ChatRowSubtitle,
+        #ChatRowPreview {
+            color: #64748b;
+            font-size: 14px;
+        }
+        #ChatRowTime {
+            color: #64748b;
+            font-size: 12px;
+        }
+        #SidebarFooter {
+            border-top: 1px solid #e5e7eb;
+        }
+        #ProfileFooterLink {
+            color: #64748b;
+            font-size: 13px;
+        }
+        QPushButton#SidebarLogoutButton {
+            min-height: 46px;
+            border-radius: 9px;
+            background: #eef4ff;
+            border: 1px solid #bfdbfe;
+            color: #2563eb;
+        }
         #ChatHeader {
             background: #ffffff;
             border-bottom: 1px solid #dbe4ef;
         }
+        #ChatSubtitle {
+            color: #10b981;
+            font-size: 14px;
+        }
+        QPushButton#HeaderIconButton {
+            min-width: 50px;
+            max-width: 50px;
+            min-height: 50px;
+            max-height: 50px;
+            border-radius: 12px;
+            background: #f1f5f9;
+            border: 1px solid #dbe4ef;
+            color: #2563eb;
+            font-size: 22px;
+            padding: 0;
+        }
+        QPushButton#UserPillButton {
+            min-height: 40px;
+            border-radius: 20px;
+            background: #f8fafc;
+            border: 1px solid #dbe4ef;
+            color: #172033;
+            padding: 0 14px;
+        }
+        QListWidget#MessageList {
+            background: #ffffff;
+            padding: 10px 0;
+        }
+        QListWidget#MessageList::item {
+            padding: 0;
+            border: 0;
+            background: transparent;
+        }
+        #MessageRow {
+            background: transparent;
+        }
+        #MessageBubbleOther {
+            background: #e8eef5;
+            border: 1px solid #cfd8e3;
+            border-radius: 10px;
+            color: #001437;
+            font-size: 18px;
+        }
+        #MessageBubbleSelf {
+            background: #ccebbb;
+            border: 1px solid #a4cf91;
+            border-radius: 10px;
+            color: #052e16;
+            font-size: 18px;
+        }
         #Composer {
             background: #ffffff;
             border-top: 1px solid #dbe4ef;
+        }
+        #ComposerBox {
+            background: #ffffff;
+            border: 1px solid #dbe4ef;
+            border-radius: 28px;
+        }
+        QLineEdit#ComposerInput {
+            min-height: 50px;
+            border: 0;
+            background: transparent;
+            font-size: 16px;
+            color: #172033;
+        }
+        QPushButton#RoundComposerButton {
+            min-width: 50px;
+            max-width: 50px;
+            min-height: 50px;
+            max-height: 50px;
+            border-radius: 25px;
+            background: #c7e8fb;
+            border: 1px solid #93c5fd;
+            color: #075985;
+            padding: 0;
+            font-size: 22px;
         }
         QListWidget {
             border: 0;
