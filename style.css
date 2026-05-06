@@ -5227,7 +5227,7 @@ body {
   }
 
   .aton-profile-actions {
-    flex-direction: column-reverse;
+    flex-direction: column;
   }
 
   .aton-profile-actions .aton-new-chat-button,
@@ -5236,6 +5236,18 @@ body {
     width: 100%;
     min-height: 44px;
     justify-content: center;
+  }
+
+  .aton-profile-actions .aton-primary-button {
+    order: 1;
+  }
+
+  .aton-profile-actions .aton-new-chat-button {
+    order: 2;
+  }
+
+  .aton-profile-actions .aton-profile-logout-button {
+    order: 3;
   }
 
   /* ===== GUEST LANDING ===== */
