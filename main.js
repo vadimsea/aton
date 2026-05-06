@@ -57,6 +57,7 @@ const I18N = {
   "Профиль": { en: "Profile", de: "Profil" },
   "Чаты": { en: "Chats", de: "Chats" },
   "+ Группа": { en: "+ Group", de: "+ Gruppe" },
+  "Создать группу": { en: "Create group", de: "Gruppe erstellen" },
   "Поиск по имени или @username…": {
     en: "Search by name or @username…",
     de: "Suche nach Name oder @username…",
@@ -1838,7 +1839,9 @@ function createApp() {
   chatsRoot.innerHTML = `
     <div class="aton-chats-header">
       <span>${t("Чаты")}</span>
-      <button class="aton-new-chat-button aton-create-group-button" id="aton-create-group" disabled style="display:none;">${t("+ Группа")}</button>
+      <button class="aton-new-chat-button aton-create-group-button" id="aton-create-group" disabled style="display:none;" title="${escHtml(t("Создать группу"))}" aria-label="${escHtml(t("Создать группу"))}">
+        <span aria-hidden="true">+</span>
+      </button>
     </div>
     <div class="aton-search">
       <input type="text" class="aton-search-input" id="aton-user-search" placeholder="${t("Поиск по имени или @username…")}" disabled />
