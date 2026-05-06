@@ -81,7 +81,14 @@ QString trAuth(const QString &lang, const QString &key)
         {"language", {{"ru", "Язык интерфейса"}, {"de", "Sprache der Oberfläche"}, {"en", "Interface language"}}},
         {"infoTitle", {{"ru", "Чаты без лишнего шума"}, {"de", "Chats ohne unnötigen Lärm"}, {"en", "Chats without extra noise"}}},
         {"infoText", {{"ru", "Личные переписки, группы, каналы, голосовые сообщения, реакции и профиль в сдержанном интерфейсе ATEN."}, {"de", "Private Chats, Gruppen, Kanäle, Sprachnachrichten, Reaktionen und Profil in einer ruhigen ATEN-Oberfläche."}, {"en", "Private chats, groups, channels, voice messages, reactions, and profile in a restrained ATEN interface."}}},
+        {"welcome", {{"ru", "Добро пожаловать"}, {"de", "Willkommen"}, {"en", "Welcome"}}},
+        {"welcomeHint", {{"ru", "Войдите по форме слева"}, {"de", "Melden Sie sich links an"}, {"en", "Sign in using the form on the left"}}},
+        {"heroEyebrow", {{"ru", "ПОД СОЛНЦЕМ АХЕТАТОНА"}, {"de", "UNTER DER SONNE ACHETATONS"}, {"en", "UNDER AKHETATEN'S SUN"}}},
+        {"heroTitle", {{"ru", "Спокойные диалоги — без лишнего шума"}, {"de", "Ruhige Dialoge — ohne unnötigen Lärm"}, {"en", "Calm conversations without extra noise"}}},
+        {"heroText", {{"ru", "Личные и групповые чаты в сдержанном интерфейсе. Меньше отвлечений — больше смысла в переписке."}, {"de", "Private und Gruppen-Chats in einer ruhigen Oberfläche. Weniger Ablenkung — mehr Sinn im Gespräch."}, {"en", "Private and group chats in a restrained interface. Fewer distractions, more meaning in conversation."}}},
         {"status", {{"ru", "Подключение к API..."}, {"de", "Verbindung zur API..."}, {"en", "Connecting to API..."}}},
+        {"loginHint", {{"ru", "Введите email и пароль."}, {"de", "Geben Sie Email und Passwort ein."}, {"en", "Enter your email and password."}}},
+        {"registerHint", {{"ru", "Введите email, имя пользователя и пароль."}, {"de", "Geben Sie Email, Benutzername und Passwort ein."}, {"en", "Enter your email, username, and password."}}},
         {"fillFields", {{"ru", "Заполните обязательные поля"}, {"de", "Füllen Sie die Pflichtfelder aus"}, {"en", "Fill in the required fields"}}},
         {"passwordMismatch", {{"ru", "Пароли не совпадают"}, {"de", "Passwörter stimmen nicht überein"}, {"en", "Passwords do not match"}}},
         {"verifyEmail", {{"ru", "Аккаунт создан. Проверьте email для подтверждения."}, {"de", "Konto erstellt. Prüfen Sie Ihre Email zur Bestätigung."}, {"en", "Account created. Check your email to verify it."}}},
@@ -140,7 +147,7 @@ QWidget *MainWindow::buildAuthPage()
     sidebar->setFixedWidth(400);
     auto *sideLayout = new QVBoxLayout(sidebar);
     sideLayout->setContentsMargins(22, 24, 22, 18);
-    sideLayout->setSpacing(18);
+    sideLayout->setSpacing(22);
 
     auto *brandRow = new QWidget(sidebar);
     auto *brandLayout = new QHBoxLayout(brandRow);
@@ -184,6 +191,17 @@ QWidget *MainWindow::buildAuthPage()
     tabsLayout->addWidget(m_loginTabButton);
     tabsLayout->addWidget(m_registerTabButton);
 
+    m_loginFieldLabel = new QLabel(panel);
+    m_loginFieldLabel->setObjectName("AuthFieldLabel");
+    m_registerEmailLabel = new QLabel(panel);
+    m_registerEmailLabel->setObjectName("AuthFieldLabel");
+    m_registerUsernameLabel = new QLabel(panel);
+    m_registerUsernameLabel->setObjectName("AuthFieldLabel");
+    m_passwordLabel = new QLabel(panel);
+    m_passwordLabel->setObjectName("AuthFieldLabel");
+    m_passwordConfirmLabel = new QLabel(panel);
+    m_passwordConfirmLabel->setObjectName("AuthFieldLabel");
+
     m_loginInput = new QLineEdit(panel);
     m_registerEmailInput = new QLineEdit(panel);
     m_registerUsernameInput = new QLineEdit(panel);
@@ -202,10 +220,15 @@ QWidget *MainWindow::buildAuthPage()
     m_authStatusLabel->setWordWrap(true);
 
     layout->addWidget(tabs);
+    layout->addWidget(m_loginFieldLabel);
     layout->addWidget(m_loginInput);
+    layout->addWidget(m_registerEmailLabel);
     layout->addWidget(m_registerEmailInput);
+    layout->addWidget(m_registerUsernameLabel);
     layout->addWidget(m_registerUsernameInput);
+    layout->addWidget(m_passwordLabel);
     layout->addWidget(m_passwordInput);
+    layout->addWidget(m_passwordConfirmLabel);
     layout->addWidget(m_passwordConfirmInput);
     layout->addWidget(m_loginButton);
     layout->addWidget(m_authStatusLabel);
@@ -223,9 +246,9 @@ QWidget *MainWindow::buildAuthPage()
     auto *langButtonsLayout = new QHBoxLayout(langButtons);
     langButtonsLayout->setContentsMargins(0, 0, 0, 0);
     langButtonsLayout->setSpacing(8);
-    m_ruButton = new QPushButton("🇷🇺 RU", langButtons);
-    m_deButton = new QPushButton("🇩🇪 DE", langButtons);
-    m_enButton = new QPushButton("🇬🇧 EN", langButtons);
+    m_ruButton = new QPushButton("🇷🇺", langButtons);
+    m_deButton = new QPushButton("🇩🇪", langButtons);
+    m_enButton = new QPushButton("🇬🇧", langButtons);
     langButtonsLayout->addWidget(m_ruButton);
     langButtonsLayout->addWidget(m_deButton);
     langButtonsLayout->addWidget(m_enButton);
@@ -236,21 +259,64 @@ QWidget *MainWindow::buildAuthPage()
     auto *main = new QWidget(page);
     main->setObjectName("GuestMain");
     auto *mainLayout = new QVBoxLayout(main);
-    mainLayout->setContentsMargins(64, 64, 64, 64);
-    mainLayout->setSpacing(18);
-    mainLayout->addStretch(1);
-    m_authInfoTitleLabel = new QLabel(main);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(0);
+
+    auto *welcomeBar = new QWidget(main);
+    welcomeBar->setObjectName("GuestTopbar");
+    auto *welcomeLayout = new QHBoxLayout(welcomeBar);
+    welcomeLayout->setContentsMargins(16, 10, 12, 10);
+    welcomeLayout->setSpacing(12);
+    auto *welcomeCopy = new QWidget(welcomeBar);
+    auto *welcomeCopyLayout = new QVBoxLayout(welcomeCopy);
+    welcomeCopyLayout->setContentsMargins(0, 0, 0, 0);
+    welcomeCopyLayout->setSpacing(1);
+    m_authWelcomeTitleLabel = new QLabel(welcomeCopy);
+    auto welcomeFont = m_authWelcomeTitleLabel->font();
+    welcomeFont.setPointSize(15);
+    welcomeFont.setBold(true);
+    m_authWelcomeTitleLabel->setFont(welcomeFont);
+    m_authWelcomeSubtitleLabel = new QLabel(welcomeCopy);
+    m_authWelcomeSubtitleLabel->setObjectName("MutedText");
+    welcomeCopyLayout->addWidget(m_authWelcomeTitleLabel);
+    welcomeCopyLayout->addWidget(m_authWelcomeSubtitleLabel);
+    auto *themeButton = new QPushButton("☼", welcomeBar);
+    themeButton->setObjectName("ThemeIconButton");
+    themeButton->setFixedSize(52, 52);
+    welcomeLayout->addWidget(welcomeCopy, 1);
+    welcomeLayout->addWidget(themeButton);
+    mainLayout->addWidget(welcomeBar);
+
+    auto *hero = new QWidget(main);
+    auto *heroLayout = new QVBoxLayout(hero);
+    heroLayout->setContentsMargins(64, 24, 64, 72);
+    heroLayout->setSpacing(16);
+    heroLayout->setAlignment(Qt::AlignCenter);
+    auto *heroLogo = new QLabel(hero);
+    heroLogo->setObjectName("AtenHeroLogo");
+    heroLogo->setFixedSize(276, 276);
+    heroLogo->setAlignment(Qt::AlignCenter);
+    m_authHeroEyebrowLabel = new QLabel(hero);
+    m_authHeroEyebrowLabel->setObjectName("HeroEyebrow");
+    m_authHeroEyebrowLabel->setAlignment(Qt::AlignCenter);
+    m_authInfoTitleLabel = new QLabel(hero);
     auto infoFont = m_authInfoTitleLabel->font();
-    infoFont.setPointSize(34);
+    infoFont.setPointSize(24);
     infoFont.setBold(true);
     m_authInfoTitleLabel->setFont(infoFont);
-    m_authInfoTextLabel = new QLabel(main);
+    m_authInfoTitleLabel->setAlignment(Qt::AlignCenter);
+    m_authInfoTextLabel = new QLabel(hero);
     m_authInfoTextLabel->setObjectName("HeroText");
     m_authInfoTextLabel->setWordWrap(true);
-    m_authInfoTextLabel->setMaximumWidth(640);
-    mainLayout->addWidget(m_authInfoTitleLabel);
-    mainLayout->addWidget(m_authInfoTextLabel);
-    mainLayout->addStretch(2);
+    m_authInfoTextLabel->setMaximumWidth(720);
+    m_authInfoTextLabel->setAlignment(Qt::AlignCenter);
+    heroLayout->addStretch(1);
+    heroLayout->addWidget(heroLogo, 0, Qt::AlignCenter);
+    heroLayout->addWidget(m_authHeroEyebrowLabel, 0, Qt::AlignCenter);
+    heroLayout->addWidget(m_authInfoTitleLabel, 0, Qt::AlignCenter);
+    heroLayout->addWidget(m_authInfoTextLabel, 0, Qt::AlignCenter);
+    heroLayout->addStretch(2);
+    mainLayout->addWidget(hero, 1);
 
     outer->addWidget(sidebar);
     outer->addWidget(main, 1);
@@ -377,7 +443,11 @@ void MainWindow::wireApi()
         if (endpoint == "/api/health") {
             const auto obj = body.object();
             const auto service = obj.value("service").toString("aton-api");
-            setStatusText(QString("API online: %1").arg(service));
+            if (!m_stack || m_stack->currentWidget() != m_authPage) {
+                setStatusText(QString("API online: %1").arg(service));
+            } else if (m_statusLabel) {
+                m_statusLabel->setText(QString("API online: %1").arg(service));
+            }
             return;
         }
         if (endpoint == "/api/login") {
@@ -489,9 +559,13 @@ void MainWindow::switchAuthMode(bool registerMode)
 {
     m_registerMode = registerMode;
     if (m_loginInput) m_loginInput->setVisible(!registerMode);
+    if (m_loginFieldLabel) m_loginFieldLabel->setVisible(!registerMode);
     if (m_registerEmailInput) m_registerEmailInput->setVisible(registerMode);
+    if (m_registerEmailLabel) m_registerEmailLabel->setVisible(registerMode);
     if (m_registerUsernameInput) m_registerUsernameInput->setVisible(registerMode);
+    if (m_registerUsernameLabel) m_registerUsernameLabel->setVisible(registerMode);
     if (m_passwordConfirmInput) m_passwordConfirmInput->setVisible(registerMode);
+    if (m_passwordConfirmLabel) m_passwordConfirmLabel->setVisible(registerMode);
     if (m_loginTabButton) m_loginTabButton->setObjectName(registerMode ? "AuthTab" : "AuthTabActive");
     if (m_registerTabButton) m_registerTabButton->setObjectName(registerMode ? "AuthTabActive" : "AuthTab");
     if (m_loginTabButton) m_loginTabButton->style()->unpolish(m_loginTabButton), m_loginTabButton->style()->polish(m_loginTabButton);
@@ -510,8 +584,11 @@ void MainWindow::updateAuthTexts()
 {
     if (m_authTitleLabel) m_authTitleLabel->setText(trAuth(m_authLanguage, "brand"));
     if (m_authSubtitleLabel) m_authSubtitleLabel->setText(trAuth(m_authLanguage, "tagline"));
-    if (m_authInfoTitleLabel) m_authInfoTitleLabel->setText(trAuth(m_authLanguage, "infoTitle"));
-    if (m_authInfoTextLabel) m_authInfoTextLabel->setText(trAuth(m_authLanguage, "infoText"));
+    if (m_authWelcomeTitleLabel) m_authWelcomeTitleLabel->setText(trAuth(m_authLanguage, "welcome"));
+    if (m_authWelcomeSubtitleLabel) m_authWelcomeSubtitleLabel->setText(trAuth(m_authLanguage, "welcomeHint"));
+    if (m_authHeroEyebrowLabel) m_authHeroEyebrowLabel->setText(trAuth(m_authLanguage, "heroEyebrow"));
+    if (m_authInfoTitleLabel) m_authInfoTitleLabel->setText(trAuth(m_authLanguage, "heroTitle"));
+    if (m_authInfoTextLabel) m_authInfoTextLabel->setText(trAuth(m_authLanguage, "heroText"));
     if (m_loginTabButton) m_loginTabButton->setText(trAuth(m_authLanguage, "login"));
     if (m_registerTabButton) m_registerTabButton->setText(trAuth(m_authLanguage, "register"));
     if (m_loginInput) m_loginInput->setPlaceholderText(trAuth(m_authLanguage, "emailOrUsername"));
@@ -519,11 +596,16 @@ void MainWindow::updateAuthTexts()
     if (m_registerUsernameInput) m_registerUsernameInput->setPlaceholderText(trAuth(m_authLanguage, "username"));
     if (m_passwordInput) m_passwordInput->setPlaceholderText(trAuth(m_authLanguage, "password"));
     if (m_passwordConfirmInput) m_passwordConfirmInput->setPlaceholderText(trAuth(m_authLanguage, "repeatPassword"));
+    if (m_loginFieldLabel) m_loginFieldLabel->setText(trAuth(m_authLanguage, "email").toUpper());
+    if (m_registerEmailLabel) m_registerEmailLabel->setText(trAuth(m_authLanguage, "email").toUpper());
+    if (m_registerUsernameLabel) m_registerUsernameLabel->setText(trAuth(m_authLanguage, "username").toUpper());
+    if (m_passwordLabel) m_passwordLabel->setText(trAuth(m_authLanguage, "password").toUpper());
+    if (m_passwordConfirmLabel) m_passwordConfirmLabel->setText(trAuth(m_authLanguage, "repeatPassword").toUpper());
     if (m_loginButton) m_loginButton->setText(trAuth(m_authLanguage, m_registerMode ? "register" : "login"));
     if (m_forgotButton) m_forgotButton->setText(trAuth(m_authLanguage, "forgot"));
     if (m_authLangLabel) m_authLangLabel->setText(trAuth(m_authLanguage, "language"));
-    if (m_authStatusLabel && m_authStatusLabel->text().isEmpty()) {
-        m_authStatusLabel->setText(trAuth(m_authLanguage, "status"));
+    if (m_authStatusLabel) {
+        m_authStatusLabel->setText(trAuth(m_authLanguage, m_registerMode ? "registerHint" : "loginHint"));
     }
     if (m_ruButton) m_ruButton->setObjectName(m_authLanguage == "ru" ? "LangButtonActive" : "LangButton");
     if (m_deButton) m_deButton->setObjectName(m_authLanguage == "de" ? "LangButtonActive" : "LangButton");

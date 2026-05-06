@@ -18,6 +18,10 @@ QString Theme::styleSheet()
         #GuestMain {
             background: #ffffff;
         }
+        #GuestTopbar {
+            background: #ffffff;
+            border-bottom: 1px solid #e5e7eb;
+        }
         QWidget {
             color: #172033;
             font-family: "Inter", "Segoe UI", Arial, sans-serif;
@@ -27,6 +31,12 @@ QString Theme::styleSheet()
             border-radius: 19px;
             background: qradialgradient(cx:0.35, cy:0.3, radius:0.85,
                 stop:0 #86efac, stop:0.34 #f59e0b, stop:0.68 #d97706, stop:1 #0ea5e9);
+        }
+        #AtenHeroLogo {
+            border-radius: 138px;
+            background: qradialgradient(cx:0.48, cy:0.44, radius:0.95,
+                stop:0 #fed7aa, stop:0.26 #fb923c, stop:0.48 #d97706,
+                stop:0.50 #fef08a, stop:0.75 #f59e0b, stop:1 #22d3ee);
         }
         #AuthPanel {
             background: transparent;
@@ -60,8 +70,10 @@ QString Theme::styleSheet()
         QPushButton#LangButton,
         QPushButton#LangButtonActive {
             min-height: 36px;
+            max-width: 46px;
             border-radius: 18px;
             background: #ffffff;
+            padding: 0;
         }
         QPushButton#LangButtonActive {
             background: #eaf2ff;
@@ -70,10 +82,29 @@ QString Theme::styleSheet()
         #MutedText {
             color: #64748b;
         }
+        #AuthFieldLabel {
+            color: #334155;
+            font-size: 12px;
+            letter-spacing: 0.16em;
+            padding-top: 10px;
+        }
+        #HeroEyebrow {
+            color: #c46a00;
+            font-size: 12px;
+            letter-spacing: 0.18em;
+        }
         #HeroText {
             color: #64748b;
-            font-size: 17px;
-            line-height: 1.45;
+            font-size: 18px;
+            line-height: 1.5;
+        }
+        QPushButton#ThemeIconButton {
+            border-radius: 14px;
+            border: 1px solid #111827;
+            background: #f1f5f9;
+            color: #475569;
+            font-size: 24px;
+            padding: 0;
         }
         #Sidebar {
             background: #f9fafb;
@@ -102,11 +133,12 @@ QString Theme::styleSheet()
             color: #172033;
         }
         QLineEdit {
-            min-height: 38px;
+            min-height: 52px;
             padding: 0 12px;
             border: 1px solid #d4dde8;
-            border-radius: 8px;
+            border-radius: 12px;
             background: #ffffff;
+            font-size: 16px;
         }
         QPushButton {
             min-height: 36px;
@@ -118,9 +150,13 @@ QString Theme::styleSheet()
             font-weight: 700;
         }
         QPushButton#PrimaryButton {
-            background: #2563eb;
-            border-color: #2563eb;
+            min-height: 60px;
+            border-radius: 13px;
+            background: #d97706;
+            border-color: #d97706;
             color: #ffffff;
+            font-size: 20px;
+            box-shadow: 0 14px 28px rgba(217, 119, 6, 0.22);
         }
     )";
 }

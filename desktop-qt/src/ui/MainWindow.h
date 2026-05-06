@@ -62,6 +62,14 @@ private:
     QLabel *m_authSubtitleLabel = nullptr;
     QLabel *m_authInfoTitleLabel = nullptr;
     QLabel *m_authInfoTextLabel = nullptr;
+    QLabel *m_authWelcomeTitleLabel = nullptr;
+    QLabel *m_authWelcomeSubtitleLabel = nullptr;
+    QLabel *m_authHeroEyebrowLabel = nullptr;
+    QLabel *m_loginFieldLabel = nullptr;
+    QLabel *m_registerEmailLabel = nullptr;
+    QLabel *m_registerUsernameLabel = nullptr;
+    QLabel *m_passwordLabel = nullptr;
+    QLabel *m_passwordConfirmLabel = nullptr;
     QLabel *m_authLangLabel = nullptr;
     QLabel *m_authStatusLabel = nullptr;
     QLabel *m_statusLabel = nullptr;
