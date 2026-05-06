@@ -55,6 +55,11 @@ void ApiClient::getChats()
     getJson("/api/chats");
 }
 
+void ApiClient::getMessagesAll()
+{
+    getJson("/api/messages/all");
+}
+
 void ApiClient::getMessages(const QString &chatId)
 {
     const auto encoded = QString::fromUtf8(QUrl::toPercentEncoding(chatId));

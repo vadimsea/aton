@@ -1,5 +1,6 @@
 #include "ui/MainWindow.h"
 
+#include <algorithm>
 #include <QHBoxLayout>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -8,18 +9,62 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QMap>
 #include <QPushButton>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStatusBar>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <utility>
 
 #include "net/ApiClient.h"
 #include "session/SessionStore.h"
 #include "ui/Theme.h"
 
 namespace aten {
+
+namespace {
+
+struct ChatRow {
+    QString id;
+    QString title;
+    QString type;
+    QString preview;
+    QString lastTime;
+};
+
+QString messagePreview(const QJsonObject &msg)
+{
+    const auto type = msg.value("type").toString("text");
+    if (type == "image") return "[image]";
+    if (type == "audio") return "[voice message]";
+    const auto text = msg.value("text").toString().simplified();
+    if (text.isEmpty()) return "[message]";
+    return text.size() > 52 ? text.left(49) + "..." : text;
+}
+
+bool isDirectChatId(const QString &chatId)
+{
+    return chatId.contains("|") && !chatId.startsWith("group:") && !chatId.startsWith("channel:");
+}
+
+QString peerFromDirectChatId(const QString &chatId, const QString &me)
+{
+    const auto parts = chatId.split("|");
+    if (parts.size() != 2) return {};
+    if (parts[0] == me) return parts[1];
+    if (parts[1] == me) return parts[0];
+    return {};
+}
+
+QString directChatIdForUsers(QString a, QString b)
+{
+    if (a > b) std::swap(a, b);
+    return QString("%1|%2").arg(a, b);
+}
+
+} // namespace
 
 MainWindow::MainWindow(ApiClient *apiClient, SessionStore *sessionStore, QWidget *parent)
     : QMainWindow(parent),
@@ -227,7 +272,8 @@ void MainWindow::wireApi()
         if (endpoint == "/api/me") {
             const auto obj = body.object();
             const auto userObj = obj.value("user").toObject(obj);
-            const auto name = userObj.value("displayName").toString(userObj.value("username").toString("ATEN user"));
+            m_currentUsername = userObj.value("username").toString();
+            const auto name = userObj.value("displayName").toString(m_currentUsername.isEmpty() ? "ATEN user" : m_currentUsername);
             if (m_accountLabel) {
                 m_accountLabel->setText(name);
             }
@@ -238,6 +284,10 @@ void MainWindow::wireApi()
             renderChats(body);
             return;
         }
+        if (endpoint == "/api/messages/all") {
+            renderMessagesAll(body);
+            return;
+        }
         if (endpoint.startsWith("/api/messages?chatId=")) {
             renderMessages(body);
             return;
@@ -246,6 +296,7 @@ void MainWindow::wireApi()
             if (!m_currentChatId.isEmpty()) {
                 m_apiClient->getMessages(m_currentChatId);
             }
+            m_apiClient->getMessagesAll();
             return;
         }
         setStatusText(QString("Loaded %1").arg(endpoint));
@@ -288,10 +339,15 @@ void MainWindow::loadAuthenticatedData()
     if (!m_apiClient || !m_sessionStore || !m_sessionStore->hasToken()) return;
     m_apiClient->getMe();
     m_apiClient->getChats();
+    m_apiClient->getMessagesAll();
 }
 
 void MainWindow::renderChats(const QJsonDocument &body)
 {
+    m_groupChats = body.array();
+    renderSidebar();
+    return;
+
     if (!m_chatList) return;
     m_chatList->clear();
     const auto chats = body.array();
@@ -313,6 +369,101 @@ void MainWindow::renderChats(const QJsonDocument &body)
     }
     if (m_chatList->count() > 0) {
         m_chatList->setCurrentRow(0);
+    }
+}
+
+void MainWindow::renderMessagesAll(const QJsonDocument &body)
+{
+    m_allMessages = body.array();
+    renderSidebar();
+}
+
+void MainWindow::renderSidebar()
+{
+    if (!m_chatList) return;
+    const auto previousChatId = m_currentChatId;
+    m_chatList->clear();
+
+    QMap<QString, ChatRow> rowsById;
+
+    for (const auto &value : m_groupChats) {
+        const auto chat = value.toObject();
+        const auto id = chat.value("id").toString();
+        if (id.isEmpty()) continue;
+        auto title = chat.value("title").toString();
+        if (title.isEmpty()) {
+            title = chat.value("name").toString(id);
+        }
+        rowsById.insert(id, ChatRow{
+                                id,
+                                title,
+                                chat.value("type").toString(id.startsWith("channel:") ? "channel" : "group"),
+                                chat.value("description").toString(),
+                                {},
+                            });
+    }
+
+    for (const auto &value : m_allMessages) {
+        const auto msg = value.toObject();
+        auto chatId = msg.value("chatId").toString();
+        const auto from = msg.value("from").toString(msg.value("senderUsername").toString());
+        const auto to = msg.value("to").toString();
+        if (chatId.isEmpty() && !from.isEmpty() && !to.isEmpty()) {
+            chatId = directChatIdForUsers(from, to);
+        }
+        if (chatId.isEmpty() || chatId == "global") continue;
+
+        const auto lastTime = msg.value("createdAt").toString(msg.value("time").toString());
+        const auto preview = messagePreview(msg);
+
+        if (isDirectChatId(chatId)) {
+            auto row = rowsById.value(chatId);
+            if (row.id.isEmpty()) {
+                const auto peer = peerFromDirectChatId(chatId, m_currentUsername);
+                row = ChatRow{chatId, peer.isEmpty() ? chatId : peer, "private", {}, {}};
+            }
+            if (row.lastTime.isEmpty() || lastTime >= row.lastTime) {
+                row.preview = preview;
+                row.lastTime = lastTime;
+            }
+            rowsById.insert(chatId, row);
+            continue;
+        }
+
+        if (rowsById.contains(chatId)) {
+            auto row = rowsById.value(chatId);
+            if (row.lastTime.isEmpty() || lastTime >= row.lastTime) {
+                row.preview = preview;
+                row.lastTime = lastTime;
+            }
+            rowsById.insert(chatId, row);
+        }
+    }
+
+    auto rows = rowsById.values();
+    std::sort(rows.begin(), rows.end(), [](const ChatRow &a, const ChatRow &b) {
+        if (a.lastTime == b.lastTime) return a.title.toLower() < b.title.toLower();
+        if (a.lastTime.isEmpty()) return false;
+        if (b.lastTime.isEmpty()) return true;
+        return a.lastTime > b.lastTime;
+    });
+
+    if (rows.isEmpty()) {
+        m_chatList->addItem("No chats yet");
+        return;
+    }
+
+    int selectedRow = 0;
+    for (int i = 0; i < rows.size(); ++i) {
+        const auto &row = rows[i];
+        const auto preview = row.preview.isEmpty() ? row.type : QString("%1\n%2").arg(row.type, row.preview);
+        auto *item = new QListWidgetItem(QString("%1\n%2").arg(row.title, preview));
+        item->setData(Qt::UserRole, row.id);
+        m_chatList->addItem(item);
+        if (row.id == previousChatId) selectedRow = i;
+    }
+    if (m_chatList->count() > 0) {
+        m_chatList->setCurrentRow(selectedRow);
     }
 }
 

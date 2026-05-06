@@ -21,6 +21,7 @@ public:
     void logout();
     void getMe();
     void getChats();
+    void getMessagesAll();
     void getMessages(const QString &chatId);
     void sendTextMessage(const QString &chatId, const QString &text);
 

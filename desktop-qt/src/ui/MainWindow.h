@@ -1,6 +1,8 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QJsonArray>
+#include <QMap>
 
 class QLabel;
 class QLineEdit;
@@ -29,6 +31,8 @@ private:
     void handleLogin();
     void loadAuthenticatedData();
     void renderChats(const QJsonDocument &body);
+    void renderMessagesAll(const QJsonDocument &body);
+    void renderSidebar();
     void renderMessages(const QJsonDocument &body);
     void openSelectedChat();
     void sendComposerText();
@@ -49,6 +53,9 @@ private:
     QLineEdit *m_composer = nullptr;
     QPushButton *m_sendButton = nullptr;
     QString m_currentChatId;
+    QString m_currentUsername;
+    QJsonArray m_groupChats;
+    QJsonArray m_allMessages;
 };
 
 } // namespace aten
