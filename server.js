@@ -48,6 +48,68 @@ const GOLOS_RATE_WINDOW_MS = 60 * 60 * 1000;
 const GOLOS_MAX_PER_WINDOW = Math.max(0, parseInt(String(process.env.GOLOS_MAX_PER_WINDOW || "0"), 10) || 0);
 /** Статика на том же хосте, что и сайт (FTP). */
 const GOLOS_AVATAR_FILENAME = "golos-aton-avatar.png";
+const DEFAULT_ALLOWED_ORIGINS = [
+  "https://aten.vadzim.by",
+  "https://www.aten.vadzim.by",
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:5173",
+];
+const ALLOWED_ORIGINS = new Set(
+  [
+    ...DEFAULT_ALLOWED_ORIGINS,
+    ...String(process.env.CORS_ORIGINS || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  ].map((s) => s.replace(/\/+$/, ""))
+);
+const STATIC_FILE_ALLOWLIST = new Set([
+  "/",
+  "/index.html",
+  "/main.js",
+  "/style.css",
+  "/forgot.html",
+  "/reset.html",
+  "/admin-users.html",
+  "/golos-aton-avatar.png",
+  "/notification.mp3",
+]);
+const IMAGE_MEDIA_MAX_BYTES = Math.max(
+  1,
+  parseInt(String(process.env.IMAGE_MEDIA_MAX_BYTES || `${4 * 1024 * 1024}`), 10) || 4 * 1024 * 1024
+);
+const AUDIO_MEDIA_MAX_BYTES = Math.max(
+  1,
+  parseInt(String(process.env.AUDIO_MEDIA_MAX_BYTES || `${6 * 1024 * 1024}`), 10) || 6 * 1024 * 1024
+);
+const ALLOWED_IMAGE_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const ALLOWED_AUDIO_MIME = new Set(["audio/webm", "audio/ogg", "audio/mpeg", "audio/mp3", "audio/wav", "audio/mp4"]);
+
+function normalizeOrigin(origin) {
+  return String(origin || "").trim().replace(/\/+$/, "");
+}
+
+function isAllowedOrigin(origin) {
+  const normalized = normalizeOrigin(origin);
+  return !normalized || ALLOWED_ORIGINS.has(normalized);
+}
+
+function validateDataUrlMedia(value, { allowedMime, maxBytes }) {
+  const raw = String(value || "").trim();
+  const m = raw.match(/^data:([^;,]+)(?:;[^,]*)?;base64,([A-Za-z0-9+/=\s]+)$/);
+  if (!m) return { ok: false, error: "Некорректный формат файла" };
+  const mime = m[1].toLowerCase();
+  if (!allowedMime.has(mime)) return { ok: false, error: "Неподдерживаемый тип файла" };
+  const payload = m[2].replace(/\s+/g, "");
+  if (!payload || payload.length % 4 === 1) return { ok: false, error: "Некорректный файл" };
+  const padding = payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0;
+  const bytes = Math.floor((payload.length * 3) / 4) - padding;
+  if (bytes <= 0) return { ok: false, error: "Пустой файл" };
+  if (bytes > maxBytes) return { ok: false, error: "Файл слишком большой" };
+  return { ok: true, value: raw, mime, bytes };
+}
 
 function golosAtonAvatarPublicUrl() {
   const raw = String(process.env.ATON_PUBLIC_URL || "https://aten.vadzim.by").trim();
@@ -286,7 +348,12 @@ const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
 
 const io = new Server(server, {
-  cors: { origin: "*" },
+  cors: {
+    origin(origin, callback) {
+      if (isAllowedOrigin(origin)) return callback(null, true);
+      return callback(new Error("Origin not allowed"));
+    },
+  },
 });
 
 /**
@@ -351,14 +418,24 @@ app.use(express.json({ limit: "8mb" }));
 // Кросс-доменные запросы: фронт на хостинге, API на Render и т.д.
 app.use((req, res, next) => {
   const o = req.headers.origin;
-  if (o) res.setHeader("Access-Control-Allow-Origin", o);
+  if (!isAllowedOrigin(o)) {
+    if (req.method === "OPTIONS") return res.sendStatus(403);
+    return next();
+  }
+  if (o) res.setHeader("Access-Control-Allow-Origin", normalizeOrigin(o));
   else res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") return res.sendStatus(204);
   next();
 });
-app.use(express.static(__dirname));
+app.get([...STATIC_FILE_ALLOWLIST], (req, res, next) => {
+  const requestPath = req.path === "/" ? "/index.html" : req.path;
+  if (!STATIC_FILE_ALLOWLIST.has(req.path)) return next();
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.sendFile(path.join(__dirname, requestPath));
+});
 
 /** Лёгкая проверка для мониторинга и CI (без БД-логики в ответе). */
 app.get("/api/health", async (req, res) => {
@@ -428,6 +505,7 @@ io.on("connection", (socket) => {
     if (!chatId || typeof chatId !== "string") return;
 
     if (chatId === "global") {
+      if (!socket.user) return;
       socket.join("global");
       return;
     }
@@ -2774,6 +2852,9 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
     pinned = false,
   } = req.body || {};
   if (!type) return res.status(400).json({ error: "type обязателен" });
+  if (!["text", "image", "audio"].includes(type)) {
+    return res.status(400).json({ error: "Неподдерживаемый тип сообщения" });
+  }
 
   const toTrimmed = to != null && String(to).trim() !== "" ? String(to).trim() : null;
   const myUsername = req.user.username;
@@ -2825,6 +2906,9 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
     }
   }
 
+  let safeAudioDataUrl = null;
+  let safeImageDataUrl = null;
+
   if (type === "audio" && !String(audioDataUrl || "").trim()) {
     return res.status(400).json({ error: "Нет аудиозаписи" });
   }
@@ -2833,12 +2917,25 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
     return res.status(400).json({ error: "Нет изображения" });
   }
 
-  if (
-    type === "text" &&
-    (!text || !String(text).trim()) &&
-    !imageDataUrl &&
-    !audioDataUrl
-  ) {
+  if (type === "audio") {
+    const checked = validateDataUrlMedia(audioDataUrl, {
+      allowedMime: ALLOWED_AUDIO_MIME,
+      maxBytes: AUDIO_MEDIA_MAX_BYTES,
+    });
+    if (!checked.ok) return res.status(400).json({ error: checked.error });
+    safeAudioDataUrl = checked.value;
+  }
+
+  if (type === "image") {
+    const checked = validateDataUrlMedia(imageDataUrl, {
+      allowedMime: ALLOWED_IMAGE_MIME,
+      maxBytes: IMAGE_MEDIA_MAX_BYTES,
+    });
+    if (!checked.ok) return res.status(400).json({ error: checked.error });
+    safeImageDataUrl = checked.value;
+  }
+
+  if (type === "text" && (!text || !String(text).trim())) {
     return res.status(400).json({ error: "Пустое сообщение" });
   }
 
@@ -2859,8 +2956,8 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
         recipientUsername: recipientForDb,
         type,
         text: text || "",
-        imageDataUrl: imageDataUrl || null,
-        audioDataUrl: audioDataUrl || null,
+        imageDataUrl: safeImageDataUrl,
+        audioDataUrl: safeAudioDataUrl,
         createdAt: now,
         editedAt: null,
         replyTo: replyTo == null ? undefined : replyTo,
@@ -2879,7 +2976,7 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
 
     const toGolos = userMessageToGolosAton(msg, req.user.username);
     const hasText = type === "text" && String(text || "").trim();
-    const hasAudio = type === "audio" && String(audioDataUrl || "").trim();
+    const hasAudio = type === "audio" && String(safeAudioDataUrl || "").trim();
     if (toGolos && (hasText || hasAudio)) {
       void processGolosAtonUserReply({
         savedUserMsg: msg,
@@ -2945,21 +3042,29 @@ app.post("/api/messages/:id/pin", authMiddleware, requireVerified, async (req, r
 app.post("/api/messages/:id/react", authMiddleware, requireVerified, async (req, res) => {
   const { id } = req.params;
   const { emoji } = req.body || {};
-  if (!emoji || typeof emoji !== "string") {
+  const cleanEmoji = typeof emoji === "string" ? emoji.trim() : "";
+  if (!cleanEmoji) {
     return res.status(400).json({ error: "emoji обязателен" });
+  }
+  if (cleanEmoji.length > 16) {
+    return res.status(400).json({ error: "Некорректная реакция" });
   }
   try {
     const row = await prisma.message.findUnique({ where: { id } });
     if (!row) return res.status(404).json({ error: "Сообщение не найдено" });
+    const ac = await assertUserCanAccessChat(req, row.chatId);
+    if (!ac.ok) {
+      return res.status(ac.error === "Чат не найден" ? 404 : 403).json({ error: ac.error });
+    }
     let reactions = Array.isArray(row.reactions) ? [...row.reactions] : [];
     const existingIndex = reactions.findIndex(
-      (r) => r.user === req.user.username && r.emoji === emoji
+      (r) => r.user === req.user.username && r.emoji === cleanEmoji
     );
     if (existingIndex >= 0) {
       reactions.splice(existingIndex, 1);
     } else {
       reactions = reactions.filter((r) => r.user !== req.user.username);
-      reactions.push({ user: req.user.username, emoji });
+      reactions.push({ user: req.user.username, emoji: cleanEmoji });
     }
     const updated = await prisma.message.update({
       where: { id },

@@ -5291,10 +5291,12 @@ function createApp() {
         img.src = msg.imageDataUrl;
         img.className = "aton-message-image";
         img.addEventListener("click", () => {
-          const gallery = messagesForChatId(currentChatId)
-            .filter((item) => item && item.type === "image" && item.imageDataUrl)
-            .map((item) => String(item.imageDataUrl));
-          openImageLightbox(msg.imageDataUrl, gallery);
+          const imageMessages = messagesForChatId(currentChatId).filter(
+            (item) => item && item.type === "image" && item.imageDataUrl
+          );
+          const gallery = imageMessages.map((item) => String(item.imageDataUrl));
+          const clickedIndex = imageMessages.findIndex((item) => String(item.id || "") === String(msg.id || ""));
+          openImageLightbox(msg.imageDataUrl, gallery, clickedIndex);
         });
         text.appendChild(img);
       }
@@ -7217,14 +7219,16 @@ function createApp() {
 
 window.addEventListener("DOMContentLoaded", createApp);
 
-function openImageLightbox(src, gallery = []) {
+function openImageLightbox(src, gallery = [], startIndex = -1) {
   const existing = document.querySelector(".aton-image-lightbox");
   if (existing) existing.remove();
   const images = Array.isArray(gallery)
     ? gallery.map((url) => String(url || "")).filter(Boolean)
     : [];
   if (!images.includes(src)) images.unshift(src);
-  let currentIndex = Math.max(0, images.indexOf(src));
+  const requestedIndex = Number.isInteger(startIndex) ? startIndex : -1;
+  let currentIndex =
+    requestedIndex >= 0 && requestedIndex < images.length ? requestedIndex : Math.max(0, images.indexOf(src));
 
   const overlay = document.createElement("div");
   overlay.className = "aton-image-lightbox";
