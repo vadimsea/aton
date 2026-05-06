@@ -14,6 +14,7 @@
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStatusBar>
+#include <QStyle>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <utility>
@@ -64,6 +65,31 @@ QString directChatIdForUsers(QString a, QString b)
     return QString("%1|%2").arg(a, b);
 }
 
+QString trAuth(const QString &lang, const QString &key)
+{
+    static const QMap<QString, QMap<QString, QString>> dict = {
+        {"brand", {{"ru", "АТОН"}, {"de", "ATEN"}, {"en", "ATEN"}}},
+        {"tagline", {{"ru", "мессенджер под светом диска"}, {"de", "Messenger unter dem Licht der Scheibe"}, {"en", "messenger under the disk light"}}},
+        {"login", {{"ru", "Вход"}, {"de", "Anmelden"}, {"en", "Sign in"}}},
+        {"register", {{"ru", "Регистрация"}, {"de", "Registrierung"}, {"en", "Registration"}}},
+        {"email", {{"ru", "Email"}, {"de", "Email"}, {"en", "Email"}}},
+        {"emailOrUsername", {{"ru", "Email или имя пользователя"}, {"de", "Email oder Benutzername"}, {"en", "Email or username"}}},
+        {"username", {{"ru", "Имя пользователя"}, {"de", "Benutzername"}, {"en", "Username"}}},
+        {"password", {{"ru", "Пароль"}, {"de", "Passwort"}, {"en", "Password"}}},
+        {"repeatPassword", {{"ru", "Повторите пароль"}, {"de", "Passwort wiederholen"}, {"en", "Repeat password"}}},
+        {"forgot", {{"ru", "Забыли пароль?"}, {"de", "Passwort vergessen?"}, {"en", "Forgot password?"}}},
+        {"language", {{"ru", "Язык интерфейса"}, {"de", "Sprache der Oberfläche"}, {"en", "Interface language"}}},
+        {"infoTitle", {{"ru", "Чаты без лишнего шума"}, {"de", "Chats ohne unnötigen Lärm"}, {"en", "Chats without extra noise"}}},
+        {"infoText", {{"ru", "Личные переписки, группы, каналы, голосовые сообщения, реакции и профиль в сдержанном интерфейсе ATEN."}, {"de", "Private Chats, Gruppen, Kanäle, Sprachnachrichten, Reaktionen und Profil in einer ruhigen ATEN-Oberfläche."}, {"en", "Private chats, groups, channels, voice messages, reactions, and profile in a restrained ATEN interface."}}},
+        {"status", {{"ru", "Подключение к API..."}, {"de", "Verbindung zur API..."}, {"en", "Connecting to API..."}}},
+        {"fillFields", {{"ru", "Заполните обязательные поля"}, {"de", "Füllen Sie die Pflichtfelder aus"}, {"en", "Fill in the required fields"}}},
+        {"passwordMismatch", {{"ru", "Пароли не совпадают"}, {"de", "Passwörter stimmen nicht überein"}, {"en", "Passwords do not match"}}},
+        {"verifyEmail", {{"ru", "Аккаунт создан. Проверьте email для подтверждения."}, {"de", "Konto erstellt. Prüfen Sie Ihre Email zur Bestätigung."}, {"en", "Account created. Check your email to verify it."}}},
+    };
+    const auto item = dict.value(key);
+    return item.value(lang, item.value("ru", key));
+}
+
 } // namespace
 
 MainWindow::MainWindow(ApiClient *apiClient, SessionStore *sessionStore, QWidget *parent)
@@ -104,47 +130,147 @@ void MainWindow::buildUi()
 QWidget *MainWindow::buildAuthPage()
 {
     auto *page = new QWidget(this);
-    auto *outer = new QVBoxLayout(page);
+    page->setObjectName("GuestShell");
+    auto *outer = new QHBoxLayout(page);
     outer->setContentsMargins(0, 0, 0, 0);
-    outer->setAlignment(Qt::AlignCenter);
+    outer->setSpacing(0);
 
-    auto *panel = new QWidget(page);
+    auto *sidebar = new QWidget(page);
+    sidebar->setObjectName("GuestSidebar");
+    sidebar->setFixedWidth(400);
+    auto *sideLayout = new QVBoxLayout(sidebar);
+    sideLayout->setContentsMargins(22, 24, 22, 18);
+    sideLayout->setSpacing(18);
+
+    auto *brandRow = new QWidget(sidebar);
+    auto *brandLayout = new QHBoxLayout(brandRow);
+    brandLayout->setContentsMargins(0, 0, 0, 0);
+    brandLayout->setSpacing(12);
+    auto *logo = new QLabel(brandRow);
+    logo->setObjectName("AtenLogo");
+    logo->setFixedSize(38, 38);
+    auto *brandText = new QWidget(brandRow);
+    auto *brandTextLayout = new QVBoxLayout(brandText);
+    brandTextLayout->setContentsMargins(0, 0, 0, 0);
+    brandTextLayout->setSpacing(1);
+    m_authTitleLabel = new QLabel(brandText);
+    auto titleFont = m_authTitleLabel->font();
+    titleFont.setPointSize(16);
+    titleFont.setBold(true);
+    m_authTitleLabel->setFont(titleFont);
+    m_authSubtitleLabel = new QLabel(brandText);
+    m_authSubtitleLabel->setObjectName("MutedText");
+    brandTextLayout->addWidget(m_authTitleLabel);
+    brandTextLayout->addWidget(m_authSubtitleLabel);
+    brandLayout->addWidget(logo);
+    brandLayout->addWidget(brandText, 1);
+    sideLayout->addWidget(brandRow);
+
+    auto *panel = new QWidget(sidebar);
     panel->setObjectName("AuthPanel");
-    panel->setFixedWidth(380);
     auto *layout = new QVBoxLayout(panel);
-    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(12);
 
-    auto *title = new QLabel("ATEN", panel);
-    auto titleFont = title->font();
-    titleFont.setPointSize(24);
-    titleFont.setBold(true);
-    title->setFont(titleFont);
-    auto *subtitle = new QLabel("Desktop messenger", panel);
-    subtitle->setObjectName("MutedText");
+    auto *tabs = new QWidget(panel);
+    tabs->setObjectName("AuthTabs");
+    auto *tabsLayout = new QHBoxLayout(tabs);
+    tabsLayout->setContentsMargins(4, 4, 4, 4);
+    tabsLayout->setSpacing(4);
+    m_loginTabButton = new QPushButton(panel);
+    m_loginTabButton->setObjectName("AuthTabActive");
+    m_registerTabButton = new QPushButton(panel);
+    m_registerTabButton->setObjectName("AuthTab");
+    tabsLayout->addWidget(m_loginTabButton);
+    tabsLayout->addWidget(m_registerTabButton);
 
     m_loginInput = new QLineEdit(panel);
-    m_loginInput->setPlaceholderText("Email or username");
+    m_registerEmailInput = new QLineEdit(panel);
+    m_registerUsernameInput = new QLineEdit(panel);
     m_passwordInput = new QLineEdit(panel);
-    m_passwordInput->setPlaceholderText("Password");
     m_passwordInput->setEchoMode(QLineEdit::Password);
-    m_loginButton = new QPushButton("Sign in", panel);
+    m_passwordConfirmInput = new QLineEdit(panel);
+    m_passwordConfirmInput->setEchoMode(QLineEdit::Password);
+    m_loginButton = new QPushButton(panel);
     m_loginButton->setObjectName("PrimaryButton");
-    m_statusLabel = new QLabel("Connecting to API...", panel);
-    m_statusLabel->setObjectName("MutedText");
-    m_statusLabel->setWordWrap(true);
+    m_forgotButton = new QPushButton(panel);
+    m_forgotButton->setObjectName("LinkButton");
+    m_forgotButton->setFlat(true);
+    m_forgotButton->setCursor(Qt::PointingHandCursor);
+    m_authStatusLabel = new QLabel(panel);
+    m_authStatusLabel->setObjectName("MutedText");
+    m_authStatusLabel->setWordWrap(true);
 
-    layout->addWidget(title);
-    layout->addWidget(subtitle);
-    layout->addSpacing(12);
+    layout->addWidget(tabs);
     layout->addWidget(m_loginInput);
+    layout->addWidget(m_registerEmailInput);
+    layout->addWidget(m_registerUsernameInput);
     layout->addWidget(m_passwordInput);
+    layout->addWidget(m_passwordConfirmInput);
     layout->addWidget(m_loginButton);
-    layout->addWidget(m_statusLabel);
-    outer->addWidget(panel);
+    layout->addWidget(m_authStatusLabel);
+    layout->addWidget(m_forgotButton);
+    sideLayout->addWidget(panel);
+    sideLayout->addStretch(1);
+
+    auto *langBox = new QWidget(sidebar);
+    auto *langLayout = new QVBoxLayout(langBox);
+    langLayout->setContentsMargins(0, 0, 0, 0);
+    langLayout->setSpacing(8);
+    m_authLangLabel = new QLabel(langBox);
+    m_authLangLabel->setObjectName("MutedText");
+    auto *langButtons = new QWidget(langBox);
+    auto *langButtonsLayout = new QHBoxLayout(langButtons);
+    langButtonsLayout->setContentsMargins(0, 0, 0, 0);
+    langButtonsLayout->setSpacing(8);
+    m_ruButton = new QPushButton("🇷🇺 RU", langButtons);
+    m_deButton = new QPushButton("🇩🇪 DE", langButtons);
+    m_enButton = new QPushButton("🇬🇧 EN", langButtons);
+    langButtonsLayout->addWidget(m_ruButton);
+    langButtonsLayout->addWidget(m_deButton);
+    langButtonsLayout->addWidget(m_enButton);
+    langLayout->addWidget(m_authLangLabel);
+    langLayout->addWidget(langButtons);
+    sideLayout->addWidget(langBox);
+
+    auto *main = new QWidget(page);
+    main->setObjectName("GuestMain");
+    auto *mainLayout = new QVBoxLayout(main);
+    mainLayout->setContentsMargins(64, 64, 64, 64);
+    mainLayout->setSpacing(18);
+    mainLayout->addStretch(1);
+    m_authInfoTitleLabel = new QLabel(main);
+    auto infoFont = m_authInfoTitleLabel->font();
+    infoFont.setPointSize(34);
+    infoFont.setBold(true);
+    m_authInfoTitleLabel->setFont(infoFont);
+    m_authInfoTextLabel = new QLabel(main);
+    m_authInfoTextLabel->setObjectName("HeroText");
+    m_authInfoTextLabel->setWordWrap(true);
+    m_authInfoTextLabel->setMaximumWidth(640);
+    mainLayout->addWidget(m_authInfoTitleLabel);
+    mainLayout->addWidget(m_authInfoTextLabel);
+    mainLayout->addStretch(2);
+
+    outer->addWidget(sidebar);
+    outer->addWidget(main, 1);
 
     connect(m_loginButton, &QPushButton::clicked, this, &MainWindow::handleLogin);
     connect(m_passwordInput, &QLineEdit::returnPressed, this, &MainWindow::handleLogin);
+    connect(m_passwordConfirmInput, &QLineEdit::returnPressed, this, &MainWindow::handleLogin);
+    connect(m_loginTabButton, &QPushButton::clicked, this, [this]() { switchAuthMode(false); });
+    connect(m_registerTabButton, &QPushButton::clicked, this, [this]() { switchAuthMode(true); });
+    connect(m_ruButton, &QPushButton::clicked, this, [this]() { setLanguage("ru"); });
+    connect(m_deButton, &QPushButton::clicked, this, [this]() { setLanguage("de"); });
+    connect(m_enButton, &QPushButton::clicked, this, [this]() { setLanguage("en"); });
+    connect(m_forgotButton, &QPushButton::clicked, this, [this]() {
+        if (m_authStatusLabel) {
+            m_authStatusLabel->setText("https://aten.vadzim.by/forgot.html");
+        }
+    });
+
+    switchAuthMode(false);
+    updateAuthTexts();
     return page;
 }
 
@@ -265,6 +391,11 @@ void MainWindow::wireApi()
             loadAuthenticatedData();
             return;
         }
+        if (endpoint == "/api/register") {
+            setStatusText(trAuth(m_authLanguage, "verifyEmail"));
+            switchAuthMode(false);
+            return;
+        }
         if (endpoint == "/api/logout") {
             setStatusText("Signed out");
             return;
@@ -321,17 +452,87 @@ void MainWindow::refreshSessionUi()
 void MainWindow::handleLogin()
 {
     if (!m_apiClient || !m_loginInput || !m_passwordInput) return;
-    const auto login = m_loginInput->text().trimmed();
     const auto password = m_passwordInput->text();
+    if (m_registerMode) {
+        const auto email = m_registerEmailInput ? m_registerEmailInput->text().trimmed() : QString();
+        const auto username = m_registerUsernameInput ? m_registerUsernameInput->text().trimmed() : QString();
+        const auto confirm = m_passwordConfirmInput ? m_passwordConfirmInput->text() : QString();
+        if (email.isEmpty() || username.isEmpty() || password.isEmpty() || confirm.isEmpty()) {
+            setStatusText(trAuth(m_authLanguage, "fillFields"));
+            return;
+        }
+        if (password != confirm) {
+            setStatusText(trAuth(m_authLanguage, "passwordMismatch"));
+            return;
+        }
+        if (m_loginButton) {
+            m_loginButton->setEnabled(false);
+        }
+        setStatusText(trAuth(m_authLanguage, "register") + "...");
+        m_apiClient->registerAccount(email, username, password);
+        return;
+    }
+
+    const auto login = m_loginInput->text().trimmed();
     if (login.isEmpty() || password.isEmpty()) {
-        setStatusText("Enter email/username and password");
+        setStatusText(trAuth(m_authLanguage, "fillFields"));
         return;
     }
     if (m_loginButton) {
         m_loginButton->setEnabled(false);
     }
-    setStatusText("Signing in...");
+    setStatusText(trAuth(m_authLanguage, "login") + "...");
     m_apiClient->login(login, password);
+}
+
+void MainWindow::switchAuthMode(bool registerMode)
+{
+    m_registerMode = registerMode;
+    if (m_loginInput) m_loginInput->setVisible(!registerMode);
+    if (m_registerEmailInput) m_registerEmailInput->setVisible(registerMode);
+    if (m_registerUsernameInput) m_registerUsernameInput->setVisible(registerMode);
+    if (m_passwordConfirmInput) m_passwordConfirmInput->setVisible(registerMode);
+    if (m_loginTabButton) m_loginTabButton->setObjectName(registerMode ? "AuthTab" : "AuthTabActive");
+    if (m_registerTabButton) m_registerTabButton->setObjectName(registerMode ? "AuthTabActive" : "AuthTab");
+    if (m_loginTabButton) m_loginTabButton->style()->unpolish(m_loginTabButton), m_loginTabButton->style()->polish(m_loginTabButton);
+    if (m_registerTabButton) m_registerTabButton->style()->unpolish(m_registerTabButton), m_registerTabButton->style()->polish(m_registerTabButton);
+    updateAuthTexts();
+}
+
+void MainWindow::setLanguage(const QString &lang)
+{
+    if (lang != "ru" && lang != "de" && lang != "en") return;
+    m_authLanguage = lang;
+    updateAuthTexts();
+}
+
+void MainWindow::updateAuthTexts()
+{
+    if (m_authTitleLabel) m_authTitleLabel->setText(trAuth(m_authLanguage, "brand"));
+    if (m_authSubtitleLabel) m_authSubtitleLabel->setText(trAuth(m_authLanguage, "tagline"));
+    if (m_authInfoTitleLabel) m_authInfoTitleLabel->setText(trAuth(m_authLanguage, "infoTitle"));
+    if (m_authInfoTextLabel) m_authInfoTextLabel->setText(trAuth(m_authLanguage, "infoText"));
+    if (m_loginTabButton) m_loginTabButton->setText(trAuth(m_authLanguage, "login"));
+    if (m_registerTabButton) m_registerTabButton->setText(trAuth(m_authLanguage, "register"));
+    if (m_loginInput) m_loginInput->setPlaceholderText(trAuth(m_authLanguage, "emailOrUsername"));
+    if (m_registerEmailInput) m_registerEmailInput->setPlaceholderText(trAuth(m_authLanguage, "email"));
+    if (m_registerUsernameInput) m_registerUsernameInput->setPlaceholderText(trAuth(m_authLanguage, "username"));
+    if (m_passwordInput) m_passwordInput->setPlaceholderText(trAuth(m_authLanguage, "password"));
+    if (m_passwordConfirmInput) m_passwordConfirmInput->setPlaceholderText(trAuth(m_authLanguage, "repeatPassword"));
+    if (m_loginButton) m_loginButton->setText(trAuth(m_authLanguage, m_registerMode ? "register" : "login"));
+    if (m_forgotButton) m_forgotButton->setText(trAuth(m_authLanguage, "forgot"));
+    if (m_authLangLabel) m_authLangLabel->setText(trAuth(m_authLanguage, "language"));
+    if (m_authStatusLabel && m_authStatusLabel->text().isEmpty()) {
+        m_authStatusLabel->setText(trAuth(m_authLanguage, "status"));
+    }
+    if (m_ruButton) m_ruButton->setObjectName(m_authLanguage == "ru" ? "LangButtonActive" : "LangButton");
+    if (m_deButton) m_deButton->setObjectName(m_authLanguage == "de" ? "LangButtonActive" : "LangButton");
+    if (m_enButton) m_enButton->setObjectName(m_authLanguage == "en" ? "LangButtonActive" : "LangButton");
+    for (auto *btn : {m_ruButton, m_deButton, m_enButton}) {
+        if (!btn) continue;
+        btn->style()->unpolish(btn);
+        btn->style()->polish(btn);
+    }
 }
 
 void MainWindow::loadAuthenticatedData()
@@ -523,6 +724,9 @@ void MainWindow::sendComposerText()
 
 void MainWindow::setStatusText(const QString &text)
 {
+    if (m_authStatusLabel && m_stack && m_stack->currentWidget() == m_authPage) {
+        m_authStatusLabel->setText(text);
+    }
     if (m_statusLabel) {
         m_statusLabel->setText(text);
     }

@@ -40,6 +40,15 @@ void ApiClient::login(const QString &login, const QString &password)
     postJson("/api/login", payload);
 }
 
+void ApiClient::registerAccount(const QString &email, const QString &username, const QString &password)
+{
+    QJsonObject payload;
+    payload.insert("email", email.trimmed());
+    payload.insert("username", username.trimmed());
+    payload.insert("password", password);
+    postJson("/api/register", payload);
+}
+
 void ApiClient::logout()
 {
     postJson("/api/logout", {});

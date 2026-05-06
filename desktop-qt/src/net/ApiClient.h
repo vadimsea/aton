@@ -18,6 +18,7 @@ public:
     QUrl apiBaseUrl() const;
     void getHealth();
     void login(const QString &login, const QString &password);
+    void registerAccount(const QString &email, const QString &username, const QString &password);
     void logout();
     void getMe();
     void getChats();
