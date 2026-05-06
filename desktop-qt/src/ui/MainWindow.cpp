@@ -10,6 +10,9 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QMap>
+#include <QPainter>
+#include <QPainterPath>
+#include <QPixmap>
 #include <QPushButton>
 #include <QSplitter>
 #include <QStackedWidget>
@@ -63,6 +66,104 @@ QString directChatIdForUsers(QString a, QString b)
 {
     if (a > b) std::swap(a, b);
     return QString("%1|%2").arg(a, b);
+}
+
+QPixmap makeFlagPixmap(const QString &lang)
+{
+    QPixmap pixmap(36, 36);
+    pixmap.fill(Qt::transparent);
+
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    QPainterPath circle;
+    circle.addEllipse(2, 2, 32, 32);
+    painter.setClipPath(circle);
+    painter.fillPath(circle, Qt::white);
+
+    QRectF r(5, 9, 26, 18);
+    if (lang == "ru") {
+        painter.fillRect(r.adjusted(0, 0, 0, -12), QColor("#ffffff"));
+        painter.fillRect(r.adjusted(0, 6, 0, -6), QColor("#1d4ed8"));
+        painter.fillRect(r.adjusted(0, 12, 0, 0), QColor("#dc2626"));
+    } else if (lang == "de") {
+        painter.fillRect(r.adjusted(0, 0, 0, -12), QColor("#111827"));
+        painter.fillRect(r.adjusted(0, 6, 0, -6), QColor("#dc2626"));
+        painter.fillRect(r.adjusted(0, 12, 0, 0), QColor("#facc15"));
+    } else {
+        painter.fillRect(r, QColor("#1d4ed8"));
+
+        QPen whitePen(Qt::white, 5.0, Qt::SolidLine, Qt::SquareCap);
+        painter.setPen(whitePen);
+        painter.drawLine(r.topLeft(), r.bottomRight());
+        painter.drawLine(r.bottomLeft(), r.topRight());
+
+        QPen redDiag(QColor("#dc2626"), 2.2, Qt::SolidLine, Qt::SquareCap);
+        painter.setPen(redDiag);
+        painter.drawLine(r.topLeft(), r.bottomRight());
+        painter.drawLine(r.bottomLeft(), r.topRight());
+
+        painter.setPen(Qt::NoPen);
+        painter.fillRect(QRectF(r.left(), r.center().y() - 3, r.width(), 6), Qt::white);
+        painter.fillRect(QRectF(r.center().x() - 3, r.top(), 6, r.height()), Qt::white);
+        painter.fillRect(QRectF(r.left(), r.center().y() - 1.6, r.width(), 3.2), QColor("#dc2626"));
+        painter.fillRect(QRectF(r.center().x() - 1.6, r.top(), 3.2, r.height()), QColor("#dc2626"));
+    }
+
+    painter.setClipping(false);
+    painter.setPen(QPen(QColor("#cbd5e1"), 1));
+    painter.drawEllipse(QRectF(2.5, 2.5, 31, 31));
+    return pixmap;
+}
+
+QPixmap makeAtenMarkPixmap(int size, bool glow)
+{
+    QPixmap pixmap(size, size);
+    pixmap.fill(Qt::transparent);
+
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    const qreal center = size / 2.0;
+    if (glow) {
+        QRadialGradient glowGradient(center, center, size * 0.48);
+        glowGradient.setColorAt(0.0, QColor(245, 158, 11, 74));
+        glowGradient.setColorAt(0.44, QColor(245, 158, 11, 34));
+        glowGradient.setColorAt(1.0, QColor(245, 158, 11, 0));
+        painter.setBrush(glowGradient);
+        painter.setPen(Qt::NoPen);
+        painter.drawEllipse(QRectF(size * 0.03, size * 0.03, size * 0.94, size * 0.94));
+    }
+
+    const qreal outer = size * (glow ? 0.25 : 0.07);
+    const qreal outerSize = size - outer * 2;
+    QRectF outerRect(outer, outer, outerSize, outerSize);
+    QRadialGradient ringGradient(outerRect.left() + outerSize * 0.34, outerRect.top() + outerSize * 0.3, outerSize * 0.82);
+    ringGradient.setColorAt(0.0, QColor("#fef3c7"));
+    ringGradient.setColorAt(0.28, QColor("#f59e0b"));
+    ringGradient.setColorAt(0.58, QColor("#ea580c"));
+    ringGradient.setColorAt(0.78, QColor("#38bdf8"));
+    ringGradient.setColorAt(1.0, QColor("#0f766e"));
+    painter.setBrush(ringGradient);
+    painter.setPen(Qt::NoPen);
+    painter.drawEllipse(outerRect);
+
+    const qreal innerSize = outerSize * 0.64;
+    QRectF innerRect(center - innerSize / 2, center - innerSize / 2, innerSize, innerSize);
+    QRadialGradient sunGradient(innerRect.left() + innerSize * 0.42, innerRect.top() + innerSize * 0.24, innerSize * 0.78);
+    sunGradient.setColorAt(0.0, QColor("#fed7aa"));
+    sunGradient.setColorAt(0.42, QColor("#fb923c"));
+    sunGradient.setColorAt(1.0, QColor("#c2410c"));
+    painter.setBrush(sunGradient);
+    painter.drawEllipse(innerRect);
+
+    QRadialGradient highlight(innerRect.left() + innerSize * 0.32, innerRect.top() + innerSize * 0.24, innerSize * 0.22);
+    highlight.setColorAt(0.0, QColor(255, 255, 255, 120));
+    highlight.setColorAt(1.0, QColor(255, 255, 255, 0));
+    painter.setBrush(highlight);
+    painter.drawEllipse(QRectF(innerRect.left() + innerSize * 0.16, innerRect.top() + innerSize * 0.08, innerSize * 0.34, innerSize * 0.34));
+
+    return pixmap;
 }
 
 QString trAuth(const QString &lang, const QString &key)
@@ -156,6 +257,8 @@ QWidget *MainWindow::buildAuthPage()
     auto *logo = new QLabel(brandRow);
     logo->setObjectName("AtenLogo");
     logo->setFixedSize(38, 38);
+    logo->setPixmap(makeAtenMarkPixmap(38, false));
+    logo->setScaledContents(true);
     auto *brandText = new QWidget(brandRow);
     auto *brandTextLayout = new QVBoxLayout(brandText);
     brandTextLayout->setContentsMargins(0, 0, 0, 0);
@@ -246,9 +349,16 @@ QWidget *MainWindow::buildAuthPage()
     auto *langButtonsLayout = new QHBoxLayout(langButtons);
     langButtonsLayout->setContentsMargins(0, 0, 0, 0);
     langButtonsLayout->setSpacing(8);
-    m_ruButton = new QPushButton("🇷🇺", langButtons);
-    m_deButton = new QPushButton("🇩🇪", langButtons);
-    m_enButton = new QPushButton("🇬🇧", langButtons);
+    m_ruButton = new QPushButton(langButtons);
+    m_deButton = new QPushButton(langButtons);
+    m_enButton = new QPushButton(langButtons);
+    m_ruButton->setIcon(QIcon(makeFlagPixmap("ru")));
+    m_deButton->setIcon(QIcon(makeFlagPixmap("de")));
+    m_enButton->setIcon(QIcon(makeFlagPixmap("en")));
+    for (auto *btn : {m_ruButton, m_deButton, m_enButton}) {
+        btn->setIconSize(QSize(34, 34));
+        btn->setCursor(Qt::PointingHandCursor);
+    }
     langButtonsLayout->addWidget(m_ruButton);
     langButtonsLayout->addWidget(m_deButton);
     langButtonsLayout->addWidget(m_enButton);
@@ -289,26 +399,28 @@ QWidget *MainWindow::buildAuthPage()
 
     auto *hero = new QWidget(main);
     auto *heroLayout = new QVBoxLayout(hero);
-    heroLayout->setContentsMargins(64, 24, 64, 72);
-    heroLayout->setSpacing(16);
+    heroLayout->setContentsMargins(64, 18, 64, 96);
+    heroLayout->setSpacing(12);
     heroLayout->setAlignment(Qt::AlignCenter);
     auto *heroLogo = new QLabel(hero);
     heroLogo->setObjectName("AtenHeroLogo");
-    heroLogo->setFixedSize(276, 276);
+    heroLogo->setFixedSize(360, 360);
     heroLogo->setAlignment(Qt::AlignCenter);
+    heroLogo->setPixmap(makeAtenMarkPixmap(360, true));
+    heroLogo->setScaledContents(true);
     m_authHeroEyebrowLabel = new QLabel(hero);
     m_authHeroEyebrowLabel->setObjectName("HeroEyebrow");
     m_authHeroEyebrowLabel->setAlignment(Qt::AlignCenter);
     m_authInfoTitleLabel = new QLabel(hero);
     auto infoFont = m_authInfoTitleLabel->font();
-    infoFont.setPointSize(24);
+    infoFont.setPointSize(25);
     infoFont.setBold(true);
     m_authInfoTitleLabel->setFont(infoFont);
     m_authInfoTitleLabel->setAlignment(Qt::AlignCenter);
     m_authInfoTextLabel = new QLabel(hero);
     m_authInfoTextLabel->setObjectName("HeroText");
     m_authInfoTextLabel->setWordWrap(true);
-    m_authInfoTextLabel->setMaximumWidth(720);
+    m_authInfoTextLabel->setMaximumWidth(760);
     m_authInfoTextLabel->setAlignment(Qt::AlignCenter);
     heroLayout->addStretch(1);
     heroLayout->addWidget(heroLogo, 0, Qt::AlignCenter);
