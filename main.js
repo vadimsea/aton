@@ -7219,9 +7219,29 @@ function openImageLightbox(src) {
   if (existing) existing.remove();
   const overlay = document.createElement("div");
   overlay.className = "aton-image-lightbox";
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "aton-image-lightbox-close";
+  closeBtn.setAttribute("aria-label", t("Закрыть"));
+  closeBtn.textContent = "×";
   const img = document.createElement("img");
   img.src = src;
+  const close = () => {
+    document.removeEventListener("keydown", onKeydown);
+    overlay.remove();
+  };
+  const onKeydown = (event) => {
+    if (event.key === "Escape") close();
+  };
+  closeBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    close();
+  });
   overlay.appendChild(img);
-  overlay.addEventListener("click", () => overlay.remove());
+  overlay.appendChild(closeBtn);
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) close();
+  });
+  document.addEventListener("keydown", onKeydown);
   document.body.appendChild(overlay);
 }
