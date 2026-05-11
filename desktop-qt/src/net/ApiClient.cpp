@@ -64,6 +64,11 @@ void ApiClient::getChats()
     getJson("/api/chats");
 }
 
+void ApiClient::getContacts()
+{
+    getJson("/api/contacts");
+}
+
 void ApiClient::getMessagesAll()
 {
     getJson("/api/messages/all");
@@ -82,6 +87,15 @@ void ApiClient::sendTextMessage(const QString &chatId, const QString &text)
     payload.insert("type", "text");
     payload.insert("text", text);
     postJson("/api/messages", payload);
+}
+
+void ApiClient::updateProfile(const QString &displayName, const QString &bio, const QString &publicId)
+{
+    QJsonObject payload;
+    payload.insert("displayName", displayName.trimmed());
+    payload.insert("bio", bio.trimmed());
+    payload.insert("publicId", publicId.trimmed());
+    postJson("/api/profile", payload);
 }
 
 void ApiClient::getJson(const QString &endpoint)

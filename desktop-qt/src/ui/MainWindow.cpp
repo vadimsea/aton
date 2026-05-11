@@ -3,8 +3,11 @@
 #include <algorithm>
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QFile>
+#include <QFormLayout>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QJsonArray>
@@ -26,6 +29,7 @@
 #include <QStatusBar>
 #include <QStyle>
 #include <QTextOption>
+#include <QTextEdit>
 #include <QUrl>
 #include <QUuid>
 #include <QVBoxLayout>
@@ -774,6 +778,30 @@ QWidget *MainWindow::buildMessengerPage()
     chatCopyLayout->addWidget(m_chatTitleLabel);
     chatCopyLayout->addWidget(m_statusLabel);
     headerLayout->addWidget(chatCopy, 1);
+    auto *profileButton = makeToolbarButton("✎", header);
+    profileButton->setToolTip("Редактировать профиль");
+    connect(profileButton, &QPushButton::clicked, this, &MainWindow::showProfileDialog);
+    auto *friendsButton = makeToolbarButton("👥", header);
+    friendsButton->setToolTip("Друзья, заявки и блокировки");
+    connect(friendsButton, &QPushButton::clicked, this, [this]() {
+        if (!m_apiClient) return;
+        setStatusText("Загрузка контактов...");
+        m_apiClient->getContacts();
+    });
+    auto *themeButton = makeToolbarButton("☼", header);
+    themeButton->setToolTip("Тема интерфейса");
+    connect(themeButton, &QPushButton::clicked, this, [this]() { showNotReady("Переключение темы"); });
+    auto *menuButton = makeToolbarButton("☰", header);
+    menuButton->setToolTip("Меню");
+    connect(menuButton, &QPushButton::clicked, this, [this]() { showNotReady("Меню desktop-клиента"); });
+    auto *securityButton = makeToolbarButton("🛡", header);
+    securityButton->setToolTip("Безопасность");
+    connect(securityButton, &QPushButton::clicked, this, [this]() { showNotReady("Безопасность"); });
+    headerLayout->addWidget(profileButton);
+    headerLayout->addWidget(friendsButton);
+    headerLayout->addWidget(themeButton);
+    headerLayout->addWidget(menuButton);
+    headerLayout->addWidget(securityButton);
     m_userPillButton = new QPushButton("●  Akhenaten ✓", header);
     m_userPillButton->setObjectName("UserPillButton");
     m_userPillButton->setCursor(Qt::PointingHandCursor);
@@ -874,6 +902,7 @@ void MainWindow::wireApi()
         if (endpoint == "/api/me") {
             const auto obj = body.object();
             const auto userObj = obj.value("user").toObject(obj);
+            m_currentUser = userObj;
             m_currentUsername = userObj.value("username").toString();
             const auto name = userObj.value("displayName").toString(m_currentUsername.isEmpty() ? "ATEN user" : m_currentUsername);
             if (m_accountLabel) {
@@ -884,6 +913,20 @@ void MainWindow::wireApi()
             }
             setStatusText(QString("Signed in as %1").arg(name));
             renderSidebar();
+            return;
+        }
+        if (endpoint == "/api/profile") {
+            m_currentUser = body.object();
+            m_currentUsername = m_currentUser.value("username").toString(m_currentUsername);
+            const auto name = m_currentUser.value("displayName").toString(m_currentUsername);
+            if (m_accountLabel) m_accountLabel->setText(name);
+            if (m_userPillButton) m_userPillButton->setText(QString("●  %1 ✓").arg(name));
+            setStatusText("Профиль сохранён");
+            return;
+        }
+        if (endpoint == "/api/contacts") {
+            showContactsDialog(body);
+            setStatusText("Контакты загружены");
             return;
         }
         if (endpoint == "/api/chats") {
@@ -1194,6 +1237,102 @@ void MainWindow::renderMessages(const QJsonDocument &body)
         m_messageList->setItemWidget(item, row);
     }
     m_messageList->scrollToBottom();
+}
+
+void MainWindow::showProfileDialog()
+{
+    if (m_currentUser.isEmpty()) {
+        setStatusText("Профиль ещё загружается");
+        return;
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle("Профиль пользователя");
+    dialog.setMinimumWidth(460);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout();
+    form->setLabelAlignment(Qt::AlignLeft);
+
+    auto *email = new QLineEdit(m_currentUser.value("email").toString(), &dialog);
+    email->setReadOnly(true);
+    auto *name = new QLineEdit(m_currentUser.value("displayName").toString(m_currentUsername), &dialog);
+    auto *publicId = new QLineEdit(m_currentUser.value("publicId").toString(m_currentUsername), &dialog);
+    auto *bio = new QTextEdit(m_currentUser.value("bio").toString(), &dialog);
+    bio->setFixedHeight(86);
+
+    const auto verified = m_currentUser.value("isVerified").toBool(m_currentUser.value("verified").toBool());
+    auto *verifiedLabel = new QLabel(verified ? "Профиль верифицирован ✓" : "Профиль не верифицирован", &dialog);
+    verifiedLabel->setObjectName("MutedText");
+
+    form->addRow("Email аккаунта", email);
+    form->addRow("Отображаемое имя", name);
+    form->addRow("ID профиля", publicId);
+    form->addRow("Статус", bio);
+    form->addRow("Верификация", verifiedLabel);
+    layout->addLayout(form);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
+    buttons->button(QDialogButtonBox::Save)->setText("Сохранить");
+    buttons->button(QDialogButtonBox::Cancel)->setText("Отмена");
+    layout->addWidget(buttons);
+
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, [&]() {
+        if (m_apiClient) {
+            m_apiClient->updateProfile(name->text(), bio->toPlainText(), publicId->text());
+            setStatusText("Сохранение профиля...");
+        }
+        dialog.accept();
+    });
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    dialog.exec();
+}
+
+void MainWindow::showContactsDialog(const QJsonDocument &body)
+{
+    const auto obj = body.object();
+    QDialog dialog(this);
+    dialog.setWindowTitle("Друзья и контакты");
+    dialog.setMinimumSize(520, 520);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    auto addSection = [&](const QString &title, const QJsonArray &items) {
+        auto *sectionTitle = new QLabel(QString("%1 (%2)").arg(title).arg(items.size()), &dialog);
+        sectionTitle->setObjectName("SidebarSectionLabel");
+        layout->addWidget(sectionTitle);
+
+        if (items.isEmpty()) {
+            auto *empty = new QLabel("Пусто", &dialog);
+            empty->setObjectName("MutedText");
+            layout->addWidget(empty);
+            return;
+        }
+
+        for (const auto &value : items) {
+            const auto user = value.toObject();
+            const auto display = user.value("displayName").toString(user.value("username").toString());
+            const auto handle = user.value("publicId").toString(user.value("username").toString());
+            auto *row = new QLabel(QString("%1  @%2").arg(display, handle), &dialog);
+            row->setTextFormat(Qt::PlainText);
+            layout->addWidget(row);
+        }
+    };
+
+    addSection("Входящие заявки", obj.value("requestsIn").toArray());
+    addSection("Исходящие заявки", obj.value("requestsOut").toArray());
+    addSection("Друзья", obj.value("friends").toArray());
+    addSection("Заблокированные", obj.value("blocked").toArray());
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    buttons->button(QDialogButtonBox::Close)->setText("Закрыть");
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    dialog.exec();
+}
+
+void MainWindow::showNotReady(const QString &title)
+{
+    setStatusText(QString("%1: будет подключено в следующем проходе").arg(title));
 }
 
 void MainWindow::openSelectedChat()

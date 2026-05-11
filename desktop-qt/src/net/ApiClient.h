@@ -22,8 +22,10 @@ public:
     void logout();
     void getMe();
     void getChats();
+    void getContacts();
     void getMessagesAll();
     void getMessages(const QString &chatId);
+    void updateProfile(const QString &displayName, const QString &bio, const QString &publicId);
     void sendTextMessage(const QString &chatId, const QString &text);
 
 signals:

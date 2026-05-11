@@ -2,6 +2,7 @@
 
 #include <QMainWindow>
 #include <QJsonArray>
+#include <QJsonObject>
 #include <QMap>
 
 class QLabel;
@@ -37,6 +38,9 @@ private:
     void renderMessagesAll(const QJsonDocument &body);
     void renderSidebar();
     void renderMessages(const QJsonDocument &body);
+    void showProfileDialog();
+    void showContactsDialog(const QJsonDocument &body);
+    void showNotReady(const QString &title);
     void openSelectedChat();
     void sendComposerText();
     void setStatusText(const QString &text);
@@ -83,6 +87,7 @@ private:
     QPushButton *m_userPillButton = nullptr;
     QString m_currentChatId;
     QString m_currentUsername;
+    QJsonObject m_currentUser;
     QString m_chatFilter;
     QString m_authLanguage = "ru";
     bool m_registerMode = false;
