@@ -132,6 +132,11 @@ QString Theme::styleSheet()
             padding: 0 12px;
             font-size: 13px;
         }
+        QPushButton#SmallPillButton:disabled {
+            background: #f8fafc;
+            border-color: #dbe4ef;
+            color: #94a3b8;
+        }
         QLineEdit#ChatSearch {
             min-height: 32px;
             max-height: 32px;
@@ -202,6 +207,9 @@ QString Theme::styleSheet()
             background: #ffffff;
             border-bottom: 1px solid #dbe4ef;
         }
+        #ChatHeader QLabel {
+            background: transparent;
+        }
         #ChatSubtitle {
             color: #10b981;
             font-size: 14px;
@@ -225,6 +233,10 @@ QString Theme::styleSheet()
             border: 1px solid #dbe4ef;
             color: #172033;
             padding: 0 14px;
+        }
+        QPushButton#UserPillButton:hover {
+            background: #eef4ff;
+            border-color: #bfdbfe;
         }
         QListWidget#MessageList {
             background: #ffffff;
@@ -280,6 +292,35 @@ QString Theme::styleSheet()
             padding: 0;
             font-size: 22px;
         }
+        QPushButton#RoundComposerButton:disabled {
+            background: #f1f5f9;
+            border-color: #dbe4ef;
+            color: #94a3b8;
+        }
+        QScrollBar:vertical {
+            background: #f8fafc;
+            width: 12px;
+            margin: 0;
+            border: 0;
+        }
+        QScrollBar::handle:vertical {
+            background: #cbd5e1;
+            min-height: 36px;
+            border-radius: 6px;
+        }
+        QScrollBar::handle:vertical:hover {
+            background: #94a3b8;
+        }
+        QScrollBar::add-line:vertical,
+        QScrollBar::sub-line:vertical {
+            height: 0;
+            background: transparent;
+            border: 0;
+        }
+        QScrollBar::add-page:vertical,
+        QScrollBar::sub-page:vertical {
+            background: transparent;
+        }
         QListWidget {
             border: 0;
             background: transparent;
@@ -310,6 +351,11 @@ QString Theme::styleSheet()
             background: #edf4ff;
             color: #2563eb;
             font-weight: 700;
+        }
+        QPushButton:disabled {
+            background: #f8fafc;
+            border-color: #dbe4ef;
+            color: #94a3b8;
         }
         QPushButton#PrimaryButton {
             min-height: 60px;

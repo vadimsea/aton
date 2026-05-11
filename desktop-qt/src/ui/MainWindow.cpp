@@ -44,10 +44,10 @@ struct ChatRow {
 QString messagePreview(const QJsonObject &msg)
 {
     const auto type = msg.value("type").toString("text");
-    if (type == "image") return "[image]";
-    if (type == "audio") return "[voice message]";
+    if (type == "image") return "Фото";
+    if (type == "audio") return "Голосовое сообщение";
     const auto text = msg.value("text").toString().simplified();
-    if (text.isEmpty()) return "[message]";
+    if (text.isEmpty()) return "Сообщение";
     return text.size() > 52 ? text.left(49) + "..." : text;
 }
 
@@ -69,8 +69,8 @@ QString peerFromDirectChatId(const QString &chatId, const QString &me)
 {
     const auto parts = chatId.split("|");
     if (parts.size() != 2) return {};
-    if (parts[0] == me) return parts[1];
-    if (parts[1] == me) return parts[0];
+    if (parts[0].compare(me, Qt::CaseInsensitive) == 0) return parts[1];
+    if (parts[1].compare(me, Qt::CaseInsensitive) == 0) return parts[0];
     return {};
 }
 
@@ -178,7 +178,7 @@ QPixmap makeAtenMarkPixmap(int size, bool glow)
     return pixmap;
 }
 
-QWidget *makeToolbarButton(const QString &text, QWidget *parent)
+QPushButton *makeToolbarButton(const QString &text, QWidget *parent)
 {
     auto *button = new QPushButton(text, parent);
     button->setObjectName("HeaderIconButton");
@@ -238,9 +238,9 @@ QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUser
     if (type == "text") {
         text = msg.value("text").toString();
     } else if (type == "image") {
-        text = "[image]";
+        text = "Фото";
     } else if (type == "audio") {
-        text = "[voice message]";
+        text = "Голосовое сообщение";
     } else {
         text = QString("[%1]").arg(type);
     }
@@ -598,15 +598,16 @@ QWidget *MainWindow::buildMessengerPage()
     chatsLabel->setObjectName("SidebarSectionLabel");
     auto *newGroupButton = new QPushButton("+ группа", chatTools);
     newGroupButton->setObjectName("SmallPillButton");
-    newGroupButton->setCursor(Qt::PointingHandCursor);
+    newGroupButton->setEnabled(false);
+    newGroupButton->setToolTip("Создание групп в desktop-клиенте ещё не подключено. Используйте веб-версию.");
     chatToolsLayout->addWidget(chatsLabel, 1);
     chatToolsLayout->addWidget(newGroupButton);
     sidebarLayout->addWidget(chatTools);
 
-    auto *search = new QLineEdit(sidebar);
-    search->setObjectName("ChatSearch");
-    search->setPlaceholderText("Поиск по имени или @username...");
-    sidebarLayout->addWidget(search);
+    m_chatSearch = new QLineEdit(sidebar);
+    m_chatSearch->setObjectName("ChatSearch");
+    m_chatSearch->setPlaceholderText("Поиск по имени или @username...");
+    sidebarLayout->addWidget(m_chatSearch);
 
     m_chatList = new QListWidget(sidebar);
     m_chatList->setObjectName("ChatList");
@@ -622,13 +623,10 @@ QWidget *MainWindow::buildMessengerPage()
     auto *footerLayout = new QVBoxLayout(sidebarFooter);
     footerLayout->setContentsMargins(12, 10, 12, 0);
     footerLayout->setSpacing(8);
-    auto *profileLink = new QLabel("Профиль: настроить имя, статус и аватар", sidebarFooter);
-    profileLink->setObjectName("ProfileFooterLink");
     m_accountLabel = new QLabel("Akhenaten", sidebarFooter);
     m_accountLabel->setObjectName("MutedText");
     auto *logoutButton = new QPushButton("Выйти", sidebarFooter);
     logoutButton->setObjectName("SidebarLogoutButton");
-    footerLayout->addWidget(profileLink);
     footerLayout->addWidget(m_accountLabel);
     footerLayout->addWidget(logoutButton);
     sidebarLayout->addWidget(sidebarFooter);
@@ -667,15 +665,13 @@ QWidget *MainWindow::buildMessengerPage()
     chatCopyLayout->addWidget(m_chatTitleLabel);
     chatCopyLayout->addWidget(m_statusLabel);
     headerLayout->addWidget(chatCopy, 1);
-    headerLayout->addWidget(makeToolbarButton("🔔", header));
-    headerLayout->addWidget(makeToolbarButton("👥", header));
-    headerLayout->addWidget(makeToolbarButton("☼", header));
-    headerLayout->addWidget(makeToolbarButton("☰", header));
-    headerLayout->addWidget(makeToolbarButton("🛡", header));
-    auto *userPill = new QPushButton("●  Akhenaten ✓", header);
-    userPill->setObjectName("UserPillButton");
-    userPill->setCursor(Qt::PointingHandCursor);
-    headerLayout->addWidget(userPill);
+    m_userPillButton = new QPushButton("●  Akhenaten ✓", header);
+    m_userPillButton->setObjectName("UserPillButton");
+    m_userPillButton->setCursor(Qt::PointingHandCursor);
+    connect(m_userPillButton, &QPushButton::clicked, this, [this]() {
+        setStatusText("Профиль в desktop-клиенте будет добавлен отдельным экраном. Сейчас профиль редактируется в веб-версии.");
+    });
+    headerLayout->addWidget(m_userPillButton);
     contentLayout->addWidget(header);
 
     m_messageList = new QListWidget(content);
@@ -701,9 +697,13 @@ QWidget *MainWindow::buildMessengerPage()
     auto *attachButton = new QPushButton("📎", composerBox);
     attachButton->setObjectName("RoundComposerButton");
     attachButton->setFixedSize(50, 50);
+    attachButton->setEnabled(false);
+    attachButton->setToolTip("Вложения в desktop-клиенте ещё не подключены.");
     auto *micButton = new QPushButton("🎙", composerBox);
     micButton->setObjectName("RoundComposerButton");
     micButton->setFixedSize(50, 50);
+    micButton->setEnabled(false);
+    micButton->setToolTip("Голосовые сообщения в desktop-клиенте ещё не подключены.");
     m_sendButton = new QPushButton("ОТПРАВИТЬ", composerBox);
     m_sendButton->setObjectName("PrimaryButton");
     composerLayout->addWidget(m_composer, 1);
@@ -714,6 +714,10 @@ QWidget *MainWindow::buildMessengerPage()
     contentLayout->addWidget(composer);
     connect(m_sendButton, &QPushButton::clicked, this, &MainWindow::sendComposerText);
     connect(m_composer, &QLineEdit::returnPressed, this, &MainWindow::sendComposerText);
+    connect(m_chatSearch, &QLineEdit::textChanged, this, [this](const QString &text) {
+        m_chatFilter = text.trimmed();
+        renderSidebar();
+    });
 
     splitter->addWidget(sidebar);
     splitter->addWidget(content);
@@ -766,7 +770,11 @@ void MainWindow::wireApi()
             if (m_accountLabel) {
                 m_accountLabel->setText(name);
             }
+            if (m_userPillButton) {
+                m_userPillButton->setText(QString("●  %1 ✓").arg(name));
+            }
             setStatusText(QString("Signed in as %1").arg(name));
+            renderSidebar();
             return;
         }
         if (endpoint == "/api/chats") {
@@ -991,7 +999,12 @@ void MainWindow::renderSidebar()
             auto row = rowsById.value(chatId);
             if (row.id.isEmpty()) {
                 const auto peer = peerFromDirectChatId(chatId, m_currentUsername);
-                row = ChatRow{chatId, peer.isEmpty() ? chatId : peer, "private", {}, {}};
+                auto title = peer;
+                if (title.isEmpty()) {
+                    const auto parts = chatId.split("|");
+                    title = parts.isEmpty() ? chatId : parts.last();
+                }
+                row = ChatRow{chatId, title, "private", {}, {}};
             }
             if (row.lastTime.isEmpty() || lastTime >= row.lastTime) {
                 row.preview = preview;
@@ -1025,18 +1038,30 @@ void MainWindow::renderSidebar()
     }
 
     int selectedRow = 0;
+    int visibleRow = 0;
     for (int i = 0; i < rows.size(); ++i) {
         const auto &row = rows[i];
+        if (!m_chatFilter.isEmpty()) {
+            const auto haystack = QString("%1 %2 %3").arg(row.title, row.type, row.preview);
+            if (!haystack.contains(m_chatFilter, Qt::CaseInsensitive)) {
+                continue;
+            }
+        }
         auto *item = new QListWidgetItem();
         item->setData(Qt::UserRole, row.id);
         item->setData(Qt::UserRole + 1, row.title);
         item->setSizeHint(QSize(340, 88));
         m_chatList->addItem(item);
         m_chatList->setItemWidget(item, makeChatRowWidget(row, m_chatList));
-        if (row.id == previousChatId) selectedRow = i;
+        if (row.id == previousChatId) selectedRow = visibleRow;
+        ++visibleRow;
+    }
+    if (m_chatList->count() == 0) {
+        m_chatList->addItem("Ничего не найдено");
+        return;
     }
     if (m_chatList->count() > 0) {
-        m_chatList->setCurrentRow(selectedRow);
+        m_chatList->setCurrentRow(std::min(selectedRow, m_chatList->count() - 1));
     }
 }
 

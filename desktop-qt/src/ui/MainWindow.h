@@ -75,12 +75,15 @@ private:
     QLabel *m_chatTitleLabel = nullptr;
     QLabel *m_statusLabel = nullptr;
     QLabel *m_accountLabel = nullptr;
+    QLineEdit *m_chatSearch = nullptr;
     QListWidget *m_chatList = nullptr;
     QListWidget *m_messageList = nullptr;
     QLineEdit *m_composer = nullptr;
     QPushButton *m_sendButton = nullptr;
+    QPushButton *m_userPillButton = nullptr;
     QString m_currentChatId;
     QString m_currentUsername;
+    QString m_chatFilter;
     QString m_authLanguage = "ru";
     bool m_registerMode = false;
     QJsonArray m_groupChats;
