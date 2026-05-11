@@ -103,6 +103,21 @@ void ApiClient::updateProfile(const QString &displayName, const QString &bio, co
     postJson("/api/profile", payload);
 }
 
+void ApiClient::updatePeerAlias(const QString &peerUsername, const QString &alias)
+{
+    QJsonObject payload;
+    payload.insert("peerUsername", peerUsername.trimmed());
+    payload.insert("alias", alias.trimmed());
+    putJson("/api/peer-alias", payload);
+}
+
+void ApiClient::contactAction(const QString &endpoint, const QString &username)
+{
+    QJsonObject payload;
+    payload.insert("username", username.trimmed());
+    postJson(endpoint, payload);
+}
+
 void ApiClient::getJson(const QString &endpoint)
 {
     auto *reply = m_network.get(makeRequest(endpoint));
@@ -112,6 +127,12 @@ void ApiClient::getJson(const QString &endpoint)
 void ApiClient::postJson(const QString &endpoint, const QJsonObject &payload)
 {
     auto *reply = m_network.post(makeRequest(endpoint), QJsonDocument(payload).toJson(QJsonDocument::Compact));
+    connect(reply, &QNetworkReply::finished, this, [this, reply, endpoint]() { handleReply(reply, endpoint); });
+}
+
+void ApiClient::putJson(const QString &endpoint, const QJsonObject &payload)
+{
+    auto *reply = m_network.put(makeRequest(endpoint), QJsonDocument(payload).toJson(QJsonDocument::Compact));
     connect(reply, &QNetworkReply::finished, this, [this, reply, endpoint]() { handleReply(reply, endpoint); });
 }
 

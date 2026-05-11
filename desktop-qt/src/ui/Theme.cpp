@@ -236,6 +236,41 @@ QString Theme::styleSheet()
             background: #eef4ff;
             border-color: #bfdbfe;
         }
+        #PeerActionBar {
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        QPushButton#PeerActionButton {
+            min-height: 30px;
+            padding: 0 16px;
+            border-radius: 10px;
+            background: #ffffff;
+            border: 1px solid #dbe4ef;
+            color: #172033;
+            font-size: 13px;
+        }
+        QPushButton#PeerActionButton:hover,
+        QPushButton#PeerIconButton:hover {
+            background: #eef5ff;
+            border-color: #a9c7ff;
+        }
+        QPushButton#PeerActionButton:disabled {
+            color: #64748b;
+            background: transparent;
+            border-color: transparent;
+        }
+        QPushButton#PeerIconButton {
+            min-width: 48px;
+            max-width: 48px;
+            min-height: 48px;
+            max-height: 48px;
+            border-radius: 11px;
+            background: #eef5ff;
+            border: 1px solid #b7d0ff;
+            color: #2563eb;
+            font-size: 21px;
+            padding: 0;
+        }
         QListWidget#MessageList {
             background: #ffffff;
             padding: 12px 18px 10px 0;
@@ -283,11 +318,11 @@ QString Theme::styleSheet()
             font-size: 16px;
         }
         QPushButton#VoicePlayButton {
-            min-width: 42px;
-            max-width: 42px;
-            min-height: 42px;
-            max-height: 42px;
-            border-radius: 21px;
+            min-width: 46px;
+            max-width: 46px;
+            min-height: 46px;
+            max-height: 46px;
+            border-radius: 23px;
             background: #ffffff;
             border: 1px solid #bfdbfe;
             color: #2563eb;

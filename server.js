@@ -2172,6 +2172,23 @@ app.get("/api/dialogs", authMiddleware, requireVerified, async (req, res) => {
       select: MESSAGE_BOOTSTRAP_SELECT,
     });
 
+    const peerNames = new Set();
+    for (const raw of messageRows) {
+      const msg = messageFromPrismaRow(raw);
+      let chatId = msg.chatId;
+      if (!chatId && msg.from && msg.to) chatId = dmChatIdForUsernames(msg.from, msg.to);
+      if (chatId && isDirectMessageChatId(chatId)) {
+        const peer = dmPeerFromChatId(chatId, username) || chatId.split("|").find((part) => part !== username);
+        if (peer) peerNames.add(peer);
+      }
+    }
+    const peerUsersByUsername = await loadUsersByUsernameMap([...peerNames]);
+    const aliases = req.user.peerAliases && typeof req.user.peerAliases === "object" ? req.user.peerAliases : {};
+    const peerTitle = (peer) => {
+      const peerUser = peerUsersByUsername[peer];
+      return aliases[peer] || (peerUser && (peerUser.displayName || peerUser.publicId)) || peer;
+    };
+
     for (const raw of messageRows) {
       const msg = messageFromPrismaRow(raw);
       let chatId = msg.chatId;
@@ -2181,7 +2198,19 @@ app.get("/api/dialogs", authMiddleware, requireVerified, async (req, res) => {
       let row = rowsById.get(chatId);
       if (!row && isDirectMessageChatId(chatId)) {
         const peer = dmPeerFromChatId(chatId, username) || chatId.split("|").find((part) => part !== username) || chatId;
-        row = { id: chatId, title: peer, type: "private", preview: "", lastTime: "" };
+        const peerUser = peerUsersByUsername[peer] || {};
+        row = {
+          id: chatId,
+          title: peerTitle(peer),
+          type: "private",
+          preview: "",
+          lastTime: "",
+          peerUsername: peer,
+          peerDisplayName: peerUser.displayName || peer,
+          peerPublicId: peerUser.publicId || peer,
+          peerAvatarDataUrl: peerUser.avatarDataUrl || "",
+          peerVerified: Boolean(peerUser.isVerified || peerUser.verified),
+        };
       }
       if (!row) continue;
 

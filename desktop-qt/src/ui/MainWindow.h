@@ -45,6 +45,9 @@ private:
     void openSelectedChat();
     void sendComposerText();
     void setStatusText(const QString &text);
+    void updatePeerActionBar();
+    void renameCurrentPeer();
+    QString currentPeerStatus() const;
 
     ApiClient *m_apiClient;
     SessionStore *m_sessionStore;
@@ -86,14 +89,22 @@ private:
     QLineEdit *m_composer = nullptr;
     QPushButton *m_sendButton = nullptr;
     QPushButton *m_userPillButton = nullptr;
+    QWidget *m_peerActionBar = nullptr;
+    QPushButton *m_peerRenameButton = nullptr;
+    QPushButton *m_peerBlockButton = nullptr;
+    QPushButton *m_peerFriendButton = nullptr;
+    QPushButton *m_peerNotifyButton = nullptr;
     QString m_currentChatId;
+    QString m_currentPeerUsername;
     QString m_currentUsername;
     QJsonObject m_currentUser;
+    QJsonObject m_contacts;
     QString m_chatFilter;
     QString m_authLanguage = "ru";
     bool m_registerMode = false;
     QJsonArray m_groupChats;
     QJsonArray m_allMessages;
+    bool m_contactsDialogRequested = false;
 };
 
 } // namespace aten

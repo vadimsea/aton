@@ -27,6 +27,8 @@ public:
     void getMessagesAll();
     void getMessages(const QString &chatId);
     void updateProfile(const QString &displayName, const QString &bio, const QString &publicId);
+    void updatePeerAlias(const QString &peerUsername, const QString &alias);
+    void contactAction(const QString &endpoint, const QString &username);
     void sendTextMessage(const QString &chatId, const QString &text);
 
 signals:
@@ -36,6 +38,7 @@ signals:
 private:
     void getJson(const QString &endpoint);
     void postJson(const QString &endpoint, const QJsonObject &payload);
+    void putJson(const QString &endpoint, const QJsonObject &payload);
     QNetworkRequest makeRequest(const QString &endpoint) const;
     void handleReply(QNetworkReply *reply, const QString &endpoint);
 

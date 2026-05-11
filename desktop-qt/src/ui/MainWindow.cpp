@@ -10,6 +10,7 @@
 #include <QFormLayout>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QInputDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -51,6 +52,7 @@ struct ChatRow {
     QString type;
     QString preview;
     QString lastTime;
+    QString peerUsername;
 };
 
 QString messagePreview(const QJsonObject &msg)
@@ -253,7 +255,7 @@ int messageRowHeight(const QJsonObject &msg)
 {
     const auto type = msg.value("type").toString("text");
     if (type == "image") return 320;
-    if (type == "audio") return 92;
+    if (type == "audio") return 112;
     const auto text = msg.value("text").toString();
     const auto lines = std::max(1, static_cast<int>(text.size() / 54 + 1));
     return std::clamp(72 + lines * 22, 96, 220);
@@ -349,10 +351,11 @@ QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUser
         voiceLayout->setSpacing(10);
         auto *playButton = new QPushButton(audioPath.isEmpty() ? "!" : "▶", voiceRow);
         playButton->setObjectName("VoicePlayButton");
-        playButton->setFixedSize(42, 42);
+        playButton->setFixedSize(46, 46);
         playButton->setEnabled(!audioPath.isEmpty());
         auto *label = new QLabel(audioPath.isEmpty() ? "Голосовое недоступно" : "0:00 / 0:00", voiceRow);
         label->setObjectName("VoiceMessageLabel");
+        voiceLayout->setContentsMargins(0, 2, 0, 2);
         voiceLayout->addWidget(playButton);
         voiceLayout->addWidget(label, 1);
         bubbleLayout->addWidget(voiceRow);
@@ -805,6 +808,7 @@ QWidget *MainWindow::buildMessengerPage()
     friendsButton->setToolTip("Друзья, заявки и блокировки");
     connect(friendsButton, &QPushButton::clicked, this, [this]() {
         if (!m_apiClient) return;
+        m_contactsDialogRequested = true;
         setStatusText("Загрузка контактов...");
         m_apiClient->getContacts();
     });
@@ -830,6 +834,47 @@ QWidget *MainWindow::buildMessengerPage()
     });
     headerLayout->addWidget(m_userPillButton);
     contentLayout->addWidget(header);
+
+    m_peerActionBar = new QWidget(content);
+    m_peerActionBar->setObjectName("PeerActionBar");
+    auto *peerActionLayout = new QHBoxLayout(m_peerActionBar);
+    peerActionLayout->setContentsMargins(18, 8, 18, 8);
+    peerActionLayout->setSpacing(10);
+    m_peerRenameButton = new QPushButton("✎", m_peerActionBar);
+    m_peerRenameButton->setObjectName("PeerIconButton");
+    m_peerRenameButton->setToolTip("Переименовать контакт");
+    m_peerBlockButton = new QPushButton("Заблокировать", m_peerActionBar);
+    m_peerBlockButton->setObjectName("PeerActionButton");
+    m_peerFriendButton = new QPushButton("Добавить в друзья", m_peerActionBar);
+    m_peerFriendButton->setObjectName("PeerActionButton");
+    m_peerNotifyButton = new QPushButton("🔔", m_peerActionBar);
+    m_peerNotifyButton->setObjectName("PeerIconButton");
+    m_peerNotifyButton->setToolTip("Уведомления");
+    for (auto *button : {m_peerRenameButton, m_peerBlockButton, m_peerFriendButton, m_peerNotifyButton}) {
+        button->setCursor(Qt::PointingHandCursor);
+        peerActionLayout->addWidget(button);
+    }
+    peerActionLayout->addStretch(1);
+    contentLayout->addWidget(m_peerActionBar);
+    m_peerActionBar->hide();
+
+    connect(m_peerRenameButton, &QPushButton::clicked, this, &MainWindow::renameCurrentPeer);
+    connect(m_peerBlockButton, &QPushButton::clicked, this, [this]() {
+        if (!m_apiClient || m_currentPeerUsername.isEmpty()) return;
+        const auto blocked = currentPeerStatus() == "blocked";
+        m_apiClient->contactAction(blocked ? "/api/contacts/unblock" : "/api/contacts/block", m_currentPeerUsername);
+    });
+    connect(m_peerFriendButton, &QPushButton::clicked, this, [this]() {
+        if (!m_apiClient || m_currentPeerUsername.isEmpty()) return;
+        const auto status = currentPeerStatus();
+        QString endpoint = "/api/contacts/add";
+        if (status == "incoming") endpoint = "/api/contacts/accept";
+        else if (status == "outgoing") endpoint = "/api/contacts/cancel";
+        m_apiClient->contactAction(endpoint, m_currentPeerUsername);
+    });
+    connect(m_peerNotifyButton, &QPushButton::clicked, this, [this]() {
+        setStatusText("Настройки уведомлений для чата будут синхронизированы с веб-версией отдельным проходом");
+    });
 
     m_messageList = new QListWidget(content);
     m_messageList->setObjectName("MessageList");
@@ -945,8 +990,21 @@ void MainWindow::wireApi()
             return;
         }
         if (endpoint == "/api/contacts") {
-            showContactsDialog(body);
+            m_contacts = body.object();
+            if (m_contactsDialogRequested) {
+                m_contactsDialogRequested = false;
+                showContactsDialog(body);
+            }
+            updatePeerActionBar();
             setStatusText("Контакты загружены");
+            return;
+        }
+        if (endpoint.startsWith("/api/contacts/") || endpoint == "/api/peer-alias") {
+            if (m_apiClient) {
+                m_apiClient->getContacts();
+                m_apiClient->getDialogs();
+            }
+            setStatusText("Данные чата обновлены");
             return;
         }
         if (endpoint == "/api/chats") {
@@ -1101,6 +1159,7 @@ void MainWindow::loadAuthenticatedData()
     if (!m_apiClient || !m_sessionStore || !m_sessionStore->hasToken()) return;
     m_apiClient->getMe();
     m_apiClient->getDialogs();
+    m_apiClient->getContacts();
 }
 
 void MainWindow::renderChats(const QJsonDocument &body)
@@ -1155,6 +1214,7 @@ void MainWindow::renderDialogs(const QJsonDocument &body)
             dialog.value("type").toString("private"),
             dialog.value("preview").toString(),
             dialog.value("lastTime").toString(),
+            dialog.value("peerUsername").toString(),
         };
         if (row.id.isEmpty()) continue;
         if (!m_chatFilter.isEmpty()) {
@@ -1165,6 +1225,8 @@ void MainWindow::renderDialogs(const QJsonDocument &body)
         auto *item = new QListWidgetItem();
         item->setData(Qt::UserRole, row.id);
         item->setData(Qt::UserRole + 1, row.title);
+        item->setData(Qt::UserRole + 2, row.peerUsername);
+        item->setData(Qt::UserRole + 3, row.type);
         item->setSizeHint(QSize(340, 88));
         m_chatList->addItem(item);
         m_chatList->setItemWidget(item, makeChatRowWidget(row, m_chatList));
@@ -1207,6 +1269,7 @@ void MainWindow::renderSidebar()
                                 chat.value("type").toString(id.startsWith("channel:") ? "channel" : "group"),
                                 chat.value("description").toString(),
                                 {},
+                                {},
                             });
     }
 
@@ -1232,7 +1295,7 @@ void MainWindow::renderSidebar()
                     const auto parts = chatId.split("|");
                     title = parts.isEmpty() ? chatId : parts.last();
                 }
-                row = ChatRow{chatId, title, "private", {}, {}};
+                row = ChatRow{chatId, title, "private", {}, {}, peer};
             }
             if (row.lastTime.isEmpty() || lastTime >= row.lastTime) {
                 row.preview = preview;
@@ -1278,6 +1341,8 @@ void MainWindow::renderSidebar()
         auto *item = new QListWidgetItem();
         item->setData(Qt::UserRole, row.id);
         item->setData(Qt::UserRole + 1, row.title);
+        item->setData(Qt::UserRole + 2, row.peerUsername);
+        item->setData(Qt::UserRole + 3, row.type);
         item->setSizeHint(QSize(340, 88));
         m_chatList->addItem(item);
         m_chatList->setItemWidget(item, makeChatRowWidget(row, m_chatList));
@@ -1421,19 +1486,89 @@ void MainWindow::openSelectedChat()
     if (m_stack && m_stack->currentWidget() != m_messengerPage) {
         m_stack->setCurrentWidget(m_messengerPage);
     }
+    const auto title = item->data(Qt::UserRole + 1).toString();
+    const auto peer = item->data(Qt::UserRole + 2).toString();
     if (chatId == m_currentChatId) {
+        m_currentPeerUsername = peer.isEmpty() && isDirectChatId(chatId) ? peerFromDirectChatId(chatId, m_currentUsername) : peer;
+        if (m_chatTitleLabel) {
+            m_chatTitleLabel->setText(title.isEmpty() ? "Чат" : title);
+        }
+        updatePeerActionBar();
         if (m_messageList && m_messageList->count() == 0) {
             m_apiClient->getMessages(m_currentChatId);
         }
         return;
     }
     m_currentChatId = chatId;
+    m_currentPeerUsername = peer;
+    if (m_currentPeerUsername.isEmpty() && isDirectChatId(chatId)) {
+        m_currentPeerUsername = peerFromDirectChatId(chatId, m_currentUsername);
+    }
     if (m_chatTitleLabel) {
-        const auto title = item->data(Qt::UserRole + 1).toString();
         m_chatTitleLabel->setText(title.isEmpty() ? "Чат" : title);
     }
+    updatePeerActionBar();
     setStatusText("Загрузка сообщений...");
     m_apiClient->getMessages(m_currentChatId);
+}
+
+QString MainWindow::currentPeerStatus() const
+{
+    if (m_currentPeerUsername.isEmpty()) return "none";
+    const auto containsPeer = [this](const QJsonArray &items) {
+        for (const auto &value : items) {
+            const auto user = value.toObject();
+            if (user.value("username").toString().compare(m_currentPeerUsername, Qt::CaseInsensitive) == 0) {
+                return true;
+            }
+        }
+        return false;
+    };
+    if (containsPeer(m_contacts.value("blocked").toArray())) return "blocked";
+    if (containsPeer(m_contacts.value("friends").toArray())) return "friend";
+    if (containsPeer(m_contacts.value("requestsIn").toArray())) return "incoming";
+    if (containsPeer(m_contacts.value("requestsOut").toArray())) return "outgoing";
+    return "none";
+}
+
+void MainWindow::updatePeerActionBar()
+{
+    if (!m_peerActionBar) return;
+    const auto direct = isDirectChatId(m_currentChatId) && !m_currentPeerUsername.isEmpty();
+    m_peerActionBar->setVisible(direct);
+    if (!direct) return;
+
+    const auto status = currentPeerStatus();
+    if (m_peerBlockButton) {
+        m_peerBlockButton->setText(status == "blocked" ? "Разблокировать" : "Заблокировать");
+    }
+    if (m_peerFriendButton) {
+        QString text = "Добавить в друзья";
+        if (status == "friend") text = "В друзьях";
+        else if (status == "incoming") text = "Принять заявку";
+        else if (status == "outgoing") text = "Отменить заявку";
+        else if (status == "blocked") text = "Заблокирован";
+        m_peerFriendButton->setText(text);
+        m_peerFriendButton->setEnabled(status != "friend" && status != "blocked");
+    }
+}
+
+void MainWindow::renameCurrentPeer()
+{
+    if (!m_apiClient || m_currentPeerUsername.isEmpty()) return;
+    const auto currentName = m_chatTitleLabel ? m_chatTitleLabel->text().remove(" ✓").trimmed() : QString();
+    bool ok = false;
+    const auto alias = QInputDialog::getText(
+        this,
+        "Переименовать контакт",
+        "Как показывать в чатах",
+        QLineEdit::Normal,
+        currentName,
+        &ok
+    );
+    if (!ok) return;
+    m_apiClient->updatePeerAlias(m_currentPeerUsername, alias);
+    setStatusText("Сохранение имени контакта...");
 }
 
 void MainWindow::sendComposerText()
