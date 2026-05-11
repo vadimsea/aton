@@ -1,8 +1,8 @@
 #include "ui/MainWindow.h"
 
 #include <algorithm>
+#include <QAudioOutput>
 #include <QDateTime>
-#include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -18,6 +18,7 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QMap>
+#include <QMediaPlayer>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
@@ -357,8 +358,27 @@ QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUser
         bubbleLayout->addWidget(voiceRow);
 
         if (!audioPath.isEmpty()) {
-            QObject::connect(playButton, &QPushButton::clicked, playButton, [audioPath]() {
-                QDesktopServices::openUrl(QUrl::fromLocalFile(audioPath));
+            auto *player = new QMediaPlayer(playButton);
+            auto *audioOutput = new QAudioOutput(playButton);
+            audioOutput->setVolume(1.0);
+            player->setAudioOutput(audioOutput);
+            player->setSource(QUrl::fromLocalFile(audioPath));
+
+            QObject::connect(playButton, &QPushButton::clicked, playButton, [player]() {
+                if (player->playbackState() == QMediaPlayer::PlayingState) {
+                    player->pause();
+                } else {
+                    player->play();
+                }
+            });
+            QObject::connect(player, &QMediaPlayer::playbackStateChanged, playButton, [playButton](QMediaPlayer::PlaybackState state) {
+                playButton->setText(state == QMediaPlayer::PlayingState ? "Ⅱ" : "▶");
+            });
+            QObject::connect(player, &QMediaPlayer::mediaStatusChanged, playButton, [player, playButton](QMediaPlayer::MediaStatus status) {
+                if (status == QMediaPlayer::EndOfMedia) {
+                    player->setPosition(0);
+                    playButton->setText("▶");
+                }
             });
         }
     } else {

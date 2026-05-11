@@ -13,6 +13,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 find_package(Qt6 6.5 REQUIRED COMPONENTS
   Core
   Gui
+  Multimedia
   Network
   Widgets
 )
@@ -43,6 +44,7 @@ target_include_directories(aten-desktop PRIVATE
 target_link_libraries(aten-desktop PRIVATE
   Qt6::Core
   Qt6::Gui
+  Qt6::Multimedia
   Qt6::Network
   Qt6::Widgets
 )
