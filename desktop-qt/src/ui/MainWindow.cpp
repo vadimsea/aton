@@ -244,7 +244,8 @@ QPushButton *makeToolbarButton(const QString &text, QWidget *parent)
 {
     auto *button = new QPushButton(text, parent);
     button->setObjectName("HeaderIconButton");
-    button->setFixedSize(50, 50);
+    button->setFixedHeight(50);
+    button->setMinimumWidth(text.size() > 2 ? 78 : 50);
     button->setCursor(Qt::PointingHandCursor);
     return button;
 }
@@ -798,23 +799,23 @@ QWidget *MainWindow::buildMessengerPage()
     chatCopyLayout->addWidget(m_chatTitleLabel);
     chatCopyLayout->addWidget(m_statusLabel);
     headerLayout->addWidget(chatCopy, 1);
-    auto *profileButton = makeToolbarButton("✎", header);
+    auto *profileButton = makeToolbarButton("Профиль", header);
     profileButton->setToolTip("Редактировать профиль");
     connect(profileButton, &QPushButton::clicked, this, &MainWindow::showProfileDialog);
-    auto *friendsButton = makeToolbarButton("👥", header);
+    auto *friendsButton = makeToolbarButton("Друзья", header);
     friendsButton->setToolTip("Друзья, заявки и блокировки");
     connect(friendsButton, &QPushButton::clicked, this, [this]() {
         if (!m_apiClient) return;
         setStatusText("Загрузка контактов...");
         m_apiClient->getContacts();
     });
-    auto *themeButton = makeToolbarButton("☼", header);
+    auto *themeButton = makeToolbarButton("Тема", header);
     themeButton->setToolTip("Тема интерфейса");
     connect(themeButton, &QPushButton::clicked, this, [this]() { showNotReady("Переключение темы"); });
-    auto *menuButton = makeToolbarButton("☰", header);
+    auto *menuButton = makeToolbarButton("Меню", header);
     menuButton->setToolTip("Меню");
     connect(menuButton, &QPushButton::clicked, this, [this]() { showNotReady("Меню desktop-клиента"); });
-    auto *securityButton = makeToolbarButton("🛡", header);
+    auto *securityButton = makeToolbarButton("Защита", header);
     securityButton->setToolTip("Безопасность");
     connect(securityButton, &QPushButton::clicked, this, [this]() { showNotReady("Безопасность"); });
     headerLayout->addWidget(profileButton);
@@ -953,6 +954,10 @@ void MainWindow::wireApi()
             renderChats(body);
             return;
         }
+        if (endpoint == "/api/dialogs") {
+            renderDialogs(body);
+            return;
+        }
         if (endpoint == "/api/messages/all") {
             renderMessagesAll(body);
             return;
@@ -965,13 +970,20 @@ void MainWindow::wireApi()
             if (!m_currentChatId.isEmpty()) {
                 m_apiClient->getMessages(m_currentChatId);
             }
-            m_apiClient->getMessagesAll();
+            m_apiClient->getDialogs();
             return;
         }
         setStatusText(QString("Loaded %1").arg(endpoint));
     });
 
     connect(m_apiClient, &ApiClient::requestFailed, this, [this](const QString &endpoint, const QString &message) {
+        if (endpoint == "/api/dialogs") {
+            if (m_chatList && m_chatList->count() == 0) {
+                m_chatList->addItem("Не удалось загрузить диалоги");
+            }
+            setStatusText(QString("Не удалось загрузить диалоги: %1").arg(message));
+            return;
+        }
         setStatusText(QString("%1 failed: %2").arg(endpoint, message));
     });
 }
@@ -1089,8 +1101,7 @@ void MainWindow::loadAuthenticatedData()
 {
     if (!m_apiClient || !m_sessionStore || !m_sessionStore->hasToken()) return;
     m_apiClient->getMe();
-    m_apiClient->getChats();
-    m_apiClient->getMessagesAll();
+    m_apiClient->getDialogs();
 }
 
 void MainWindow::renderChats(const QJsonDocument &body)
@@ -1121,6 +1132,52 @@ void MainWindow::renderChats(const QJsonDocument &body)
     if (m_chatList->count() > 0) {
         m_chatList->setCurrentRow(0);
     }
+}
+
+void MainWindow::renderDialogs(const QJsonDocument &body)
+{
+    if (!m_chatList) return;
+    const auto previousChatId = m_currentChatId;
+    m_chatList->clear();
+
+    const auto dialogs = body.array();
+    if (dialogs.isEmpty()) {
+        m_chatList->addItem("Нет чатов");
+        return;
+    }
+
+    int selectedRow = 0;
+    int visibleRow = 0;
+    for (const auto &value : dialogs) {
+        const auto dialog = value.toObject();
+        ChatRow row{
+            dialog.value("id").toString(),
+            dialog.value("title").toString("Чат"),
+            dialog.value("type").toString("private"),
+            dialog.value("preview").toString(),
+            dialog.value("lastTime").toString(),
+        };
+        if (row.id.isEmpty()) continue;
+        if (!m_chatFilter.isEmpty()) {
+            const auto haystack = QString("%1 %2 %3").arg(row.title, row.type, row.preview);
+            if (!haystack.contains(m_chatFilter, Qt::CaseInsensitive)) continue;
+        }
+
+        auto *item = new QListWidgetItem();
+        item->setData(Qt::UserRole, row.id);
+        item->setData(Qt::UserRole + 1, row.title);
+        item->setSizeHint(QSize(340, 88));
+        m_chatList->addItem(item);
+        m_chatList->setItemWidget(item, makeChatRowWidget(row, m_chatList));
+        if (row.id == previousChatId) selectedRow = visibleRow;
+        ++visibleRow;
+    }
+
+    if (m_chatList->count() == 0) {
+        m_chatList->addItem("Ничего не найдено");
+        return;
+    }
+    m_chatList->setCurrentRow(std::min(selectedRow, m_chatList->count() - 1));
 }
 
 void MainWindow::renderMessagesAll(const QJsonDocument &body)

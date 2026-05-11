@@ -35,6 +35,7 @@ private:
     void updateAuthTexts();
     void loadAuthenticatedData();
     void renderChats(const QJsonDocument &body);
+    void renderDialogs(const QJsonDocument &body);
     void renderMessagesAll(const QJsonDocument &body);
     void renderSidebar();
     void renderMessages(const QJsonDocument &body);

@@ -23,6 +23,7 @@ public:
     void getMe();
     void getChats();
     void getContacts();
+    void getDialogs();
     void getMessagesAll();
     void getMessages(const QString &chatId);
     void updateProfile(const QString &displayName, const QString &bio, const QString &publicId);

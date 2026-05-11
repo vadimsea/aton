@@ -2138,6 +2138,82 @@ app.get("/api/chats", authMiddleware, requireVerified, async (req, res) => {
   }
 });
 
+// Лёгкий список диалогов для desktop/native-клиентов: без imageDataUrl/audioDataUrl.
+app.get("/api/dialogs", authMiddleware, requireVerified, async (req, res) => {
+  const username = req.user.username;
+  const userId = req.user.id;
+  try {
+    await ensureGolosIntroIfEmpty(dmChatIdForUsernames(username, GOLOS_ATON_USERNAME), username);
+
+    const chatRows = await loadChatsWhereUserIsMember(userId);
+    const ownerNames = chatRows.map((r) => r && r.owner).filter(Boolean);
+    const usersByUsername = await loadUsersByUsernameMap(ownerNames);
+    const rowsById = new Map();
+
+    for (const raw of chatRows) {
+      const chat = ensureChatFields(chatFromPrismaRow(raw), usersByUsername);
+      rowsById.set(chat.id, {
+        id: chat.id,
+        title: chat.title || "Чат",
+        type: chat.type || (chat.id.startsWith("channel:") ? "channel" : "group"),
+        preview: chat.description || "",
+        lastTime: chat.createdAt || "",
+      });
+    }
+
+    const memberChatIds = [...rowsById.keys()];
+    const orClause = [{ senderUsername: username }, { recipientUsername: username }];
+    if (memberChatIds.length) orClause.push({ chatId: { in: memberChatIds } });
+
+    const messageRows = await prisma.message.findMany({
+      where: { OR: orClause },
+      orderBy: { createdAt: "desc" },
+      take: 5000,
+      select: MESSAGE_BOOTSTRAP_SELECT,
+    });
+
+    for (const raw of messageRows) {
+      const msg = messageFromPrismaRow(raw);
+      let chatId = msg.chatId;
+      if (!chatId && msg.from && msg.to) chatId = dmChatIdForUsernames(msg.from, msg.to);
+      if (!chatId || chatId === "global") continue;
+
+      let row = rowsById.get(chatId);
+      if (!row && isDirectMessageChatId(chatId)) {
+        const peer = dmPeerFromChatId(chatId, username) || chatId.split("|").find((part) => part !== username) || chatId;
+        row = { id: chatId, title: peer, type: "private", preview: "", lastTime: "" };
+      }
+      if (!row) continue;
+
+      const preview = msg.text
+        ? String(msg.text).slice(0, 120)
+        : msg.type === "image"
+          ? "Фото"
+          : msg.type === "audio"
+            ? "Голосовое сообщение"
+            : "Сообщение";
+      const lastTime = msg.createdAt || msg.time || "";
+      if (!row.lastTime || String(lastTime) >= String(row.lastTime)) {
+        row.preview = preview;
+        row.lastTime = lastTime;
+      }
+      rowsById.set(chatId, row);
+    }
+
+    const dialogs = [...rowsById.values()].sort((a, b) => {
+      if (a.lastTime === b.lastTime) return String(a.title).localeCompare(String(b.title));
+      if (!a.lastTime) return 1;
+      if (!b.lastTime) return -1;
+      return String(b.lastTime).localeCompare(String(a.lastTime));
+    });
+
+    res.json(dialogs);
+  } catch (err) {
+    console.error("GET /api/dialogs:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
 // Публичный список чатов, в которых пользователь НЕ состоит (preview для вступления)
 app.get("/api/chats/discover", authMiddleware, requireVerified, async (req, res) => {
   try {

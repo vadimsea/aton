@@ -69,6 +69,11 @@ void ApiClient::getContacts()
     getJson("/api/contacts");
 }
 
+void ApiClient::getDialogs()
+{
+    getJson("/api/dialogs");
+}
+
 void ApiClient::getMessagesAll()
 {
     getJson("/api/messages/all");

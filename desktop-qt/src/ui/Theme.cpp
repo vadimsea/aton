@@ -215,16 +215,14 @@ QString Theme::styleSheet()
             font-size: 14px;
         }
         QPushButton#HeaderIconButton {
-            min-width: 50px;
-            max-width: 50px;
             min-height: 50px;
             max-height: 50px;
             border-radius: 12px;
             background: #f1f5f9;
             border: 1px solid #dbe4ef;
             color: #2563eb;
-            font-size: 22px;
-            padding: 0;
+            font-size: 13px;
+            padding: 0 12px;
         }
         QPushButton#UserPillButton {
             min-height: 40px;
