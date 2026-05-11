@@ -244,8 +244,7 @@ QPushButton *makeToolbarButton(const QString &text, QWidget *parent)
 {
     auto *button = new QPushButton(text, parent);
     button->setObjectName("HeaderIconButton");
-    button->setFixedHeight(50);
-    button->setMinimumWidth(text.size() > 2 ? 78 : 50);
+    button->setFixedSize(50, 50);
     button->setCursor(Qt::PointingHandCursor);
     return button;
 }
@@ -253,8 +252,8 @@ QPushButton *makeToolbarButton(const QString &text, QWidget *parent)
 int messageRowHeight(const QJsonObject &msg)
 {
     const auto type = msg.value("type").toString("text");
-    if (type == "image") return 330;
-    if (type == "audio") return 96;
+    if (type == "image") return 320;
+    if (type == "audio") return 92;
     const auto text = msg.value("text").toString();
     const auto lines = std::max(1, static_cast<int>(text.size() / 54 + 1));
     return std::clamp(72 + lines * 22, 96, 220);
@@ -265,12 +264,12 @@ QWidget *makeChatRowWidget(const ChatRow &row, QWidget *parent)
     auto *wrap = new QWidget(parent);
     wrap->setObjectName("ChatRowWidget");
     auto *layout = new QHBoxLayout(wrap);
-    layout->setContentsMargins(8, 9, 10, 9);
+    layout->setContentsMargins(8, 8, 10, 8);
     layout->setSpacing(12);
 
     auto *avatar = new QLabel(wrap);
     avatar->setObjectName(row.id.contains("golos_aton") || row.title.contains("Атон", Qt::CaseInsensitive) ? "VoiceAvatar" : "ChatAvatar");
-    avatar->setFixedSize(50, 50);
+    avatar->setFixedSize(48, 48);
     avatar->setAlignment(Qt::AlignCenter);
     avatar->setText(row.title.left(1).toUpper());
 
@@ -281,13 +280,13 @@ QWidget *makeChatRowWidget(const ChatRow &row, QWidget *parent)
     auto *title = new QLabel(row.title, copy);
     title->setObjectName("ChatRowTitle");
     title->setTextFormat(Qt::PlainText);
-    auto *subtitle = new QLabel(row.type == "private" ? "private" : row.type, copy);
+    auto *subtitle = new QLabel(row.type == "private" ? "" : row.type, copy);
     subtitle->setObjectName("ChatRowSubtitle");
     subtitle->setTextFormat(Qt::PlainText);
     auto *preview = new QLabel(row.preview.isEmpty() ? "Нет сообщений" : row.preview, copy);
     preview->setObjectName("ChatRowPreview");
     preview->setTextFormat(Qt::PlainText);
-    preview->setMaximumWidth(220);
+    preview->setMaximumWidth(250);
     copyLayout->addWidget(title);
     copyLayout->addWidget(subtitle);
     copyLayout->addWidget(preview);
@@ -318,8 +317,8 @@ QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUser
 
     auto *bubble = new QFrame(row);
     bubble->setObjectName(isSelf ? "MessageBubbleSelf" : "MessageBubbleOther");
-    bubble->setMinimumWidth(190);
-    bubble->setMaximumWidth(450);
+    bubble->setMinimumWidth(type == "audio" ? 320 : 190);
+    bubble->setMaximumWidth(type == "image" ? 390 : 450);
     auto *bubbleLayout = new QVBoxLayout(bubble);
     bubbleLayout->setContentsMargins(16, 12, 16, 12);
     bubbleLayout->setSpacing(8);
@@ -332,7 +331,7 @@ QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUser
             image->setObjectName("MessageImage");
             image->setAlignment(Qt::AlignCenter);
             image->setScaledContents(false);
-            const auto scaled = pixmap.scaled(QSize(360, 260), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            const auto scaled = pixmap.scaled(QSize(325, 250), Qt::KeepAspectRatio, Qt::SmoothTransformation);
             image->setPixmap(scaled);
             image->setFixedSize(scaled.size());
             bubbleLayout->addWidget(image);
@@ -352,7 +351,7 @@ QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUser
         playButton->setObjectName("VoicePlayButton");
         playButton->setFixedSize(42, 42);
         playButton->setEnabled(!audioPath.isEmpty());
-        auto *label = new QLabel(audioPath.isEmpty() ? "Голосовое недоступно" : "Голосовое сообщение", voiceRow);
+        auto *label = new QLabel(audioPath.isEmpty() ? "Голосовое недоступно" : "0:00 / 0:00", voiceRow);
         label->setObjectName("VoiceMessageLabel");
         voiceLayout->addWidget(playButton);
         voiceLayout->addWidget(label, 1);
@@ -719,9 +718,9 @@ QWidget *MainWindow::buildMessengerPage()
     auto *sidebar = new QWidget(splitter);
     sidebar->setObjectName("Sidebar");
     sidebar->setMinimumWidth(360);
-    sidebar->setMaximumWidth(430);
+    sidebar->setMaximumWidth(400);
     auto *sidebarLayout = new QVBoxLayout(sidebar);
-    sidebarLayout->setContentsMargins(12, 22, 10, 14);
+    sidebarLayout->setContentsMargins(12, 18, 10, 10);
     sidebarLayout->setSpacing(12);
 
     auto *chatTools = new QWidget(sidebar);
@@ -799,23 +798,23 @@ QWidget *MainWindow::buildMessengerPage()
     chatCopyLayout->addWidget(m_chatTitleLabel);
     chatCopyLayout->addWidget(m_statusLabel);
     headerLayout->addWidget(chatCopy, 1);
-    auto *profileButton = makeToolbarButton("Профиль", header);
+    auto *profileButton = makeToolbarButton("✎", header);
     profileButton->setToolTip("Редактировать профиль");
     connect(profileButton, &QPushButton::clicked, this, &MainWindow::showProfileDialog);
-    auto *friendsButton = makeToolbarButton("Друзья", header);
+    auto *friendsButton = makeToolbarButton("👥", header);
     friendsButton->setToolTip("Друзья, заявки и блокировки");
     connect(friendsButton, &QPushButton::clicked, this, [this]() {
         if (!m_apiClient) return;
         setStatusText("Загрузка контактов...");
         m_apiClient->getContacts();
     });
-    auto *themeButton = makeToolbarButton("Тема", header);
+    auto *themeButton = makeToolbarButton("☼", header);
     themeButton->setToolTip("Тема интерфейса");
     connect(themeButton, &QPushButton::clicked, this, [this]() { showNotReady("Переключение темы"); });
-    auto *menuButton = makeToolbarButton("Меню", header);
+    auto *menuButton = makeToolbarButton("☰", header);
     menuButton->setToolTip("Меню");
     connect(menuButton, &QPushButton::clicked, this, [this]() { showNotReady("Меню desktop-клиента"); });
-    auto *securityButton = makeToolbarButton("Защита", header);
+    auto *securityButton = makeToolbarButton("🛡", header);
     securityButton->setToolTip("Безопасность");
     connect(securityButton, &QPushButton::clicked, this, [this]() { showNotReady("Безопасность"); });
     headerLayout->addWidget(profileButton);
@@ -842,12 +841,12 @@ QWidget *MainWindow::buildMessengerPage()
     auto *composer = new QWidget(content);
     composer->setObjectName("Composer");
     auto *composerOuter = new QVBoxLayout(composer);
-    composerOuter->setContentsMargins(30, 14, 28, 16);
+    composerOuter->setContentsMargins(30, 12, 28, 14);
     composerOuter->setSpacing(0);
     auto *composerBox = new QWidget(composer);
     composerBox->setObjectName("ComposerBox");
     auto *composerLayout = new QHBoxLayout(composerBox);
-    composerLayout->setContentsMargins(24, 18, 8, 18);
+    composerLayout->setContentsMargins(24, 12, 8, 12);
     composerLayout->setSpacing(10);
     m_composer = new QLineEdit(composer);
     m_composer->setObjectName("ComposerInput");
