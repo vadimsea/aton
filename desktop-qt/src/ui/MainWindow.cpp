@@ -255,10 +255,10 @@ int messageRowHeight(const QJsonObject &msg)
 {
     const auto type = msg.value("type").toString("text");
     if (type == "image") return 320;
-    if (type == "audio") return 112;
-    const auto text = msg.value("text").toString();
-    const auto lines = std::max(1, static_cast<int>(text.size() / 54 + 1));
-    return std::clamp(72 + lines * 22, 96, 220);
+    if (type == "audio") return 132;
+    const auto text = msg.value("text").toString().simplified();
+    const auto lines = std::max(1, static_cast<int>(text.size() / 42 + 1));
+    return std::clamp(58 + lines * 26, 92, 620);
 }
 
 QWidget *makeChatRowWidget(const ChatRow &row, QWidget *parent)
@@ -319,8 +319,8 @@ QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUser
 
     auto *bubble = new QFrame(row);
     bubble->setObjectName(isSelf ? "MessageBubbleSelf" : "MessageBubbleOther");
-    bubble->setMinimumWidth(type == "audio" ? 320 : 190);
-    bubble->setMaximumWidth(type == "image" ? 390 : 450);
+    bubble->setMinimumWidth(type == "audio" ? 360 : 72);
+    bubble->setMaximumWidth(type == "image" ? 390 : 430);
     auto *bubbleLayout = new QVBoxLayout(bubble);
     bubbleLayout->setContentsMargins(16, 12, 16, 12);
     bubbleLayout->setSpacing(8);
@@ -347,15 +347,14 @@ QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUser
         const auto audioPath = writeAudioDataUrlToCache(audioDataUrl);
         auto *voiceRow = new QWidget(bubble);
         auto *voiceLayout = new QHBoxLayout(voiceRow);
-        voiceLayout->setContentsMargins(0, 0, 0, 0);
-        voiceLayout->setSpacing(10);
+        voiceLayout->setContentsMargins(0, 6, 0, 6);
+        voiceLayout->setSpacing(12);
         auto *playButton = new QPushButton(audioPath.isEmpty() ? "!" : "▶", voiceRow);
         playButton->setObjectName("VoicePlayButton");
-        playButton->setFixedSize(46, 46);
+        playButton->setFixedSize(56, 56);
         playButton->setEnabled(!audioPath.isEmpty());
         auto *label = new QLabel(audioPath.isEmpty() ? "Голосовое недоступно" : "0:00 / 0:00", voiceRow);
         label->setObjectName("VoiceMessageLabel");
-        voiceLayout->setContentsMargins(0, 2, 0, 2);
         voiceLayout->addWidget(playButton);
         voiceLayout->addWidget(label, 1);
         bubbleLayout->addWidget(voiceRow);
@@ -389,6 +388,8 @@ QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUser
         label->setObjectName("MessageText");
         label->setWordWrap(true);
         label->setTextFormat(Qt::PlainText);
+        label->setMaximumWidth(360);
+        label->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::MinimumExpanding);
         bubbleLayout->addWidget(label);
     }
 
@@ -1534,7 +1535,9 @@ QString MainWindow::currentPeerStatus() const
 void MainWindow::updatePeerActionBar()
 {
     if (!m_peerActionBar) return;
-    const auto direct = isDirectChatId(m_currentChatId) && !m_currentPeerUsername.isEmpty();
+    const auto isSystemPeer = m_currentPeerUsername.compare("golos_aton", Qt::CaseInsensitive) == 0
+                              || m_currentChatId.contains("golos_aton", Qt::CaseInsensitive);
+    const auto direct = isDirectChatId(m_currentChatId) && !m_currentPeerUsername.isEmpty() && !isSystemPeer;
     m_peerActionBar->setVisible(direct);
     if (!direct) return;
 

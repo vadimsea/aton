@@ -318,16 +318,16 @@ QString Theme::styleSheet()
             font-size: 16px;
         }
         QPushButton#VoicePlayButton {
-            min-width: 46px;
-            max-width: 46px;
-            min-height: 46px;
-            max-height: 46px;
-            border-radius: 23px;
+            min-width: 56px;
+            max-width: 56px;
+            min-height: 56px;
+            max-height: 56px;
+            border-radius: 28px;
             background: #ffffff;
             border: 1px solid #bfdbfe;
             color: #2563eb;
             padding: 0;
-            font-size: 17px;
+            font-size: 18px;
         }
         QPushButton#VoicePlayButton:hover {
             background: #eef4ff;
