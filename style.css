@@ -3846,6 +3846,26 @@ body {
   resize: none;
   overflow-y: auto;
   box-sizing: border-box;
+  scrollbar-color: #475569 #0f172a;
+}
+
+.aton-compose-input::-webkit-scrollbar {
+  width: 10px;
+}
+
+.aton-compose-input::-webkit-scrollbar-track {
+  background: #0f172a;
+  border-radius: 999px;
+}
+
+.aton-compose-input::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 999px;
+  border: 2px solid #0f172a;
+}
+
+.aton-compose-input::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 
 .aton-compose-input:focus {
@@ -4549,6 +4569,20 @@ body {
   background: transparent;
   color: #0f172a;
   border: none;
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+[data-theme="light"] .aton-compose-input::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+
+[data-theme="light"] .aton-compose-input::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-color: #f8fafc;
+}
+
+[data-theme="light"] .aton-compose-input::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 [data-theme="light"] .aton-mic-button,
