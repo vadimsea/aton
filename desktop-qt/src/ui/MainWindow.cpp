@@ -1,8 +1,12 @@
 #include "ui/MainWindow.h"
 
 #include <algorithm>
-#include <QHBoxLayout>
 #include <QDateTime>
+#include <QDesktopServices>
+#include <QDir>
+#include <QFile>
+#include <QFrame>
+#include <QHBoxLayout>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -17,10 +21,13 @@
 #include <QPushButton>
 #include <QSizePolicy>
 #include <QSplitter>
+#include <QStandardPaths>
 #include <QStackedWidget>
 #include <QStatusBar>
 #include <QStyle>
 #include <QTextOption>
+#include <QUrl>
+#include <QUuid>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <utility>
@@ -78,6 +85,56 @@ QString directChatIdForUsers(QString a, QString b)
 {
     if (a > b) std::swap(a, b);
     return QString("%1|%2").arg(a, b);
+}
+
+QByteArray decodeDataUrlPayload(const QString &dataUrl)
+{
+    const auto comma = dataUrl.indexOf(',');
+    if (comma < 0) return {};
+    return QByteArray::fromBase64(dataUrl.mid(comma + 1).toLatin1());
+}
+
+QString dataUrlMime(const QString &dataUrl)
+{
+    if (!dataUrl.startsWith("data:", Qt::CaseInsensitive)) return {};
+    const auto semicolon = dataUrl.indexOf(';');
+    if (semicolon < 5) return {};
+    return dataUrl.mid(5, semicolon - 5).toLower();
+}
+
+QString extensionForAudioMime(const QString &mime)
+{
+    if (mime.contains("ogg")) return "ogg";
+    if (mime.contains("mpeg") || mime.contains("mp3")) return "mp3";
+    if (mime.contains("wav")) return "wav";
+    if (mime.contains("mp4")) return "m4a";
+    return "webm";
+}
+
+QString writeAudioDataUrlToCache(const QString &dataUrl)
+{
+    const auto bytes = decodeDataUrlPayload(dataUrl);
+    if (bytes.isEmpty()) return {};
+
+    auto dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    if (dir.isEmpty()) {
+        dir = QDir::tempPath() + "/aten-desktop";
+    }
+    QDir().mkpath(dir);
+
+    const auto ext = extensionForAudioMime(dataUrlMime(dataUrl));
+    const auto path = QDir(dir).filePath(QString("voice-%1.%2").arg(QUuid::createUuid().toString(QUuid::WithoutBraces), ext));
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) return {};
+    file.write(bytes);
+    return path;
+}
+
+QPixmap pixmapFromImageDataUrl(const QString &dataUrl)
+{
+    QPixmap pixmap;
+    pixmap.loadFromData(decodeDataUrlPayload(dataUrl));
+    return pixmap;
 }
 
 QPixmap makeFlagPixmap(const QString &lang)
@@ -187,6 +244,16 @@ QPushButton *makeToolbarButton(const QString &text, QWidget *parent)
     return button;
 }
 
+int messageRowHeight(const QJsonObject &msg)
+{
+    const auto type = msg.value("type").toString("text");
+    if (type == "image") return 330;
+    if (type == "audio") return 96;
+    const auto text = msg.value("text").toString();
+    const auto lines = std::max(1, static_cast<int>(text.size() / 54 + 1));
+    return std::clamp(72 + lines * 22, 96, 220);
+}
+
 QWidget *makeChatRowWidget(const ChatRow &row, QWidget *parent)
 {
     auto *wrap = new QWidget(parent);
@@ -234,16 +301,7 @@ QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUser
 {
     const auto from = msg.value("from").toString(msg.value("senderUsername").toString("user"));
     const auto type = msg.value("type").toString("text");
-    QString text;
-    if (type == "text") {
-        text = msg.value("text").toString();
-    } else if (type == "image") {
-        text = "Фото";
-    } else if (type == "audio") {
-        text = "Голосовое сообщение";
-    } else {
-        text = QString("[%1]").arg(type);
-    }
+    const auto time = compactTime(msg.value("createdAt").toString(msg.value("time").toString()));
 
     const bool isSelf = !currentUsername.isEmpty() && from == currentUsername;
     auto *row = new QWidget(parent);
@@ -252,16 +310,67 @@ QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUser
     rowLayout->setContentsMargins(18, 8, 18, 8);
     rowLayout->setSpacing(0);
 
-    auto *bubble = new QLabel(row);
+    auto *bubble = new QFrame(row);
     bubble->setObjectName(isSelf ? "MessageBubbleSelf" : "MessageBubbleOther");
-    bubble->setWordWrap(true);
-    bubble->setTextFormat(Qt::PlainText);
-    bubble->setText(QString("%1%2").arg(text, compactTime(msg.value("createdAt").toString(msg.value("time").toString())).isEmpty()
-                                             ? QString()
-                                             : QString("\n%1").arg(compactTime(msg.value("createdAt").toString(msg.value("time").toString())))));
     bubble->setMinimumWidth(190);
     bubble->setMaximumWidth(450);
-    bubble->setContentsMargins(16, 12, 16, 12);
+    auto *bubbleLayout = new QVBoxLayout(bubble);
+    bubbleLayout->setContentsMargins(16, 12, 16, 12);
+    bubbleLayout->setSpacing(8);
+
+    if (type == "image") {
+        const auto imageDataUrl = msg.value("imageDataUrl").toString();
+        const auto pixmap = pixmapFromImageDataUrl(imageDataUrl);
+        if (!pixmap.isNull()) {
+            auto *image = new QLabel(bubble);
+            image->setObjectName("MessageImage");
+            image->setAlignment(Qt::AlignCenter);
+            image->setScaledContents(false);
+            const auto scaled = pixmap.scaled(QSize(360, 260), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            image->setPixmap(scaled);
+            image->setFixedSize(scaled.size());
+            bubbleLayout->addWidget(image);
+        } else {
+            auto *fallback = new QLabel("Фото не удалось открыть", bubble);
+            fallback->setObjectName("MessageMediaFallback");
+            bubbleLayout->addWidget(fallback);
+        }
+    } else if (type == "audio") {
+        const auto audioDataUrl = msg.value("audioDataUrl").toString();
+        const auto audioPath = writeAudioDataUrlToCache(audioDataUrl);
+        auto *voiceRow = new QWidget(bubble);
+        auto *voiceLayout = new QHBoxLayout(voiceRow);
+        voiceLayout->setContentsMargins(0, 0, 0, 0);
+        voiceLayout->setSpacing(10);
+        auto *playButton = new QPushButton(audioPath.isEmpty() ? "!" : "▶", voiceRow);
+        playButton->setObjectName("VoicePlayButton");
+        playButton->setFixedSize(42, 42);
+        playButton->setEnabled(!audioPath.isEmpty());
+        auto *label = new QLabel(audioPath.isEmpty() ? "Голосовое недоступно" : "Голосовое сообщение", voiceRow);
+        label->setObjectName("VoiceMessageLabel");
+        voiceLayout->addWidget(playButton);
+        voiceLayout->addWidget(label, 1);
+        bubbleLayout->addWidget(voiceRow);
+
+        if (!audioPath.isEmpty()) {
+            QObject::connect(playButton, &QPushButton::clicked, playButton, [audioPath]() {
+                QDesktopServices::openUrl(QUrl::fromLocalFile(audioPath));
+            });
+        }
+    } else {
+        auto *label = new QLabel(type == "text" ? msg.value("text").toString() : QString("[%1]").arg(type), bubble);
+        label->setObjectName("MessageText");
+        label->setWordWrap(true);
+        label->setTextFormat(Qt::PlainText);
+        bubbleLayout->addWidget(label);
+    }
+
+    if (!time.isEmpty()) {
+        auto *timeLabel = new QLabel(time, bubble);
+        timeLabel->setObjectName("MessageTime");
+        timeLabel->setAlignment(Qt::AlignRight);
+        bubbleLayout->addWidget(timeLabel);
+    }
 
     if (isSelf) {
         rowLayout->addStretch(1);
@@ -1080,7 +1189,7 @@ void MainWindow::renderMessages(const QJsonDocument &body)
         const auto msg = value.toObject();
         auto *row = makeMessageRowWidget(msg, m_currentUsername, m_messageList);
         auto *item = new QListWidgetItem();
-        item->setSizeHint(QSize(900, 112));
+        item->setSizeHint(QSize(900, messageRowHeight(msg)));
         m_messageList->addItem(item);
         m_messageList->setItemWidget(item, row);
     }

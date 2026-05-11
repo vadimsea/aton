@@ -264,6 +264,41 @@ QString Theme::styleSheet()
             color: #052e16;
             font-size: 18px;
         }
+        #MessageText {
+            background: transparent;
+            color: inherit;
+            font-size: 18px;
+        }
+        #MessageTime {
+            background: transparent;
+            color: #64748b;
+            font-size: 12px;
+        }
+        #MessageImage {
+            background: transparent;
+            border-radius: 10px;
+        }
+        #MessageMediaFallback,
+        #VoiceMessageLabel {
+            background: transparent;
+            color: inherit;
+            font-size: 16px;
+        }
+        QPushButton#VoicePlayButton {
+            min-width: 42px;
+            max-width: 42px;
+            min-height: 42px;
+            max-height: 42px;
+            border-radius: 21px;
+            background: #ffffff;
+            border: 1px solid #bfdbfe;
+            color: #2563eb;
+            padding: 0;
+            font-size: 17px;
+        }
+        QPushButton#VoicePlayButton:hover {
+            background: #eef4ff;
+        }
         #Composer {
             background: #ffffff;
             border-top: 1px solid #dbe4ef;
