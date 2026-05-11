@@ -6227,6 +6227,12 @@ function createApp() {
 
     profilePage.innerHTML = `
       <div class="aton-profile-page-scroll">
+        <div class="aton-profile-mobile-nav">
+          <button type="button" class="aton-profile-mobile-back" id="aton-profile-mobile-back">
+            <span aria-hidden="true">‹</span>
+            <span>${escHtml(t("Назад к чатам"))}</span>
+          </button>
+        </div>
         <section class="aton-profile-hero">
           <button type="button" class="aton-profile-back" id="aton-profile-back">${escHtml(t("Назад к чатам"))}</button>
           <div class="aton-profile-hero-main">
@@ -6322,6 +6328,7 @@ function createApp() {
   });
 
   profilePage.querySelector("#aton-profile-back").addEventListener("click", closeProfilePage);
+  profilePage.querySelector("#aton-profile-mobile-back").addEventListener("click", closeProfilePage);
   profilePage.querySelector("#aton-profile-cancel").addEventListener("click", closeProfilePage);
   profilePage.querySelector("#aton-profile-logout").addEventListener("click", performFullLogout);
 

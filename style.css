@@ -1907,6 +1907,32 @@ body {
   border: 2px solid #0f172a;
 }
 
+.aton-profile-mobile-nav {
+  display: none;
+}
+
+.aton-profile-mobile-back {
+  border: 1px solid rgba(96, 165, 250, 0.28);
+  border-radius: 14px;
+  min-height: 44px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(96, 165, 250, 0.12);
+  color: #bfdbfe;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.aton-profile-mobile-back span[aria-hidden="true"] {
+  font-size: 28px;
+  line-height: 1;
+  margin-top: -2px;
+}
+
 .aton-profile-hero {
   width: min(860px, 100%);
   margin: 0 auto 16px;
@@ -4994,7 +5020,14 @@ body {
   color: #2563eb;
 }
 
+[data-theme="light"] .aton-profile-mobile-back {
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.2);
+  color: #2563eb;
+}
+
 [data-theme="light"] .aton-profile-back:hover,
+[data-theme="light"] .aton-profile-mobile-back:hover,
 [data-theme="light"] .aton-profile-avatar-upload:hover {
   background: rgba(37, 99, 235, 0.14);
 }
@@ -5170,12 +5203,33 @@ body {
 
   .aton-profile-page-scroll {
     padding: 12px 12px max(18px, env(safe-area-inset-bottom));
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
   }
 
   .aton-profile-hero,
   .aton-profile-form {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     border-radius: 14px;
     padding: 16px;
+  }
+
+  .aton-profile-mobile-nav {
+    display: flex;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    width: 100%;
+    padding: 0 0 10px;
+    background: linear-gradient(180deg, var(--aton-bg) 0%, var(--aton-bg) calc(100% - 10px), transparent 100%);
+  }
+
+  .aton-profile-mobile-back {
+    width: 100%;
   }
 
   .aton-profile-hero-main {
@@ -5212,6 +5266,13 @@ body {
     justify-content: center;
   }
 
+  .aton-profile-lang-btn span:last-child,
+  .aton-profile-help,
+  .aton-input {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
   .aton-profile-verify-pill,
   .aton-profile-email-pill {
     max-width: 100%;
@@ -5221,9 +5282,7 @@ body {
   }
 
   .aton-profile-back {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    display: none !important;
   }
 
   .aton-profile-actions {
@@ -5304,6 +5363,21 @@ body {
 
   .aton-shell--profile .aton-sidebar {
     display: none !important;
+  }
+
+  .aton-shell--profile .aton-topbar {
+    justify-content: flex-end;
+    overflow: hidden;
+  }
+
+  .aton-shell--profile .aton-topbar-left {
+    display: none !important;
+  }
+
+  .aton-shell--profile .aton-topbar-right {
+    width: 100%;
+    justify-content: flex-end;
+    min-width: 0;
   }
 
   .aton-shell--no-chat .aton-sidebar {
