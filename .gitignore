@@ -4,5 +4,6 @@ node_modules/
 .env.deploy
 .deploy-staging/
 qa-bots/out/
+backups/
 .DS_Store
 LOCAL-SECRETS.txt
