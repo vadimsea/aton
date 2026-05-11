@@ -17,7 +17,10 @@ if (-not $DatabaseUrl) {
   throw "Set ATON_RENDER_DATABASE_URL or put the Render External Database URL into backups\render-database-url.txt first."
 }
 
-$pgDump = "C:\Program Files\PostgreSQL\16\bin\pg_dump.exe"
+$pgDump = "C:\Program Files\PostgreSQL\18\bin\pg_dump.exe"
+if (-not (Test-Path $pgDump)) {
+  $pgDump = "C:\Program Files\PostgreSQL\16\bin\pg_dump.exe"
+}
 if (-not (Test-Path $pgDump)) {
   $cmd = Get-Command pg_dump -ErrorAction SilentlyContinue
   if (-not $cmd) {
