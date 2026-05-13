@@ -51,6 +51,8 @@ private:
     void setStatusText(const QString &text);
     void updatePeerActionBar();
     void renameCurrentPeer();
+    void setReplyToMessage(const QJsonObject &message);
+    void clearReplyToMessage();
     QString currentPeerStatus() const;
 
     ApiClient *m_apiClient;
@@ -96,6 +98,10 @@ private:
     QPushButton *m_sendButton = nullptr;
     QPushButton *m_userPillButton = nullptr;
     QWidget *m_peerActionBar = nullptr;
+    QWidget *m_replyCompose = nullptr;
+    QLabel *m_replyComposeAuthorLabel = nullptr;
+    QLabel *m_replyComposeTextLabel = nullptr;
+    QPushButton *m_replyComposeCloseButton = nullptr;
     QPushButton *m_peerRenameButton = nullptr;
     QPushButton *m_peerBlockButton = nullptr;
     QPushButton *m_peerFriendButton = nullptr;
@@ -118,6 +124,8 @@ private:
     bool m_registerMode = false;
     QJsonArray m_groupChats;
     QJsonArray m_allMessages;
+    QJsonObject m_replyToMessage;
+    QString m_replyToMessageId;
     bool m_contactsDialogRequested = false;
 };
 

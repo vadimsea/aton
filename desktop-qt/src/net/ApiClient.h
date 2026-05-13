@@ -30,7 +30,7 @@ public:
     void updatePeerAlias(const QString &peerUsername, const QString &alias);
     void contactAction(const QString &endpoint, const QString &username);
     void reactToMessage(const QString &messageId, const QString &emoji);
-    void sendTextMessage(const QString &chatId, const QString &text);
+    void sendTextMessage(const QString &chatId, const QString &text, const QString &replyTo = {});
 
 signals:
     void requestSucceeded(QString endpoint, QJsonDocument body);

@@ -85,12 +85,15 @@ void ApiClient::getMessages(const QString &chatId)
     getJson(QString("/api/messages?chatId=%1").arg(encoded));
 }
 
-void ApiClient::sendTextMessage(const QString &chatId, const QString &text)
+void ApiClient::sendTextMessage(const QString &chatId, const QString &text, const QString &replyTo)
 {
     QJsonObject payload;
     payload.insert("chatId", chatId);
     payload.insert("type", "text");
     payload.insert("text", text);
+    if (!replyTo.trimmed().isEmpty()) {
+        payload.insert("replyTo", replyTo.trimmed());
+    }
     postJson("/api/messages", payload);
 }
 

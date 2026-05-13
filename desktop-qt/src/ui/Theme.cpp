@@ -378,6 +378,22 @@ QString Theme::styleSheet()
             color: #64748b;
             font-size: 12px;
         }
+        #MessageReplyPreview {
+            background: rgba(255, 255, 255, 0.55);
+            border-left: 4px solid #60a5fa;
+            border-radius: 8px;
+        }
+        #MessageReplyAuthor {
+            background: transparent;
+            color: #2563eb;
+            font-size: 13px;
+            font-weight: 800;
+        }
+        #MessageReplyText {
+            background: transparent;
+            color: #475569;
+            font-size: 13px;
+        }
         #ReactionPillsRow {
             background: transparent;
         }
@@ -490,6 +506,42 @@ QString Theme::styleSheet()
         #Composer {
             background: #ffffff;
             border-top: 1px solid #dbe4ef;
+        }
+        #ReplyCompose {
+            background: #f8fbff;
+            border: 1px solid #dbeafe;
+            border-radius: 14px;
+        }
+        #ReplyComposeAccent {
+            background: #60a5fa;
+            border-radius: 2px;
+        }
+        #ReplyComposeAuthor {
+            color: #2563eb;
+            font-size: 13px;
+            font-weight: 800;
+        }
+        #ReplyComposeText {
+            color: #475569;
+            font-size: 13px;
+        }
+        QPushButton#ReplyComposeCloseButton {
+            min-width: 32px;
+            max-width: 32px;
+            min-height: 32px;
+            max-height: 32px;
+            border-radius: 16px;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            color: #475569;
+            font-size: 18px;
+            font-weight: 800;
+            padding: 0;
+        }
+        QPushButton#ReplyComposeCloseButton:hover {
+            background: #fee2e2;
+            border-color: #fca5a5;
+            color: #dc2626;
         }
         #ComposerBox {
             background: #ffffff;

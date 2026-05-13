@@ -1,6 +1,7 @@
 #include "ui/MainWindow.h"
 
 #include <algorithm>
+#include <functional>
 #include <QAudioOutput>
 #include <QCoreApplication>
 #include <QDateTime>
@@ -458,7 +459,40 @@ QString ownReactionEmoji(const QJsonArray &reactions, const QString &currentUser
     return {};
 }
 
-QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUsername, ApiClient *apiClient, QWidget *parent)
+QJsonObject findMessageById(const QJsonArray &messages, const QString &id)
+{
+    if (id.isEmpty()) return {};
+    for (const auto &value : messages) {
+        const auto msg = value.toObject();
+        if (msg.value("id").toString() == id) return msg;
+    }
+    return {};
+}
+
+QString messageReplyAuthorLabel(const QJsonObject &msg, const QString &currentUsername)
+{
+    const auto from = msg.value("from").toString(msg.value("senderUsername").toString());
+    if (!currentUsername.isEmpty() && from == currentUsername) return "Вы";
+    return msg.value("displayName").toString(from.isEmpty() ? "Сообщение" : from);
+}
+
+QString messageReplyExcerpt(const QJsonObject &msg)
+{
+    const auto type = msg.value("type").toString("text");
+    if (type == "image") return "Фото";
+    if (type == "audio") return "Голосовое сообщение";
+    auto text = msg.value("text").toString().simplified();
+    if (text.isEmpty()) text = QString("[%1]").arg(type);
+    return text.size() > 90 ? text.left(87) + "..." : text;
+}
+
+QWidget *makeMessageRowWidget(
+    const QJsonObject &msg,
+    const QString &currentUsername,
+    ApiClient *apiClient,
+    const QJsonArray &allMessages,
+    const std::function<void(const QJsonObject &)> &replyHandler,
+    QWidget *parent)
 {
     const auto from = msg.value("from").toString(msg.value("senderUsername").toString("user"));
     const auto type = msg.value("type").toString("text");
@@ -478,6 +512,25 @@ QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUser
     auto *bubbleLayout = new QVBoxLayout(bubble);
     bubbleLayout->setContentsMargins(16, 12, 16, 12);
     bubbleLayout->setSpacing(8);
+
+    const auto replyToId = msg.value("replyTo").toString();
+    const auto replied = findMessageById(allMessages, replyToId);
+    if (!replied.isEmpty()) {
+        auto *replyPreview = new QFrame(bubble);
+        replyPreview->setObjectName("MessageReplyPreview");
+        auto *replyLayout = new QVBoxLayout(replyPreview);
+        replyLayout->setContentsMargins(10, 7, 10, 7);
+        replyLayout->setSpacing(2);
+        auto *replyAuthor = new QLabel(messageReplyAuthorLabel(replied, currentUsername), replyPreview);
+        replyAuthor->setObjectName("MessageReplyAuthor");
+        auto *replyText = new QLabel(messageReplyExcerpt(replied), replyPreview);
+        replyText->setObjectName("MessageReplyText");
+        replyText->setWordWrap(true);
+        replyText->setTextFormat(Qt::PlainText);
+        replyLayout->addWidget(replyAuthor);
+        replyLayout->addWidget(replyText);
+        bubbleLayout->addWidget(replyPreview);
+    }
 
     if (type == "image") {
         const auto imageDataUrl = msg.value("imageDataUrl").toString();
@@ -642,6 +695,14 @@ QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUser
         }
         reactButton->setMenu(menu);
         actionsLayout->addWidget(reactButton);
+        auto *replyButton = new QPushButton("↩", actionsRow);
+        replyButton->setObjectName("MessageActionButton");
+        replyButton->setCursor(Qt::PointingHandCursor);
+        replyButton->setToolTip("Ответить");
+        QObject::connect(replyButton, &QPushButton::clicked, replyButton, [replyHandler, msg]() {
+            if (replyHandler) replyHandler(msg);
+        });
+        actionsLayout->addWidget(replyButton);
         bubbleLayout->addWidget(actionsRow);
     }
 
@@ -1224,7 +1285,35 @@ QWidget *MainWindow::buildMessengerPage()
     composer->setObjectName("Composer");
     auto *composerOuter = new QVBoxLayout(composer);
     composerOuter->setContentsMargins(30, 12, 28, 14);
-    composerOuter->setSpacing(0);
+    composerOuter->setSpacing(8);
+    m_replyCompose = new QWidget(composer);
+    m_replyCompose->setObjectName("ReplyCompose");
+    auto *replyComposeLayout = new QHBoxLayout(m_replyCompose);
+    replyComposeLayout->setContentsMargins(16, 10, 12, 10);
+    replyComposeLayout->setSpacing(10);
+    auto *replyAccent = new QWidget(m_replyCompose);
+    replyAccent->setObjectName("ReplyComposeAccent");
+    replyAccent->setFixedWidth(4);
+    auto *replyCopy = new QWidget(m_replyCompose);
+    auto *replyCopyLayout = new QVBoxLayout(replyCopy);
+    replyCopyLayout->setContentsMargins(0, 0, 0, 0);
+    replyCopyLayout->setSpacing(2);
+    m_replyComposeAuthorLabel = new QLabel("Ответ на сообщение", replyCopy);
+    m_replyComposeAuthorLabel->setObjectName("ReplyComposeAuthor");
+    m_replyComposeTextLabel = new QLabel(replyCopy);
+    m_replyComposeTextLabel->setObjectName("ReplyComposeText");
+    m_replyComposeTextLabel->setWordWrap(true);
+    replyCopyLayout->addWidget(m_replyComposeAuthorLabel);
+    replyCopyLayout->addWidget(m_replyComposeTextLabel);
+    m_replyComposeCloseButton = new QPushButton("×", m_replyCompose);
+    m_replyComposeCloseButton->setObjectName("ReplyComposeCloseButton");
+    m_replyComposeCloseButton->setCursor(Qt::PointingHandCursor);
+    m_replyComposeCloseButton->setToolTip("Отменить ответ");
+    replyComposeLayout->addWidget(replyAccent);
+    replyComposeLayout->addWidget(replyCopy, 1);
+    replyComposeLayout->addWidget(m_replyComposeCloseButton);
+    m_replyCompose->hide();
+    composerOuter->addWidget(m_replyCompose);
     auto *composerBox = new QWidget(composer);
     composerBox->setObjectName("ComposerBox");
     auto *composerLayout = new QHBoxLayout(composerBox);
@@ -1253,6 +1342,7 @@ QWidget *MainWindow::buildMessengerPage()
     contentLayout->addWidget(composer);
     connect(m_sendButton, &QPushButton::clicked, this, &MainWindow::sendComposerText);
     connect(m_composer, &QLineEdit::returnPressed, this, &MainWindow::sendComposerText);
+    connect(m_replyComposeCloseButton, &QPushButton::clicked, this, &MainWindow::clearReplyToMessage);
     connect(m_chatSearch, &QLineEdit::textChanged, this, [this](const QString &text) {
         m_chatFilter = text.trimmed();
         renderSidebar();
@@ -1725,7 +1815,13 @@ void MainWindow::renderMessages(const QJsonDocument &body)
     }
     for (const auto &value : messages) {
         const auto msg = value.toObject();
-        auto *row = makeMessageRowWidget(msg, m_currentUsername, m_apiClient, m_messageList);
+        auto *row = makeMessageRowWidget(
+            msg,
+            m_currentUsername,
+            m_apiClient,
+            m_allMessages,
+            [this](const QJsonObject &message) { setReplyToMessage(message); },
+            m_messageList);
         auto *item = new QListWidgetItem();
         row->ensurePolished();
         row->adjustSize();
@@ -1901,6 +1997,9 @@ void MainWindow::openSelectedChat()
     if (!item) return;
     const auto chatId = item->data(Qt::UserRole).toString();
     if (chatId.isEmpty()) return;
+    if (chatId != m_currentChatId) {
+        clearReplyToMessage();
+    }
     if (m_stack && m_stack->currentWidget() != m_messengerPage) {
         m_stack->setCurrentWidget(m_messengerPage);
     }
@@ -1999,6 +2098,31 @@ void MainWindow::renameCurrentPeer()
     setStatusText("Сохранение имени контакта...");
 }
 
+void MainWindow::setReplyToMessage(const QJsonObject &message)
+{
+    const auto id = message.value("id").toString();
+    if (id.isEmpty()) return;
+    m_replyToMessage = message;
+    m_replyToMessageId = id;
+    if (m_replyComposeAuthorLabel) {
+        m_replyComposeAuthorLabel->setText(QString("Ответ на сообщение · %1").arg(messageReplyAuthorLabel(message, m_currentUsername)));
+    }
+    if (m_replyComposeTextLabel) {
+        m_replyComposeTextLabel->setText(messageReplyExcerpt(message));
+    }
+    if (m_replyCompose) m_replyCompose->show();
+    if (m_composer) m_composer->setFocus();
+}
+
+void MainWindow::clearReplyToMessage()
+{
+    m_replyToMessage = {};
+    m_replyToMessageId.clear();
+    if (m_replyComposeAuthorLabel) m_replyComposeAuthorLabel->clear();
+    if (m_replyComposeTextLabel) m_replyComposeTextLabel->clear();
+    if (m_replyCompose) m_replyCompose->hide();
+}
+
 void MainWindow::sendComposerText()
 {
     if (!m_apiClient || !m_composer) return;
@@ -2010,7 +2134,9 @@ void MainWindow::sendComposerText()
     if (text.isEmpty()) return;
     m_composer->clear();
     setStatusText("Sending...");
-    m_apiClient->sendTextMessage(m_currentChatId, text);
+    const auto replyTo = m_replyToMessageId;
+    clearReplyToMessage();
+    m_apiClient->sendTextMessage(m_currentChatId, text, replyTo);
 }
 
 void MainWindow::setStatusText(const QString &text)
