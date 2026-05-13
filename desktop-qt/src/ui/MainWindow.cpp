@@ -55,6 +55,9 @@ struct ChatRow {
     QString preview;
     QString lastTime;
     QString peerUsername;
+    QString avatarDataUrl;
+    bool verified = false;
+    bool system = false;
 };
 
 QString messagePreview(const QJsonObject &msg)
@@ -153,6 +156,24 @@ QPixmap pixmapFromImageDataUrl(const QString &dataUrl)
     QPixmap pixmap;
     pixmap.loadFromData(decodeDataUrlPayload(dataUrl));
     return pixmap;
+}
+
+QPixmap circularPixmap(const QPixmap &source, int size)
+{
+    if (source.isNull()) return {};
+    QPixmap out(size, size);
+    out.fill(Qt::transparent);
+
+    QPainter painter(&out);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    QPainterPath clip;
+    clip.addEllipse(0, 0, size, size);
+    painter.setClipPath(clip);
+    painter.drawPixmap(0, 0, source.scaled(size, size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+    painter.setClipping(false);
+    painter.setPen(QPen(QColor("#cbd5e1"), 1));
+    painter.drawEllipse(QRectF(0.5, 0.5, size - 1, size - 1));
+    return out;
 }
 
 QPixmap makeFlagPixmap(const QString &lang)
@@ -294,13 +315,18 @@ QWidget *makeChatRowWidget(const ChatRow &row, QWidget *parent)
     avatar->setObjectName(row.id.contains("golos_aton") || row.title.contains("Атон", Qt::CaseInsensitive) ? "VoiceAvatar" : "ChatAvatar");
     avatar->setFixedSize(48, 48);
     avatar->setAlignment(Qt::AlignCenter);
-    avatar->setText(row.title.left(1).toUpper());
+    const auto avatarPixmap = circularPixmap(pixmapFromImageDataUrl(row.avatarDataUrl), 48);
+    if (!avatarPixmap.isNull()) {
+        avatar->setPixmap(avatarPixmap);
+    } else {
+        avatar->setText(row.title.left(1).toUpper());
+    }
 
     auto *copy = new QWidget(wrap);
     auto *copyLayout = new QVBoxLayout(copy);
     copyLayout->setContentsMargins(0, 0, 0, 0);
     copyLayout->setSpacing(2);
-    auto *title = new QLabel(row.title, copy);
+    auto *title = new QLabel(row.verified ? QString("%1 ✓").arg(row.title) : row.title, copy);
     title->setObjectName("ChatRowTitle");
     title->setTextFormat(Qt::PlainText);
     auto *subtitle = new QLabel(row.type == "private" ? "" : row.type, copy);
@@ -1260,6 +1286,9 @@ void MainWindow::renderDialogs(const QJsonDocument &body)
             dialog.value("preview").toString(),
             dialog.value("lastTime").toString(),
             dialog.value("peerUsername").toString(),
+            dialog.value("avatarDataUrl").toString(dialog.value("peerAvatarDataUrl").toString()),
+            dialog.value("verified").toBool(dialog.value("peerVerified").toBool()),
+            dialog.value("isSystem").toBool(),
         };
         if (row.id.isEmpty()) continue;
         if (!m_chatFilter.isEmpty()) {
@@ -1272,6 +1301,10 @@ void MainWindow::renderDialogs(const QJsonDocument &body)
         item->setData(Qt::UserRole + 1, row.title);
         item->setData(Qt::UserRole + 2, row.peerUsername);
         item->setData(Qt::UserRole + 3, row.type);
+        item->setData(Qt::UserRole + 4, row.verified);
+        item->setData(Qt::UserRole + 5, row.system);
+        item->setData(Qt::UserRole + 4, row.verified);
+        item->setData(Qt::UserRole + 5, row.system);
         item->setSizeHint(QSize(340, 88));
         m_chatList->addItem(item);
         m_chatList->setItemWidget(item, makeChatRowWidget(row, m_chatList));
@@ -1312,10 +1345,13 @@ void MainWindow::renderSidebar()
                                 id,
                                 title,
                                 chat.value("type").toString(id.startsWith("channel:") ? "channel" : "group"),
-                                chat.value("description").toString(),
-                                {},
-                                {},
-                            });
+                                 chat.value("description").toString(),
+                                 {},
+                                 {},
+                                 chat.value("avatarDataUrl").toString(),
+                                 chat.value("verified").toBool(),
+                                 false,
+                             });
     }
 
     for (const auto &value : m_allMessages) {
@@ -1340,7 +1376,7 @@ void MainWindow::renderSidebar()
                     const auto parts = chatId.split("|");
                     title = parts.isEmpty() ? chatId : parts.last();
                 }
-                row = ChatRow{chatId, title, "private", {}, {}, peer};
+                row = ChatRow{chatId, title, "private", {}, {}, peer, {}, false, peer.compare("golos_aton", Qt::CaseInsensitive) == 0};
             }
             if (row.lastTime.isEmpty() || lastTime >= row.lastTime) {
                 row.preview = preview;
@@ -1535,10 +1571,12 @@ void MainWindow::openSelectedChat()
     }
     const auto title = item->data(Qt::UserRole + 1).toString();
     const auto peer = item->data(Qt::UserRole + 2).toString();
+    const auto verified = item->data(Qt::UserRole + 4).toBool();
     if (chatId == m_currentChatId) {
         m_currentPeerUsername = peer.isEmpty() && isDirectChatId(chatId) ? peerFromDirectChatId(chatId, m_currentUsername) : peer;
         if (m_chatTitleLabel) {
-            m_chatTitleLabel->setText(title.isEmpty() ? "Чат" : title);
+            const auto displayTitle = title.isEmpty() ? "Чат" : title;
+            m_chatTitleLabel->setText(verified ? QString("%1 ✓").arg(displayTitle) : displayTitle);
         }
         updatePeerActionBar();
         if (m_messageList && m_messageList->count() == 0) {
@@ -1552,7 +1590,8 @@ void MainWindow::openSelectedChat()
         m_currentPeerUsername = peerFromDirectChatId(chatId, m_currentUsername);
     }
     if (m_chatTitleLabel) {
-        m_chatTitleLabel->setText(title.isEmpty() ? "Чат" : title);
+        const auto displayTitle = title.isEmpty() ? "Чат" : title;
+        m_chatTitleLabel->setText(verified ? QString("%1 ✓").arg(displayTitle) : displayTitle);
     }
     updatePeerActionBar();
     setStatusText("Загрузка сообщений...");

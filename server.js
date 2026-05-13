@@ -2158,6 +2158,9 @@ app.get("/api/dialogs", authMiddleware, requireVerified, async (req, res) => {
         type: chat.type || (chat.id.startsWith("channel:") ? "channel" : "group"),
         preview: chat.description || "",
         lastTime: chat.createdAt || "",
+        avatarDataUrl: chat.avatarDataUrl || "",
+        verified: Boolean(chat.verified),
+        isSystem: false,
       });
     }
 
@@ -2209,7 +2212,10 @@ app.get("/api/dialogs", authMiddleware, requireVerified, async (req, res) => {
           peerDisplayName: peerUser.displayName || peer,
           peerPublicId: peerUser.publicId || peer,
           peerAvatarDataUrl: peerUser.avatarDataUrl || "",
+          avatarDataUrl: peerUser.avatarDataUrl || "",
           peerVerified: Boolean(peerUser.isVerified || peerUser.verified),
+          verified: Boolean(peerUser.isVerified || peerUser.verified),
+          isSystem: peer === GOLOS_ATON_USERNAME,
         };
       }
       if (!row) continue;
