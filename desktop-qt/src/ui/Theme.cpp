@@ -448,6 +448,23 @@ QString Theme::styleSheet()
             background: #eef4ff;
             border-color: #93c5fd;
         }
+        QPushButton#MessageDeleteButton {
+            min-width: 28px;
+            max-width: 28px;
+            min-height: 28px;
+            max-height: 28px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid rgba(248, 113, 113, 0.45);
+            color: #dc2626;
+            padding: 0;
+            font-size: 18px;
+            font-weight: 800;
+        }
+        QPushButton#MessageDeleteButton:hover {
+            background: #fee2e2;
+            border-color: #f87171;
+        }
         #MessageImage {
             background: transparent;
             border-radius: 10px;

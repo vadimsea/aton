@@ -30,6 +30,9 @@ public:
     void updatePeerAlias(const QString &peerUsername, const QString &alias);
     void contactAction(const QString &endpoint, const QString &username);
     void reactToMessage(const QString &messageId, const QString &emoji);
+    void updateMessageText(const QString &messageId, const QString &text);
+    void pinMessage(const QString &messageId);
+    void deleteMessage(const QString &messageId);
     void sendTextMessage(const QString &chatId, const QString &text, const QString &replyTo = {});
 
 signals:
@@ -40,6 +43,8 @@ private:
     void getJson(const QString &endpoint);
     void postJson(const QString &endpoint, const QJsonObject &payload);
     void putJson(const QString &endpoint, const QJsonObject &payload);
+    void patchJson(const QString &endpoint, const QJsonObject &payload);
+    void deleteJson(const QString &endpoint);
     QNetworkRequest makeRequest(const QString &endpoint) const;
     void handleReply(QNetworkReply *reply, const QString &endpoint);
 

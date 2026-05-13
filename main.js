@@ -2646,6 +2646,20 @@ function createApp() {
     }
   });
 
+  socket.on("message:deleted", (p) => {
+    if (!p || !p.id) return;
+    const before = allMessages.length;
+    allMessages = allMessages.filter((m) => m && m.id !== p.id);
+    if (allMessages.length === before) return;
+    if (replyToMessage && replyToMessage.id === p.id) {
+      clearReplyToMessage();
+    }
+    renderChatList();
+    if (currentChatId && (!p.chatId || String(p.chatId) === String(currentChatId))) {
+      renderMessages({ deferIfVoice: true });
+    }
+  });
+
   socket.on("golos:noreply", (p) => {
     if (!p || !p.chatId || !currentUser) return;
     const gid = chatIdForUsers(currentUser.username, GOLOS_ATON_USERNAME);

@@ -385,6 +385,20 @@ function emitMessageUpdated(msg) {
   io.to(msg.chatId).emit("message:updated", msg);
 }
 
+function emitMessageDeleted(msg) {
+  if (!msg || !msg.chatId || !msg.id) return;
+  const payload = { id: msg.id, chatId: msg.chatId };
+  if (isDirectMessageChatId(String(msg.chatId))) {
+    const parts = String(msg.chatId).split("|");
+    if (parts.length === 2 && parts[0] && parts[1]) {
+      io.to(`user:${parts[0]}`).emit("message:deleted", payload);
+      io.to(`user:${parts[1]}`).emit("message:deleted", payload);
+      return;
+    }
+  }
+  io.to(msg.chatId).emit("message:deleted", payload);
+}
+
 // Rate limiting — защита от brute-force
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 минут
@@ -3122,7 +3136,9 @@ app.patch("/api/messages/:id", authMiddleware, requireVerified, async (req, res)
       where: { id },
       data: { text: text.trim(), editedAt: new Date() },
     });
-    res.json(messageFromPrismaRow(updated));
+    const msg = messageFromPrismaRow(updated);
+    emitMessageUpdated(msg);
+    res.json(msg);
   } catch (err) {
     console.error("PATCH /api/messages/:id:", err);
     res.status(500).json({ error: "Ошибка сервера" });
@@ -3142,7 +3158,9 @@ app.post("/api/messages/:id/pin", authMiddleware, requireVerified, async (req, r
       where: { id },
       data: { pinned: !row.pinned },
     });
-    res.json(messageFromPrismaRow(updated));
+    const msg = messageFromPrismaRow(updated);
+    emitMessageUpdated(msg);
+    res.json(msg);
   } catch (err) {
     console.error("POST /api/messages/:id/pin:", err);
     res.status(500).json({ error: "Ошибка сервера" });
@@ -3198,7 +3216,9 @@ app.delete("/api/messages/:id", authMiddleware, requireVerified, async (req, res
     if (row.senderUsername !== req.user.username) {
       return res.status(403).json({ error: "Можно удалять только свои сообщения" });
     }
+    const msg = messageFromPrismaRow(row);
     await prisma.message.delete({ where: { id } });
+    emitMessageDeleted(msg);
     res.json({ ok: true });
   } catch (err) {
     console.error("DELETE /api/messages/:id:", err);

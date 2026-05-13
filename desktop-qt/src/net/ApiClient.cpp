@@ -128,6 +128,23 @@ void ApiClient::reactToMessage(const QString &messageId, const QString &emoji)
     postJson(QString("/api/messages/%1/react").arg(QString::fromUtf8(QUrl::toPercentEncoding(messageId))), payload);
 }
 
+void ApiClient::updateMessageText(const QString &messageId, const QString &text)
+{
+    QJsonObject payload;
+    payload.insert("text", text.trimmed());
+    patchJson(QString("/api/messages/%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(messageId))), payload);
+}
+
+void ApiClient::pinMessage(const QString &messageId)
+{
+    postJson(QString("/api/messages/%1/pin").arg(QString::fromUtf8(QUrl::toPercentEncoding(messageId))), {});
+}
+
+void ApiClient::deleteMessage(const QString &messageId)
+{
+    deleteJson(QString("/api/messages/%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(messageId))));
+}
+
 void ApiClient::getJson(const QString &endpoint)
 {
     auto *reply = m_network.get(makeRequest(endpoint));
@@ -143,6 +160,18 @@ void ApiClient::postJson(const QString &endpoint, const QJsonObject &payload)
 void ApiClient::putJson(const QString &endpoint, const QJsonObject &payload)
 {
     auto *reply = m_network.put(makeRequest(endpoint), QJsonDocument(payload).toJson(QJsonDocument::Compact));
+    connect(reply, &QNetworkReply::finished, this, [this, reply, endpoint]() { handleReply(reply, endpoint); });
+}
+
+void ApiClient::patchJson(const QString &endpoint, const QJsonObject &payload)
+{
+    auto *reply = m_network.sendCustomRequest(makeRequest(endpoint), "PATCH", QJsonDocument(payload).toJson(QJsonDocument::Compact));
+    connect(reply, &QNetworkReply::finished, this, [this, reply, endpoint]() { handleReply(reply, endpoint); });
+}
+
+void ApiClient::deleteJson(const QString &endpoint)
+{
+    auto *reply = m_network.deleteResource(makeRequest(endpoint));
     connect(reply, &QNetworkReply::finished, this, [this, reply, endpoint]() { handleReply(reply, endpoint); });
 }
 

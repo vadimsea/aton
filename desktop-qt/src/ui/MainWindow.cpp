@@ -25,6 +25,7 @@
 #include <QMap>
 #include <QMediaPlayer>
 #include <QMenu>
+#include <QMessageBox>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
@@ -704,6 +705,45 @@ QWidget *makeMessageRowWidget(
             if (replyHandler) replyHandler(msg);
         });
         actionsLayout->addWidget(replyButton);
+
+        if (isSelf) {
+            if (type == "text") {
+                auto *editButton = new QPushButton("✎", actionsRow);
+                editButton->setObjectName("MessageActionButton");
+                editButton->setCursor(Qt::PointingHandCursor);
+                editButton->setToolTip("Редактировать");
+                QObject::connect(editButton, &QPushButton::clicked, editButton, [apiClient, messageId, msg, editButton]() {
+                    bool ok = false;
+                    const auto currentText = msg.value("text").toString();
+                    const auto nextText = QInputDialog::getMultiLineText(editButton, "Редактировать сообщение", "Текст", currentText, &ok).trimmed();
+                    if (ok && !nextText.isEmpty() && nextText != currentText) {
+                        apiClient->updateMessageText(messageId, nextText);
+                    }
+                });
+                actionsLayout->addWidget(editButton);
+            }
+
+            auto *pinButton = new QPushButton(msg.value("pinned").toBool() ? "★" : "☆", actionsRow);
+            pinButton->setObjectName(msg.value("pinned").toBool() ? "MessageActionButtonActive" : "MessageActionButton");
+            pinButton->setCursor(Qt::PointingHandCursor);
+            pinButton->setToolTip(msg.value("pinned").toBool() ? "Снять закрепление" : "Закрепить");
+            QObject::connect(pinButton, &QPushButton::clicked, pinButton, [apiClient, messageId]() {
+                apiClient->pinMessage(messageId);
+            });
+            actionsLayout->addWidget(pinButton);
+
+            auto *deleteButton = new QPushButton("×", actionsRow);
+            deleteButton->setObjectName("MessageDeleteButton");
+            deleteButton->setCursor(Qt::PointingHandCursor);
+            deleteButton->setToolTip("Удалить");
+            QObject::connect(deleteButton, &QPushButton::clicked, deleteButton, [apiClient, messageId, deleteButton]() {
+                const auto answer = QMessageBox::question(deleteButton, "Удалить сообщение", "Удалить это сообщение?");
+                if (answer == QMessageBox::Yes) {
+                    apiClient->deleteMessage(messageId);
+                }
+            });
+            actionsLayout->addWidget(deleteButton);
+        }
         bubbleLayout->addWidget(actionsRow);
     }
 
@@ -1464,6 +1504,13 @@ void MainWindow::wireApi()
             return;
         }
         if (endpoint.startsWith("/api/messages/") && endpoint.endsWith("/react")) {
+            if (!m_currentChatId.isEmpty()) {
+                m_apiClient->getMessages(m_currentChatId);
+            }
+            m_apiClient->getDialogs();
+            return;
+        }
+        if (endpoint.startsWith("/api/messages/")) {
             if (!m_currentChatId.isEmpty()) {
                 m_apiClient->getMessages(m_currentChatId);
             }
