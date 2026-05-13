@@ -240,6 +240,73 @@ QString Theme::styleSheet()
             background: #f8fafc;
             border-bottom: 1px solid #e2e8f0;
         }
+        #ProfilePage {
+            background: #ffffff;
+        }
+        #ProfileCard {
+            background: #f8fafc;
+            border: 1px solid #dbe4ef;
+            border-radius: 18px;
+        }
+        #ProfileAvatar {
+            border-radius: 52px;
+            background: #dbeafe;
+            border: 1px solid #bfdbfe;
+            color: #2563eb;
+            font-size: 36px;
+            font-weight: 800;
+        }
+        #ProfileHeroName {
+            color: #0f172a;
+            font-size: 32px;
+            font-weight: 900;
+        }
+        #ProfileVerifiedPill {
+            max-width: 260px;
+            border-radius: 15px;
+            padding: 6px 12px;
+            background: #eaf2ff;
+            border: 1px solid #bfdbfe;
+            color: #2563eb;
+            font-weight: 800;
+        }
+        #ProfileFieldLabel {
+            color: #64748b;
+            font-size: 12px;
+            letter-spacing: 2px;
+            font-weight: 700;
+        }
+        QLineEdit#ProfileInput,
+        QTextEdit#ProfileTextEdit {
+            background: #ffffff;
+            border: 1px solid #d4dde8;
+            border-radius: 13px;
+            color: #172033;
+            font-size: 17px;
+            padding: 10px 14px;
+        }
+        QLineEdit#ProfileInput:read-only {
+            color: #475569;
+            background: #f8fafc;
+        }
+        QPushButton#SecondaryButton,
+        QPushButton#DangerButton {
+            min-height: 48px;
+            border-radius: 13px;
+            padding: 0 20px;
+            font-size: 15px;
+            font-weight: 800;
+        }
+        QPushButton#SecondaryButton {
+            background: #eef4ff;
+            border: 1px solid #bfdbfe;
+            color: #2563eb;
+        }
+        QPushButton#DangerButton {
+            background: #fff1f2;
+            border: 1px solid #fecdd3;
+            color: #dc2626;
+        }
         QPushButton#PeerActionButton {
             min-height: 30px;
             padding: 0 16px;

@@ -900,9 +900,12 @@ QWidget *MainWindow::buildMessengerPage()
     m_userPillButton = new QPushButton("●  Akhenaten ✓", header);
     m_userPillButton->setObjectName("UserPillButton");
     m_userPillButton->setCursor(Qt::PointingHandCursor);
+    connect(m_userPillButton, &QPushButton::clicked, this, &MainWindow::showProfileDialog);
     connect(m_userPillButton, &QPushButton::clicked, this, [this]() {
         setStatusText("Профиль в desktop-клиенте будет добавлен отдельным экраном. Сейчас профиль редактируется в веб-версии.");
     });
+    m_userPillButton->disconnect();
+    connect(m_userPillButton, &QPushButton::clicked, this, &MainWindow::showProfileDialog);
     headerLayout->addWidget(m_userPillButton);
     contentLayout->addWidget(header);
 
@@ -947,6 +950,93 @@ QWidget *MainWindow::buildMessengerPage()
         setStatusText("Настройки уведомлений для чата будут синхронизированы с веб-версией отдельным проходом");
     });
 
+    m_profilePage = new QWidget(content);
+    m_profilePage->setObjectName("ProfilePage");
+    auto *profileOuter = new QVBoxLayout(m_profilePage);
+    profileOuter->setContentsMargins(72, 30, 72, 30);
+    profileOuter->setSpacing(18);
+
+    auto *profileHero = new QWidget(m_profilePage);
+    profileHero->setObjectName("ProfileCard");
+    auto *heroLayout = new QHBoxLayout(profileHero);
+    heroLayout->setContentsMargins(28, 24, 28, 24);
+    heroLayout->setSpacing(24);
+    m_profileAvatarLabel = new QLabel(profileHero);
+    m_profileAvatarLabel->setObjectName("ProfileAvatar");
+    m_profileAvatarLabel->setFixedSize(104, 104);
+    m_profileAvatarLabel->setAlignment(Qt::AlignCenter);
+    auto *heroCopy = new QWidget(profileHero);
+    auto *heroCopyLayout = new QVBoxLayout(heroCopy);
+    heroCopyLayout->setContentsMargins(0, 0, 0, 0);
+    heroCopyLayout->setSpacing(6);
+    m_profileNameLabel = new QLabel("Akhenaten", heroCopy);
+    m_profileNameLabel->setObjectName("ProfileHeroName");
+    m_profilePublicIdLabel = new QLabel("@akhenaten", heroCopy);
+    m_profilePublicIdLabel->setObjectName("MutedText");
+    m_profileVerifiedLabel = new QLabel("Профиль верифицирован ✓", heroCopy);
+    m_profileVerifiedLabel->setObjectName("ProfileVerifiedPill");
+    heroCopyLayout->addWidget(m_profileNameLabel);
+    heroCopyLayout->addWidget(m_profilePublicIdLabel);
+    heroCopyLayout->addWidget(m_profileVerifiedLabel);
+    heroCopyLayout->addStretch(1);
+    heroLayout->addWidget(m_profileAvatarLabel);
+    heroLayout->addWidget(heroCopy, 1);
+    profileOuter->addWidget(profileHero);
+
+    auto *profileForm = new QWidget(m_profilePage);
+    profileForm->setObjectName("ProfileCard");
+    auto *profileFormLayout = new QVBoxLayout(profileForm);
+    profileFormLayout->setContentsMargins(28, 24, 28, 24);
+    profileFormLayout->setSpacing(12);
+    auto addProfileLabel = [&](const QString &text) {
+        auto *label = new QLabel(text, profileForm);
+        label->setObjectName("ProfileFieldLabel");
+        profileFormLayout->addWidget(label);
+    };
+    addProfileLabel("EMAIL АККАУНТА");
+    m_profileEmailInput = new QLineEdit(profileForm);
+    m_profileEmailInput->setReadOnly(true);
+    m_profileEmailInput->setObjectName("ProfileInput");
+    profileFormLayout->addWidget(m_profileEmailInput);
+    addProfileLabel("ОТОБРАЖАЕМОЕ ИМЯ");
+    m_profileNameInput = new QLineEdit(profileForm);
+    m_profileNameInput->setObjectName("ProfileInput");
+    profileFormLayout->addWidget(m_profileNameInput);
+    addProfileLabel("СТАТУС");
+    m_profileBioInput = new QTextEdit(profileForm);
+    m_profileBioInput->setObjectName("ProfileTextEdit");
+    m_profileBioInput->setFixedHeight(96);
+    profileFormLayout->addWidget(m_profileBioInput);
+    addProfileLabel("ID ПРОФИЛЯ");
+    m_profilePublicIdInput = new QLineEdit(profileForm);
+    m_profilePublicIdInput->setObjectName("ProfileInput");
+    profileFormLayout->addWidget(m_profilePublicIdInput);
+
+    auto *profileActions = new QHBoxLayout();
+    profileActions->addStretch(1);
+    auto *cancelProfileButton = new QPushButton("Отмена", profileForm);
+    cancelProfileButton->setObjectName("SecondaryButton");
+    auto *logoutProfileButton = new QPushButton("Выйти", profileForm);
+    logoutProfileButton->setObjectName("DangerButton");
+    auto *saveProfileButton = new QPushButton("Сохранить", profileForm);
+    saveProfileButton->setObjectName("PrimaryButton");
+    profileActions->addWidget(cancelProfileButton);
+    profileActions->addWidget(logoutProfileButton);
+    profileActions->addWidget(saveProfileButton);
+    profileFormLayout->addLayout(profileActions);
+    profileOuter->addWidget(profileForm);
+    profileOuter->addStretch(1);
+    contentLayout->addWidget(m_profilePage, 1);
+    m_profilePage->hide();
+
+    connect(cancelProfileButton, &QPushButton::clicked, this, &MainWindow::closeProfilePage);
+    connect(saveProfileButton, &QPushButton::clicked, this, &MainWindow::saveProfilePage);
+    connect(logoutProfileButton, &QPushButton::clicked, this, [this]() {
+        if (m_apiClient) m_apiClient->logout();
+        if (m_sessionStore) m_sessionStore->clear();
+        refreshSessionUi();
+    });
+
     m_messageList = new QListWidget(content);
     m_messageList->setObjectName("MessageList");
     m_messageList->setSpacing(0);
@@ -955,6 +1045,7 @@ QWidget *MainWindow::buildMessengerPage()
     contentLayout->addWidget(m_messageList, 1);
 
     auto *composer = new QWidget(content);
+    m_composerPanel = composer;
     composer->setObjectName("Composer");
     auto *composerOuter = new QVBoxLayout(composer);
     composerOuter->setContentsMargins(30, 12, 28, 14);
@@ -1048,6 +1139,7 @@ void MainWindow::wireApi()
                 m_userPillButton->setText(QString("●  %1 ✓").arg(name));
             }
             setStatusText(QString("Signed in as %1").arg(name));
+            populateProfilePage();
             renderSidebar();
             return;
         }
@@ -1470,6 +1562,15 @@ void MainWindow::showProfileDialog()
         return;
     }
 
+    populateProfilePage();
+    if (m_messageList) m_messageList->hide();
+    if (m_composerPanel) m_composerPanel->hide();
+    if (m_peerActionBar) m_peerActionBar->hide();
+    if (m_profilePage) m_profilePage->show();
+    if (m_chatTitleLabel) m_chatTitleLabel->setText("Профиль пользователя");
+    setStatusText("Настройки профиля");
+    return;
+
     QDialog dialog(this);
     dialog.setWindowTitle("Профиль пользователя");
     dialog.setMinimumWidth(460);
@@ -1510,6 +1611,59 @@ void MainWindow::showProfileDialog()
     });
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     dialog.exec();
+}
+
+void MainWindow::populateProfilePage()
+{
+    if (m_currentUser.isEmpty()) return;
+    const auto name = m_currentUser.value("displayName").toString(m_currentUsername);
+    const auto publicId = m_currentUser.value("publicId").toString(m_currentUsername);
+    const auto email = m_currentUser.value("email").toString();
+    const auto bio = m_currentUser.value("bio").toString();
+    const auto verified = m_currentUser.value("isVerified").toBool(m_currentUser.value("verified").toBool());
+
+    if (m_profileNameLabel) m_profileNameLabel->setText(name);
+    if (m_profilePublicIdLabel) m_profilePublicIdLabel->setText(QString("@%1").arg(publicId));
+    if (m_profileVerifiedLabel) {
+        m_profileVerifiedLabel->setText(verified ? "Профиль верифицирован ✓" : "Профиль не верифицирован");
+    }
+    if (m_profileEmailInput) m_profileEmailInput->setText(email);
+    if (m_profileNameInput) m_profileNameInput->setText(name);
+    if (m_profilePublicIdInput) m_profilePublicIdInput->setText(publicId);
+    if (m_profileBioInput) m_profileBioInput->setPlainText(bio);
+    if (m_profileAvatarLabel) {
+        const auto avatar = circularPixmap(pixmapFromImageDataUrl(m_currentUser.value("avatarDataUrl").toString()), 104);
+        if (!avatar.isNull()) {
+            m_profileAvatarLabel->setPixmap(avatar);
+            m_profileAvatarLabel->setText({});
+        } else {
+            m_profileAvatarLabel->setPixmap({});
+            m_profileAvatarLabel->setText(name.left(1).toUpper());
+        }
+    }
+}
+
+void MainWindow::closeProfilePage()
+{
+    if (m_profilePage) m_profilePage->hide();
+    if (m_messageList) m_messageList->show();
+    if (m_composerPanel) m_composerPanel->show();
+    updatePeerActionBar();
+    if (m_chatList && m_chatList->currentItem()) {
+        const auto *item = m_chatList->currentItem();
+        const auto title = item->data(Qt::UserRole + 1).toString();
+        const auto verified = item->data(Qt::UserRole + 4).toBool();
+        const auto displayTitle = title.isEmpty() ? "Чат" : title;
+        if (m_chatTitleLabel) m_chatTitleLabel->setText(verified ? QString("%1 ✓").arg(displayTitle) : displayTitle);
+    }
+    setStatusText(m_currentChatId.isEmpty() ? "Выберите чат" : "Готово");
+}
+
+void MainWindow::saveProfilePage()
+{
+    if (!m_apiClient || !m_profileNameInput || !m_profileBioInput || !m_profilePublicIdInput) return;
+    setStatusText("Сохранение профиля...");
+    m_apiClient->updateProfile(m_profileNameInput->text(), m_profileBioInput->toPlainText(), m_profilePublicIdInput->text());
 }
 
 void MainWindow::showContactsDialog(const QJsonDocument &body)
@@ -1568,6 +1722,11 @@ void MainWindow::openSelectedChat()
     if (chatId.isEmpty()) return;
     if (m_stack && m_stack->currentWidget() != m_messengerPage) {
         m_stack->setCurrentWidget(m_messengerPage);
+    }
+    if (m_profilePage && m_profilePage->isVisible()) {
+        m_profilePage->hide();
+        if (m_messageList) m_messageList->show();
+        if (m_composerPanel) m_composerPanel->show();
     }
     const auto title = item->data(Qt::UserRole + 1).toString();
     const auto peer = item->data(Qt::UserRole + 2).toString();

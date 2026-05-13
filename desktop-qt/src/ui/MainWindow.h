@@ -10,6 +10,7 @@ class QLineEdit;
 class QListWidget;
 class QPushButton;
 class QStackedWidget;
+class QTextEdit;
 class QWidget;
 
 namespace aten {
@@ -40,6 +41,9 @@ private:
     void renderSidebar();
     void renderMessages(const QJsonDocument &body);
     void showProfileDialog();
+    void closeProfilePage();
+    void saveProfilePage();
+    void populateProfilePage();
     void showContactsDialog(const QJsonDocument &body);
     void showNotReady(const QString &title);
     void openSelectedChat();
@@ -86,6 +90,8 @@ private:
     QLineEdit *m_chatSearch = nullptr;
     QListWidget *m_chatList = nullptr;
     QListWidget *m_messageList = nullptr;
+    QWidget *m_profilePage = nullptr;
+    QWidget *m_composerPanel = nullptr;
     QLineEdit *m_composer = nullptr;
     QPushButton *m_sendButton = nullptr;
     QPushButton *m_userPillButton = nullptr;
@@ -94,6 +100,14 @@ private:
     QPushButton *m_peerBlockButton = nullptr;
     QPushButton *m_peerFriendButton = nullptr;
     QPushButton *m_peerNotifyButton = nullptr;
+    QLabel *m_profileAvatarLabel = nullptr;
+    QLabel *m_profileNameLabel = nullptr;
+    QLabel *m_profilePublicIdLabel = nullptr;
+    QLabel *m_profileVerifiedLabel = nullptr;
+    QLineEdit *m_profileEmailInput = nullptr;
+    QLineEdit *m_profileNameInput = nullptr;
+    QLineEdit *m_profilePublicIdInput = nullptr;
+    QTextEdit *m_profileBioInput = nullptr;
     QString m_currentChatId;
     QString m_currentPeerUsername;
     QString m_currentUsername;
