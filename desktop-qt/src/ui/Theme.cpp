@@ -332,6 +332,27 @@ QString Theme::styleSheet()
         QPushButton#VoicePlayButton:hover {
             background: #eef4ff;
         }
+        QSlider#VoiceTrack {
+            min-height: 18px;
+        }
+        QSlider#VoiceTrack::groove:horizontal {
+            height: 6px;
+            border-radius: 3px;
+            background: #cbd5e1;
+        }
+        QSlider#VoiceTrack::sub-page:horizontal {
+            height: 6px;
+            border-radius: 3px;
+            background: #2563eb;
+        }
+        QSlider#VoiceTrack::handle:horizontal {
+            width: 14px;
+            height: 14px;
+            margin: -4px 0;
+            border-radius: 7px;
+            background: #ffffff;
+            border: 1px solid #93c5fd;
+        }
         #Composer {
             background: #ffffff;
             border-top: 1px solid #dbe4ef;

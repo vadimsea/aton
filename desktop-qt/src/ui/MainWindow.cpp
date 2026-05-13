@@ -26,6 +26,7 @@
 #include <QPixmap>
 #include <QPushButton>
 #include <QSizePolicy>
+#include <QSlider>
 #include <QSplitter>
 #include <QStandardPaths>
 #include <QStackedWidget>
@@ -73,6 +74,15 @@ QString compactTime(const QString &value)
     if (!dt.isValid()) dt = QDateTime::fromString(value, Qt::ISODate);
     if (!dt.isValid()) return {};
     return dt.toLocalTime().toString("HH:mm");
+}
+
+QString mediaTimeLabel(qint64 ms)
+{
+    if (ms <= 0) return "0:00";
+    const auto totalSeconds = ms / 1000;
+    const auto minutes = totalSeconds / 60;
+    const auto seconds = totalSeconds % 60;
+    return QString("%1:%2").arg(minutes).arg(seconds, 2, 10, QLatin1Char('0'));
 }
 
 bool isDirectChatId(const QString &chatId)
@@ -364,10 +374,15 @@ QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUser
         playButton->setObjectName("VoicePlayButton");
         playButton->setFixedSize(56, 56);
         playButton->setEnabled(!audioPath.isEmpty());
+        auto *track = new QSlider(Qt::Horizontal, voiceRow);
+        track->setObjectName("VoiceTrack");
+        track->setRange(0, 0);
+        track->setEnabled(!audioPath.isEmpty());
         auto *label = new QLabel(audioPath.isEmpty() ? "Голосовое недоступно" : "0:00 / 0:00", voiceRow);
         label->setObjectName("VoiceMessageLabel");
         voiceLayout->addWidget(playButton);
-        voiceLayout->addWidget(label, 1);
+        voiceLayout->addWidget(track, 1);
+        voiceLayout->addWidget(label);
         bubbleLayout->addWidget(voiceRow);
 
         if (!audioPath.isEmpty()) {
@@ -377,6 +392,9 @@ QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUser
             player->setAudioOutput(audioOutput);
             player->setSource(QUrl::fromLocalFile(audioPath));
 
+            QObject::connect(track, &QSlider::sliderMoved, player, [player](int value) {
+                player->setPosition(value);
+            });
             QObject::connect(playButton, &QPushButton::clicked, playButton, [player]() {
                 if (player->playbackState() == QMediaPlayer::PlayingState) {
                     player->pause();
@@ -386,6 +404,18 @@ QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUser
             });
             QObject::connect(player, &QMediaPlayer::playbackStateChanged, playButton, [playButton](QMediaPlayer::PlaybackState state) {
                 playButton->setText(state == QMediaPlayer::PlayingState ? "Ⅱ" : "▶");
+            });
+            QObject::connect(player, &QMediaPlayer::durationChanged, track, [track, label, player](qint64 duration) {
+                track->setRange(0, static_cast<int>(std::max<qint64>(0, duration)));
+                label->setText(QString("%1 / %2").arg(mediaTimeLabel(player->position()), mediaTimeLabel(duration)));
+            });
+            QObject::connect(player, &QMediaPlayer::positionChanged, track, [track, label, player](qint64 position) {
+                if (!track->isSliderDown()) {
+                    track->blockSignals(true);
+                    track->setValue(static_cast<int>(position));
+                    track->blockSignals(false);
+                }
+                label->setText(QString("%1 / %2").arg(mediaTimeLabel(position), mediaTimeLabel(player->duration())));
             });
             QObject::connect(player, &QMediaPlayer::mediaStatusChanged, playButton, [player, playButton](QMediaPlayer::MediaStatus status) {
                 if (status == QMediaPlayer::EndOfMedia) {
