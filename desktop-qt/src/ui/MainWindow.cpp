@@ -8,6 +8,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFormLayout>
+#include <QFontMetrics>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QInputDialog>
@@ -255,10 +256,20 @@ int messageRowHeight(const QJsonObject &msg)
 {
     const auto type = msg.value("type").toString("text");
     if (type == "image") return 320;
-    if (type == "audio") return 132;
+    if (type == "audio") return 142;
     const auto text = msg.value("text").toString().simplified();
-    const auto lines = std::max(1, static_cast<int>(text.size() / 42 + 1));
-    return std::clamp(58 + lines * 26, 92, 620);
+    const auto lines = std::max(1, static_cast<int>(text.size() / 34 + 1));
+    return std::clamp(78 + lines * 28, 96, 760);
+}
+
+int messageTextWidth(const QString &text, const QFont &font)
+{
+    const auto clean = text.simplified();
+    if (clean.isEmpty()) return 72;
+    QFontMetrics metrics(font);
+    if (clean.size() > 42) return 360;
+    const auto natural = metrics.horizontalAdvance(clean);
+    return std::clamp(natural + 8, 48, 360);
 }
 
 QWidget *makeChatRowWidget(const ChatRow &row, QWidget *parent)
@@ -384,12 +395,15 @@ QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUser
             });
         }
     } else {
-        auto *label = new QLabel(type == "text" ? msg.value("text").toString() : QString("[%1]").arg(type), bubble);
+        const auto textValue = type == "text" ? msg.value("text").toString() : QString("[%1]").arg(type);
+        auto *label = new QLabel(textValue, bubble);
         label->setObjectName("MessageText");
         label->setWordWrap(true);
         label->setTextFormat(Qt::PlainText);
-        label->setMaximumWidth(360);
-        label->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::MinimumExpanding);
+        const auto textWidth = messageTextWidth(textValue, label->font());
+        label->setFixedWidth(textWidth);
+        bubble->setFixedWidth(textWidth + 32);
+        label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::MinimumExpanding);
         bubbleLayout->addWidget(label);
     }
 
@@ -1374,7 +1388,9 @@ void MainWindow::renderMessages(const QJsonDocument &body)
         const auto msg = value.toObject();
         auto *row = makeMessageRowWidget(msg, m_currentUsername, m_messageList);
         auto *item = new QListWidgetItem();
-        item->setSizeHint(QSize(900, messageRowHeight(msg)));
+        row->ensurePolished();
+        row->adjustSize();
+        item->setSizeHint(QSize(900, std::max(messageRowHeight(msg), row->sizeHint().height() + 8)));
         m_messageList->addItem(item);
         m_messageList->setItemWidget(item, row);
     }
