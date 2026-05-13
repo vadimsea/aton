@@ -38,6 +38,7 @@
 #include <QStyle>
 #include <QTextOption>
 #include <QTextEdit>
+#include <QTimer>
 #include <QUrl>
 #include <QUuid>
 #include <QVBoxLayout>
@@ -762,6 +763,9 @@ MainWindow::MainWindow(ApiClient *apiClient, SessionStore *sessionStore, QWidget
 
     buildUi();
     wireApi();
+    m_syncTimer = new QTimer(this);
+    m_syncTimer->setInterval(3500);
+    connect(m_syncTimer, &QTimer::timeout, this, &MainWindow::syncActiveChat);
     refreshSessionUi();
 
     if (m_apiClient) {
@@ -1388,6 +1392,7 @@ void MainWindow::wireApi()
             return;
         }
         if (endpoint == "/api/logout") {
+            if (m_syncTimer) m_syncTimer->stop();
             setStatusText("Signed out");
             return;
         }
@@ -1462,6 +1467,7 @@ void MainWindow::wireApi()
             if (!m_currentChatId.isEmpty()) {
                 m_apiClient->getMessages(m_currentChatId);
             }
+            m_apiClient->getDialogs();
             return;
         }
         setStatusText(QString("Loaded %1").arg(endpoint));
@@ -1487,6 +1493,8 @@ void MainWindow::refreshSessionUi()
     }
     if (hasSession) {
         loadAuthenticatedData();
+    } else if (m_syncTimer) {
+        m_syncTimer->stop();
     }
 }
 
@@ -1591,6 +1599,7 @@ void MainWindow::updateAuthTexts()
 void MainWindow::loadAuthenticatedData()
 {
     if (!m_apiClient || !m_sessionStore || !m_sessionStore->hasToken()) return;
+    if (m_syncTimer && !m_syncTimer->isActive()) m_syncTimer->start();
     m_apiClient->getMe();
     m_apiClient->getDialogs();
     m_apiClient->getContacts();
@@ -1819,7 +1828,7 @@ void MainWindow::renderMessages(const QJsonDocument &body)
             msg,
             m_currentUsername,
             m_apiClient,
-            m_allMessages,
+            messages,
             [this](const QJsonObject &message) { setReplyToMessage(message); },
             m_messageList);
         auto *item = new QListWidgetItem();
@@ -2121,6 +2130,16 @@ void MainWindow::clearReplyToMessage()
     if (m_replyComposeAuthorLabel) m_replyComposeAuthorLabel->clear();
     if (m_replyComposeTextLabel) m_replyComposeTextLabel->clear();
     if (m_replyCompose) m_replyCompose->hide();
+}
+
+void MainWindow::syncActiveChat()
+{
+    if (!m_apiClient || !m_sessionStore || !m_sessionStore->hasToken()) return;
+    if (!m_stack || m_stack->currentWidget() != m_messengerPage) return;
+    m_apiClient->getDialogs();
+    if (!m_currentChatId.isEmpty() && (!m_profilePage || !m_profilePage->isVisible())) {
+        m_apiClient->getMessages(m_currentChatId);
+    }
 }
 
 void MainWindow::sendComposerText()

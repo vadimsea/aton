@@ -11,6 +11,7 @@ class QListWidget;
 class QPushButton;
 class QStackedWidget;
 class QTextEdit;
+class QTimer;
 class QWidget;
 
 namespace aten {
@@ -53,6 +54,7 @@ private:
     void renameCurrentPeer();
     void setReplyToMessage(const QJsonObject &message);
     void clearReplyToMessage();
+    void syncActiveChat();
     QString currentPeerStatus() const;
 
     ApiClient *m_apiClient;
@@ -126,6 +128,7 @@ private:
     QJsonArray m_allMessages;
     QJsonObject m_replyToMessage;
     QString m_replyToMessageId;
+    QTimer *m_syncTimer = nullptr;
     bool m_contactsDialogRequested = false;
 };
 
