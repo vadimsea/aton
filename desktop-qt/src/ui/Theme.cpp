@@ -378,6 +378,15 @@ QString Theme::styleSheet()
             background: transparent;
             border-radius: 10px;
         }
+        QPushButton#MessageImageButton {
+            background: transparent;
+            border: 0;
+            padding: 0;
+            border-radius: 10px;
+        }
+        QPushButton#MessageImageButton:hover {
+            border: 1px solid #93c5fd;
+        }
         #MessageMediaFallback,
         #VoiceMessageLabel {
             background: transparent;

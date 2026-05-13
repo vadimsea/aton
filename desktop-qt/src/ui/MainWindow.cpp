@@ -11,6 +11,7 @@
 #include <QFontMetrics>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QInputDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -376,13 +377,30 @@ QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUser
         const auto imageDataUrl = msg.value("imageDataUrl").toString();
         const auto pixmap = pixmapFromImageDataUrl(imageDataUrl);
         if (!pixmap.isNull()) {
-            auto *image = new QLabel(bubble);
-            image->setObjectName("MessageImage");
-            image->setAlignment(Qt::AlignCenter);
-            image->setScaledContents(false);
+            auto *image = new QPushButton(bubble);
+            image->setObjectName("MessageImageButton");
+            image->setCursor(Qt::PointingHandCursor);
             const auto scaled = pixmap.scaled(QSize(325, 250), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-            image->setPixmap(scaled);
+            image->setIcon(QIcon(scaled));
+            image->setIconSize(scaled.size());
             image->setFixedSize(scaled.size());
+            QObject::connect(image, &QPushButton::clicked, image, [pixmap, image]() {
+                QDialog viewer(image);
+                viewer.setWindowTitle("Изображение");
+                viewer.setMinimumSize(420, 320);
+                auto *layout = new QVBoxLayout(&viewer);
+                layout->setContentsMargins(14, 14, 14, 14);
+                layout->setSpacing(10);
+                auto *photo = new QLabel(&viewer);
+                photo->setAlignment(Qt::AlignCenter);
+                photo->setPixmap(pixmap.scaled(QSize(1080, 760), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                auto *close = new QPushButton("Закрыть", &viewer);
+                close->setObjectName("SecondaryButton");
+                QObject::connect(close, &QPushButton::clicked, &viewer, &QDialog::accept);
+                layout->addWidget(photo, 1);
+                layout->addWidget(close, 0, Qt::AlignRight);
+                viewer.exec();
+            });
             bubbleLayout->addWidget(image);
         } else {
             auto *fallback = new QLabel("Фото не удалось открыть", bubble);
