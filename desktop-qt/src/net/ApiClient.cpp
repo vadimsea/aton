@@ -118,6 +118,13 @@ void ApiClient::contactAction(const QString &endpoint, const QString &username)
     postJson(endpoint, payload);
 }
 
+void ApiClient::reactToMessage(const QString &messageId, const QString &emoji)
+{
+    QJsonObject payload;
+    payload.insert("emoji", emoji.trimmed());
+    postJson(QString("/api/messages/%1/react").arg(QString::fromUtf8(QUrl::toPercentEncoding(messageId))), payload);
+}
+
 void ApiClient::getJson(const QString &endpoint)
 {
     auto *reply = m_network.get(makeRequest(endpoint));

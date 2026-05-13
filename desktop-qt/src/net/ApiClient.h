@@ -29,6 +29,7 @@ public:
     void updateProfile(const QString &displayName, const QString &bio, const QString &publicId);
     void updatePeerAlias(const QString &peerUsername, const QString &alias);
     void contactAction(const QString &endpoint, const QString &username);
+    void reactToMessage(const QString &messageId, const QString &emoji);
     void sendTextMessage(const QString &chatId, const QString &text);
 
 signals:

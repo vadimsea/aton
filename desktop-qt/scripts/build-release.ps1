@@ -38,6 +38,12 @@ try {
     & "$QtRoot\bin\windeployqt.exe" --release --compiler-runtime build\release\ATEN.exe
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+    $RepoRoot = Split-Path -Parent $ProjectRoot
+    $GolosAvatar = Join-Path $RepoRoot "golos-aton-avatar.png"
+    if (Test-Path $GolosAvatar) {
+        Copy-Item -LiteralPath $GolosAvatar -Destination (Join-Path $ProjectRoot "build\release\golos-aton-avatar.png") -Force
+    }
+
     Write-Host "Built: $ProjectRoot\build\release\ATEN.exe"
 } finally {
     Pop-Location

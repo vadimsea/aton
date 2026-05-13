@@ -159,6 +159,10 @@ QString Theme::styleSheet()
         #ChatRowWidget {
             background: transparent;
         }
+        #ChatAvatarImage {
+            background: transparent;
+            border: 0;
+        }
         #ChatAvatar {
             border-radius: 25px;
             background: #dbeafe;
@@ -373,6 +377,60 @@ QString Theme::styleSheet()
             background: transparent;
             color: #64748b;
             font-size: 12px;
+        }
+        #ReactionPillsRow {
+            background: transparent;
+        }
+        QPushButton#ReactionPill,
+        QPushButton#ReactionPillActive {
+            min-height: 25px;
+            border-radius: 13px;
+            padding: 2px 9px;
+            font-size: 15px;
+            font-weight: 700;
+            text-align: center;
+        }
+        QPushButton#ReactionPill {
+            background: rgba(255, 255, 255, 0.55);
+            border: 1px solid rgba(148, 163, 184, 0.34);
+            color: #172033;
+        }
+        QPushButton#ReactionPill:hover {
+            background: #eef4ff;
+            border-color: #93c5fd;
+        }
+        QPushButton#ReactionPillActive {
+            background: #dbeafe;
+            border: 1px solid #60a5fa;
+            color: #1d4ed8;
+        }
+        #MessageActionsRow {
+            background: transparent;
+        }
+        QPushButton#MessageActionButton,
+        QPushButton#MessageActionButtonActive {
+            min-width: 28px;
+            max-width: 28px;
+            min-height: 28px;
+            max-height: 28px;
+            border-radius: 14px;
+            padding: 0;
+            font-size: 15px;
+        }
+        QPushButton#MessageActionButton {
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            color: #2563eb;
+        }
+        QPushButton#MessageActionButtonActive {
+            background: #dbeafe;
+            border: 1px solid #60a5fa;
+            color: #1d4ed8;
+        }
+        QPushButton#MessageActionButton:hover,
+        QPushButton#MessageActionButtonActive:hover {
+            background: #eef4ff;
+            border-color: #93c5fd;
         }
         #MessageImage {
             background: transparent;

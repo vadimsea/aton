@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <QAudioOutput>
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -22,6 +23,7 @@
 #include <QListWidgetItem>
 #include <QMap>
 #include <QMediaPlayer>
+#include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
@@ -159,6 +161,25 @@ QPixmap pixmapFromImageDataUrl(const QString &dataUrl)
     return pixmap;
 }
 
+QPixmap pixmapFromAvatarRef(const QString &avatarRef)
+{
+    auto pixmap = pixmapFromImageDataUrl(avatarRef);
+    if (!pixmap.isNull()) return pixmap;
+
+    if (avatarRef.contains("golos-aton-avatar", Qt::CaseInsensitive)) {
+        const QStringList candidates = {
+            QDir(QCoreApplication::applicationDirPath()).filePath("golos-aton-avatar.png"),
+            QDir(QDir::currentPath()).filePath("golos-aton-avatar.png"),
+            QDir(QCoreApplication::applicationDirPath()).filePath("../../golos-aton-avatar.png"),
+            QDir(QCoreApplication::applicationDirPath()).filePath("../../../golos-aton-avatar.png"),
+        };
+        for (const auto &path : candidates) {
+            if (pixmap.load(path)) return pixmap;
+        }
+    }
+    return {};
+}
+
 QPixmap circularPixmap(const QPixmap &source, int size)
 {
     if (source.isNull()) return {};
@@ -170,10 +191,40 @@ QPixmap circularPixmap(const QPixmap &source, int size)
     QPainterPath clip;
     clip.addEllipse(0, 0, size, size);
     painter.setClipPath(clip);
-    painter.drawPixmap(0, 0, source.scaled(size, size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+    const auto scaled = source.scaled(size, size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+    painter.drawPixmap((size - scaled.width()) / 2, (size - scaled.height()) / 2, scaled);
     painter.setClipping(false);
     painter.setPen(QPen(QColor("#cbd5e1"), 1));
     painter.drawEllipse(QRectF(0.5, 0.5, size - 1, size - 1));
+    return out;
+}
+
+QPixmap letterAvatarPixmap(const QString &title, int size, bool voice)
+{
+    QPixmap out(size, size);
+    out.fill(Qt::transparent);
+
+    QPainter painter(&out);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    QRadialGradient gradient(size * 0.4, size * 0.34, size * 0.74);
+    if (voice) {
+        gradient.setColorAt(0.0, QColor("#fef3c7"));
+        gradient.setColorAt(0.42, QColor("#f59e0b"));
+        gradient.setColorAt(1.0, QColor("#111827"));
+    } else {
+        gradient.setColorAt(0.0, QColor("#eff6ff"));
+        gradient.setColorAt(1.0, QColor("#bfdbfe"));
+    }
+    painter.setBrush(gradient);
+    painter.setPen(QPen(voice ? QColor("#111827") : QColor("#bfdbfe"), 1.2));
+    painter.drawEllipse(QRectF(0.8, 0.8, size - 1.6, size - 1.6));
+
+    auto font = painter.font();
+    font.setPixelSize(size * 0.42);
+    font.setBold(true);
+    painter.setFont(font);
+    painter.setPen(voice ? QColor("#111827") : QColor("#2563eb"));
+    painter.drawText(QRectF(0, 0, size, size), Qt::AlignCenter, title.left(1).toUpper());
     return out;
 }
 
@@ -313,15 +364,19 @@ QWidget *makeChatRowWidget(const ChatRow &row, QWidget *parent)
     layout->setSpacing(12);
 
     auto *avatar = new QLabel(wrap);
-    avatar->setObjectName(row.id.contains("golos_aton") || row.title.contains("Атон", Qt::CaseInsensitive) ? "VoiceAvatar" : "ChatAvatar");
+    const bool voice = row.id.contains("golos_aton", Qt::CaseInsensitive) || row.system;
+    avatar->setObjectName("ChatAvatarImage");
     avatar->setFixedSize(48, 48);
     avatar->setAlignment(Qt::AlignCenter);
-    const auto avatarPixmap = circularPixmap(pixmapFromImageDataUrl(row.avatarDataUrl), 48);
-    if (!avatarPixmap.isNull()) {
-        avatar->setPixmap(avatarPixmap);
-    } else {
-        avatar->setText(row.title.left(1).toUpper());
+    auto avatarSource = row.avatarDataUrl;
+    if (voice && avatarSource.isEmpty()) {
+        avatarSource = "/golos-aton-avatar.png";
     }
+    auto avatarPixmap = circularPixmap(pixmapFromAvatarRef(avatarSource), 48);
+    if (avatarPixmap.isNull()) {
+        avatarPixmap = letterAvatarPixmap(row.title, 48, voice);
+    }
+    avatar->setPixmap(avatarPixmap);
 
     auto *copy = new QWidget(wrap);
     auto *copyLayout = new QVBoxLayout(copy);
@@ -352,7 +407,58 @@ QWidget *makeChatRowWidget(const ChatRow &row, QWidget *parent)
     return wrap;
 }
 
-QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUsername, QWidget *parent)
+struct ReactionSummary
+{
+    QString emoji;
+    int count = 0;
+    QStringList users;
+    bool reactedByMe = false;
+};
+
+QList<ReactionSummary> reactionSummaryList(const QJsonArray &reactions, const QString &currentUsername)
+{
+    QMap<QString, ReactionSummary> grouped;
+    for (const auto &value : reactions) {
+        const auto obj = value.toObject();
+        const auto emoji = obj.value("emoji").toString().trimmed();
+        if (emoji.isEmpty()) continue;
+        auto item = grouped.value(emoji);
+        item.emoji = emoji;
+        item.count += 1;
+        const auto user = obj.value("user").toString();
+        if (!user.isEmpty()) item.users << user;
+        if (!currentUsername.isEmpty() && user == currentUsername) item.reactedByMe = true;
+        grouped[emoji] = item;
+    }
+
+    QList<ReactionSummary> result;
+    for (auto it = grouped.cbegin(); it != grouped.cend(); ++it) {
+        result << it.value();
+    }
+    const QStringList preferred = {"👍", "❤️", "🔥", "😁", "😢", "👏", "🤯", "👎"};
+    std::sort(result.begin(), result.end(), [&preferred](const ReactionSummary &a, const ReactionSummary &b) {
+        if (a.reactedByMe != b.reactedByMe) return a.reactedByMe;
+        const int ai = preferred.indexOf(a.emoji);
+        const int bi = preferred.indexOf(b.emoji);
+        if (ai != bi) return (ai < 0 ? 999 : ai) < (bi < 0 ? 999 : bi);
+        return a.emoji < b.emoji;
+    });
+    return result;
+}
+
+QString ownReactionEmoji(const QJsonArray &reactions, const QString &currentUsername)
+{
+    if (currentUsername.isEmpty()) return {};
+    for (const auto &value : reactions) {
+        const auto obj = value.toObject();
+        if (obj.value("user").toString() == currentUsername) {
+            return obj.value("emoji").toString().trimmed();
+        }
+    }
+    return {};
+}
+
+QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUsername, ApiClient *apiClient, QWidget *parent)
 {
     const auto from = msg.value("from").toString(msg.value("senderUsername").toString("user"));
     const auto type = msg.value("type").toString("text");
@@ -486,6 +592,57 @@ QWidget *makeMessageRowWidget(const QJsonObject &msg, const QString &currentUser
         timeLabel->setObjectName("MessageTime");
         timeLabel->setAlignment(Qt::AlignRight);
         bubbleLayout->addWidget(timeLabel);
+    }
+
+    const auto reactions = msg.value("reactions").toArray();
+    const auto summaries = reactionSummaryList(reactions, currentUsername);
+    if (!summaries.isEmpty() && apiClient) {
+        auto *reactionsRow = new QWidget(bubble);
+        reactionsRow->setObjectName("ReactionPillsRow");
+        auto *reactionsLayout = new QHBoxLayout(reactionsRow);
+        reactionsLayout->setContentsMargins(0, 0, 0, 0);
+        reactionsLayout->setSpacing(5);
+        const auto messageId = msg.value("id").toString();
+        for (const auto &reaction : summaries) {
+            auto *pill = new QPushButton(reaction.count > 1 ? QString("%1 %2").arg(reaction.emoji).arg(reaction.count) : reaction.emoji, reactionsRow);
+            pill->setObjectName(reaction.reactedByMe ? "ReactionPillActive" : "ReactionPill");
+            pill->setCursor(Qt::PointingHandCursor);
+            pill->setToolTip(reaction.users.join(", "));
+            if (!messageId.isEmpty()) {
+                QObject::connect(pill, &QPushButton::clicked, pill, [apiClient, messageId, emoji = reaction.emoji]() {
+                    apiClient->reactToMessage(messageId, emoji);
+                });
+            }
+            reactionsLayout->addWidget(pill);
+        }
+        reactionsLayout->addStretch(1);
+        bubbleLayout->addWidget(reactionsRow);
+    }
+
+    const auto messageId = msg.value("id").toString();
+    if (!messageId.isEmpty() && apiClient) {
+        auto *actionsRow = new QWidget(bubble);
+        actionsRow->setObjectName("MessageActionsRow");
+        auto *actionsLayout = new QHBoxLayout(actionsRow);
+        actionsLayout->setContentsMargins(0, 0, 0, 0);
+        actionsLayout->setSpacing(6);
+        actionsLayout->addStretch(1);
+        const auto ownEmoji = ownReactionEmoji(reactions, currentUsername);
+        auto *reactButton = new QPushButton(ownEmoji.isEmpty() ? "♡" : ownEmoji, actionsRow);
+        reactButton->setObjectName(ownEmoji.isEmpty() ? "MessageActionButton" : "MessageActionButtonActive");
+        reactButton->setCursor(Qt::PointingHandCursor);
+        reactButton->setToolTip("Реакция");
+        auto *menu = new QMenu(reactButton);
+        const QStringList emojis = {"👍", "❤️", "🔥", "😁", "😢", "👏", "🤯", "👎"};
+        for (const auto &emoji : emojis) {
+            auto *action = menu->addAction(emoji);
+            QObject::connect(action, &QAction::triggered, reactButton, [apiClient, messageId, emoji]() {
+                apiClient->reactToMessage(messageId, emoji);
+            });
+        }
+        reactButton->setMenu(menu);
+        actionsLayout->addWidget(reactButton);
+        bubbleLayout->addWidget(actionsRow);
     }
 
     if (isSelf) {
@@ -1211,6 +1368,12 @@ void MainWindow::wireApi()
             m_apiClient->getDialogs();
             return;
         }
+        if (endpoint.startsWith("/api/messages/") && endpoint.endsWith("/react")) {
+            if (!m_currentChatId.isEmpty()) {
+                m_apiClient->getMessages(m_currentChatId);
+            }
+            return;
+        }
         setStatusText(QString("Loaded %1").arg(endpoint));
     });
 
@@ -1562,7 +1725,7 @@ void MainWindow::renderMessages(const QJsonDocument &body)
     }
     for (const auto &value : messages) {
         const auto msg = value.toObject();
-        auto *row = makeMessageRowWidget(msg, m_currentUsername, m_messageList);
+        auto *row = makeMessageRowWidget(msg, m_currentUsername, m_apiClient, m_messageList);
         auto *item = new QListWidgetItem();
         row->ensurePolished();
         row->adjustSize();
@@ -1650,7 +1813,7 @@ void MainWindow::populateProfilePage()
     if (m_profilePublicIdInput) m_profilePublicIdInput->setText(publicId);
     if (m_profileBioInput) m_profileBioInput->setPlainText(bio);
     if (m_profileAvatarLabel) {
-        const auto avatar = circularPixmap(pixmapFromImageDataUrl(m_currentUser.value("avatarDataUrl").toString()), 104);
+        const auto avatar = circularPixmap(pixmapFromAvatarRef(m_currentUser.value("avatarDataUrl").toString()), 104);
         if (!avatar.isNull()) {
             m_profileAvatarLabel->setPixmap(avatar);
             m_profileAvatarLabel->setText({});
