@@ -804,7 +804,7 @@ MainWindow::MainWindow(ApiClient *apiClient, SessionStore *sessionStore, QWidget
     buildUi();
     wireApi();
     m_syncTimer = new QTimer(this);
-    m_syncTimer->setInterval(3500);
+    m_syncTimer->setInterval(30000);
     connect(m_syncTimer, &QTimer::timeout, this, &MainWindow::syncActiveChat);
     refreshSessionUi();
 

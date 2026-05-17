@@ -38,7 +38,7 @@ services:
       - key: MESSAGES_BOOTSTRAP_MAX
         value: "0"
       - key: MESSAGES_BOOTSTRAP_SOFT_CAP
-        value: "12000"
+        value: "500"
       - key: OPENAI_API_KEY
         sync: false
       - key: ATON_PUBLIC_URL

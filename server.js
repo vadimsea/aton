@@ -269,12 +269,14 @@ const MESSAGES_BOOTSTRAP_MAX = (() => {
  * строками — иначе GET /api/messages/all читает всю таблицу с base64. MESSAGES_BOOTSTRAP_SOFT_CAP=0 — без потолка (опасно).
  */
 const MESSAGES_BOOTSTRAP_SOFT_CAP = (() => {
+  const freeTierSafeDefault = 500;
+  const freeTierSafeMax = 1000;
   const raw = process.env.MESSAGES_BOOTSTRAP_SOFT_CAP;
-  if (raw === undefined || String(raw).trim() === "") return 12_000;
-  if (String(raw).trim() === "0") return null;
+  if (raw === undefined || String(raw).trim() === "") return freeTierSafeDefault;
+  if (String(raw).trim() === "0") return freeTierSafeDefault;
   const n = parseInt(String(raw), 10);
-  if (Number.isNaN(n) || n < 200) return 12_000;
-  return Math.min(100_000, n);
+  if (Number.isNaN(n) || n < 200) return freeTierSafeDefault;
+  return Math.min(freeTierSafeMax, n);
 })();
 
 /** Поля сообщения без imageDataUrl/audioDataUrl — быстрый bootstrap. */
@@ -2767,6 +2769,8 @@ app.post("/api/chats/:id/join", authMiddleware, requireVerified, async (req, res
 app.get("/api/messages", authMiddleware, requireVerified, async (req, res) => {
   const { chatId = "global" } = req.query;
   const me = req.user.username;
+  const rawLimit = parseInt(String(req.query.limit || ""), 10);
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 120) : 80;
   try {
     const ac = await assertUserCanAccessChat(req, chatId);
     if (!ac.ok) {
@@ -2807,8 +2811,10 @@ app.get("/api/messages", authMiddleware, requireVerified, async (req, res) => {
     }
     const rows = await prisma.message.findMany({
       where: dmThreadWhereClause(chatId, me),
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "desc" },
+      take: limit,
     });
+    rows.reverse();
     res.json(rows.map(messageFromPrismaRow));
   } catch (err) {
     console.error("GET /api/messages:", err);
@@ -2871,8 +2877,10 @@ app.post("/api/messages/read", authMiddleware, requireVerified, async (req, res)
     }
     const rows = await prisma.message.findMany({
       where: dmThreadWhereClause(chatId, me),
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "desc" },
+      take: 80,
     });
+    rows.reverse();
     const list = rows.map(messageFromPrismaRow);
     res.json({ ok: true, messages: list });
   } catch (err) {
