@@ -139,6 +139,8 @@ const I18N = {
   "Доставлено": { en: "Delivered", de: "Zugestellt" },
   "Прочитано": { en: "Read", de: "Gelesen" },
   "Нет сообщений": { en: "No messages", de: "Keine Nachrichten" },
+  "Загрузить старые сообщения": { en: "Load older messages", de: "Aeltere Nachrichten laden" },
+  "Загрузка…": { en: "Loading...", de: "Wird geladen..." },
   "📷 Фото": { en: "📷 Photo", de: "📷 Foto" },
   "давно не был(а) в сети": { en: "last seen long ago", de: "lange nicht online" },
   "Статус скрыт": { en: "Status hidden", de: "Status verborgen" },
@@ -969,6 +971,22 @@ function applyMessagesForChatInAll(currentAll, chatId, freshList) {
     merged.push(m);
   }
   return [...rest, ...merged].sort((a, b) => new Date(a.time) - new Date(b.time));
+}
+
+function prependMessagesForChatInAll(currentAll, chatId, olderList) {
+  const older = Array.isArray(olderList) ? olderList : [];
+  if (!older.length) return currentAll;
+  const rest = currentAll.filter((m) => !messageBelongsToOpenChat(m, chatId));
+  const thread = currentAll.filter((m) => messageBelongsToOpenChat(m, chatId));
+  const byId = new Map();
+  for (const m of [...older, ...thread]) {
+    if (!m || m.id == null) continue;
+    const id = String(m.id);
+    const existing = byId.get(id);
+    byId.set(id, existing ? mergeMessagePreserveMedia(m, existing) : m);
+  }
+  const mergedThread = [...byId.values()].sort((a, b) => new Date(a.time) - new Date(b.time));
+  return [...rest, ...mergedThread].sort((a, b) => new Date(a.time) - new Date(b.time));
 }
 
 /** Сравнение login без регистра/пробелов — иначе «свои»/«чужие» пузыри в треде путаются */
@@ -2083,6 +2101,8 @@ function createApp() {
   let pttUserReleasedBeforeRecord = false;
   let pttDocEndHandler = null;
   let replyToMessage = null;
+  const chatOlderState = new Map();
+  const CHAT_PAGE_LIMIT = 80;
   let typingTimeoutId = null;
   /** Ожидаем столько ответов от @golos_aton (после наших исходящих) — для строки «думает…». */
   let golosPendingReplies = 0;
@@ -2297,6 +2317,57 @@ function createApp() {
     });
   }
 
+  function chatPagingState(chatId) {
+    const key = String(chatId || "");
+    let state = chatOlderState.get(key);
+    if (!state) {
+      state = { hasMore: true, loading: false };
+      chatOlderState.set(key, state);
+    }
+    return state;
+  }
+
+  function oldestLoadedMessageForChat(chatId) {
+    const list = messagesForChatId(chatId)
+      .filter((m) => m && m.id && !String(m.id).startsWith("_temp_"))
+      .sort((a, b) => new Date(a.time) - new Date(b.time));
+    return list[0] || null;
+  }
+
+  async function loadOlderMessages(chatId) {
+    if (!chatId || !currentUser || !currentUser.verified) return;
+    const state = chatPagingState(chatId);
+    if (state.loading || state.hasMore === false) return;
+    const oldest = oldestLoadedMessageForChat(chatId);
+    if (!oldest) {
+      state.hasMore = false;
+      return;
+    }
+    state.loading = true;
+    const before = encodeURIComponent(oldest.time || oldest.createdAt || "");
+    const previousHeight = messagesEl ? messagesEl.scrollHeight : 0;
+    try {
+      const older = await api(`/api/messages?chatId=${encodeURIComponent(chatId)}&before=${before}&limit=${CHAT_PAGE_LIMIT}`);
+      if (!Array.isArray(older) || currentChatId !== chatId) return;
+      if (older.length < CHAT_PAGE_LIMIT) state.hasMore = false;
+      if (older.length) {
+        allMessages = prependMessagesForChatInAll(allMessages, chatId, older);
+        renderMessages({ preserveTop: true });
+        if (messagesEl) {
+          const delta = messagesEl.scrollHeight - previousHeight;
+          messagesEl.scrollTop = Math.max(0, messagesEl.scrollTop + delta);
+        }
+      } else {
+        state.hasMore = false;
+        renderMessages({ preserveTop: true });
+      }
+    } catch (e) {
+      console.warn("loadOlderMessages", e);
+    } finally {
+      state.loading = false;
+    }
+  }
+
   function updateVisibleMessageMeta() {
     if (!messagesEl || !currentUser || !currentChatId) return;
     const byId = new Map(messagesForChatId(currentChatId).map((m) => [String(m.id || ""), m]));
@@ -2340,10 +2411,11 @@ function createApp() {
         const list =
           warmOpenChatId === chatId && warmOpenChatMessagesPromise
             ? await warmOpenChatMessagesPromise
-            : await api(`/api/messages?chatId=${encodeURIComponent(chatId)}`);
+            : await api(`/api/messages?chatId=${encodeURIComponent(chatId)}&limit=${CHAT_PAGE_LIMIT}`);
         if (receiptsInFlight !== token) return;
         if (!Array.isArray(list)) return;
         allMessages = applyMessagesForChatInAll(allMessages, chatId, list);
+        chatPagingState(chatId).hasMore = list.length >= CHAT_PAGE_LIMIT;
         if (markRead && currentChatId === chatId) {
           renderChatList();
           renderMessages({ deferIfVoice: true });
@@ -2501,7 +2573,7 @@ function createApp() {
     if (!saved || typeof saved !== "string") return;
     if (!String(saved).includes("|") && !String(saved).startsWith("group:") && !String(saved).startsWith("channel:")) return;
     warmOpenChatId = saved;
-    warmOpenChatMessagesPromise = api(`/api/messages?chatId=${encodeURIComponent(saved)}`)
+    warmOpenChatMessagesPromise = api(`/api/messages?chatId=${encodeURIComponent(saved)}&limit=${CHAT_PAGE_LIMIT}`)
       .then((list) => (Array.isArray(list) ? list : []))
       .catch(() => null);
   }
@@ -3116,6 +3188,11 @@ function createApp() {
   });
 
   messagesEl.addEventListener("scroll", closeReactionPicker, { passive: true });
+  messagesEl.addEventListener("scroll", () => {
+    if (!currentChatId || !currentUser) return;
+    if (messagesEl.scrollTop > 120) return;
+    void loadOlderMessages(currentChatId);
+  }, { passive: true });
 
   function showToast(message) {
     const prev = document.querySelector(".aton-toast");
@@ -5258,6 +5335,19 @@ function createApp() {
       setComposeEnabled(true);
       compose.style.display = "flex";
       return;
+    }
+
+    const pagingState = chatPagingState(currentChatId);
+    if (pagingState.hasMore !== false) {
+      const olderButton = document.createElement("button");
+      olderButton.type = "button";
+      olderButton.className = "aton-load-older";
+      olderButton.textContent = pagingState.loading ? t("Загрузка…") : t("Загрузить старые сообщения");
+      olderButton.disabled = Boolean(pagingState.loading);
+      olderButton.addEventListener("click", () => {
+        void loadOlderMessages(currentChatId);
+      });
+      messagesEl.appendChild(olderButton);
     }
 
     // Обновляем признак «прочитано до» для активного чата

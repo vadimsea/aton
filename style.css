@@ -2471,6 +2471,28 @@ body {
   overflow: hidden;
 }
 
+.aton-load-older {
+  align-self: center;
+  margin: 8px 0 10px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  background: #eef4ff;
+  color: #2563eb;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.aton-load-older:hover {
+  background: #dbeafe;
+  border-color: rgba(37, 99, 235, 0.36);
+}
+
+.aton-load-older:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
 .aton-message-row {
   display: flex;
   width: 100%;

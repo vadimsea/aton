@@ -2771,6 +2771,8 @@ app.get("/api/messages", authMiddleware, requireVerified, async (req, res) => {
   const me = req.user.username;
   const rawLimit = parseInt(String(req.query.limit || ""), 10);
   const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 120) : 80;
+  const beforeRaw = String(req.query.before || "").trim();
+  const beforeDate = beforeRaw ? new Date(beforeRaw) : null;
   try {
     const ac = await assertUserCanAccessChat(req, chatId);
     if (!ac.ok) {
@@ -2809,8 +2811,13 @@ app.get("/api/messages", authMiddleware, requireVerified, async (req, res) => {
         viewer: me,
       });
     }
+    const where = dmThreadWhereClause(chatId, me);
+    const whereWithCursor =
+      beforeDate && !Number.isNaN(beforeDate.getTime())
+        ? { AND: [where, { createdAt: { lt: beforeDate } }] }
+        : where;
     const rows = await prisma.message.findMany({
-      where: dmThreadWhereClause(chatId, me),
+      where: whereWithCursor,
       orderBy: { createdAt: "desc" },
       take: limit,
     });
