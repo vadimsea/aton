@@ -447,7 +447,7 @@ QWidget *makeChatRowWidget(const ChatRow &row, QWidget *parent)
         auto *badge = new QLabel(metaColumn);
         badge->setObjectName("ChatUnreadBadge");
         badge->setAlignment(Qt::AlignCenter);
-        badge->setFixedSize(18, 18);
+        badge->setFixedSize(22, 22);
         badge->setText(row.unread > 99 ? "99+" : QString::number(row.unread));
         metaLayout->addWidget(badge, 0, Qt::AlignTop | Qt::AlignRight);
     }

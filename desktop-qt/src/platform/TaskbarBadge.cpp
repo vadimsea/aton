@@ -11,8 +11,10 @@
 #include <windows.h>
 
 #include <QColor>
+#include <QFont>
 #include <QImage>
 #include <QPainter>
+#include <QPen>
 #include <QPixmap>
 #include <Qt>
 
@@ -61,33 +63,48 @@ HICON pixmapToHicon(const QPixmap &pixmap)
 
 QPixmap makeBadgePixmap(int count)
 {
-    // Windows overlay: 16×16 canvas, badge tucked in the corner (like Telegram/Viber).
-    constexpr int canvas = 16;
+    // 32×32 overlay @ 200% DPI — крупный бейдж как Viber/Telegram на панели задач.
+    constexpr int canvas = 32;
     QPixmap pixmap(canvas, canvas);
     pixmap.fill(Qt::transparent);
 
     QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::TextAntialiasing, true);
 
     const QString text = count > 99 ? QStringLiteral("99+") : QString::number(count);
-    const bool wide = text.size() > 1;
-    const int badgeW = wide ? 13 : 10;
-    const int badgeH = 10;
-    const int x = canvas - badgeW + 1;
-    const int y = canvas - badgeH + 1;
+    const int digits = text.size();
+    int badgeW = 22;
+    int badgeH = 22;
+    if (digits >= 3) {
+        badgeW = 28;
+        badgeH = 20;
+    } else if (digits == 2) {
+        badgeW = 26;
+        badgeH = 20;
+    }
+    const int x = canvas - badgeW + 2;
+    const int y = canvas - badgeH + 2;
     const QRect badgeRect(x, y, badgeW, badgeH);
 
-    painter.setBrush(QColor("#e53e3e"));
-    painter.setPen(Qt::NoPen);
-    if (wide) {
-        painter.drawRoundedRect(badgeRect, badgeH / 2.0, badgeH / 2.0);
-    } else {
+    painter.setBrush(QColor("#fa3e3e"));
+    painter.setPen(QPen(QColor("#ffffff"), 1.2));
+    if (digits == 1) {
         painter.drawEllipse(badgeRect);
+    } else {
+        painter.drawRoundedRect(badgeRect, badgeH / 2.0, badgeH / 2.0);
     }
 
     QFont font = painter.font();
     font.setBold(true);
-    font.setPixelSize(wide ? 6 : 7);
+    font.setFamily(QStringLiteral("Segoe UI"));
+    if (digits >= 3) {
+        font.setPixelSize(11);
+    } else if (digits == 2) {
+        font.setPixelSize(13);
+    } else {
+        font.setPixelSize(15);
+    }
     painter.setFont(font);
     painter.setPen(Qt::white);
     painter.drawText(badgeRect, Qt::AlignCenter, text);
