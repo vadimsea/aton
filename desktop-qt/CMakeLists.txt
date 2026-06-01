@@ -53,6 +53,10 @@ set_target_properties(aten-desktop PROPERTIES
   OUTPUT_NAME "ATEN"
 )
 
+if(WIN32)
+  target_sources(aten-desktop PRIVATE resources/aten-desktop.rc)
+endif()
+
 install(TARGETS aten-desktop
   BUNDLE DESTINATION .
   RUNTIME DESTINATION .

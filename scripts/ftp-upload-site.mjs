@@ -36,6 +36,7 @@ const SITE_FILES = [
   "reset.html",
   "admin-users.html",
   "golos-aton-avatar.png",
+  "aten-logo.png",
 ];
 
 if (!host || !user || !pass) {

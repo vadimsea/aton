@@ -161,6 +161,8 @@ const I18N = {
     de: "Sitzung abgelaufen. Bitte erneut anmelden — das kann passieren, wenn Sie sich von einem anderen Geraet oder Browser angemeldet haben.",
   },
   "Ошибка соединения с сервером": { en: "Server connection error", de: "Serververbindungsfehler" },
+  "Загрузка фото…": { en: "Loading photo…", de: "Foto wird geladen…" },
+  "Загрузка голосового…": { en: "Loading voice message…", de: "Sprachnachricht wird geladen…" },
   "Укажите email, имя и дважды один и тот же пароль.": {
     en: "Enter email, username, and the same password twice.",
     de: "Bitte E-Mail, Benutzername und dasselbe Passwort zweimal eingeben.",
@@ -716,6 +718,15 @@ const API_BASE = getApiBase();
 
 /** Без таймаута зависший fetch к API блокирует bootstrap и экран «замирает». */
 const DEFAULT_API_FETCH_TIMEOUT_MS = 55_000;
+/** Чат с фото/голосом — до ~10 МБ JSON; через tunnel может грузиться 30–60 с. */
+const MEDIA_API_FETCH_TIMEOUT_MS = 120_000;
+
+function apiFetchTimeoutMs(path, explicit) {
+  if (explicit != null) return explicit;
+  const p = String(path || "").split("?")[0];
+  if (p === "/api/messages" || p === "/api/messages/read") return MEDIA_API_FETCH_TIMEOUT_MS;
+  return DEFAULT_API_FETCH_TIMEOUT_MS;
+}
 
 const socket = API_BASE
   ? io(API_BASE, { auth: { token: getToken() || "" } })
@@ -1597,7 +1608,7 @@ async function api(path, options = {}) {
   }
   const token = getToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const timeoutMs = options.timeoutMs ?? DEFAULT_API_FETCH_TIMEOUT_MS;
+  const timeoutMs = apiFetchTimeoutMs(path, options.timeoutMs);
   const parentSig = options.signal;
   const ctrl = new AbortController();
   const tid = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -1730,7 +1741,7 @@ function createApp() {
     wrap.className = "aton-verify-screen";
     wrap.innerHTML = `
       <div class="aton-verify-card">
-        <div class="aton-logo"><div class="aton-logo-inner"></div></div>
+        <img class="aton-logo" src="aten-logo.png" alt="ATEN" width="28" height="28" />
         <h2>${t("Подтвердите email")}</h2>
         <p>${t("Мы отправили письмо на")} <strong>${email || t("ваш email")}</strong>.</p>
         <p>${t("Перейдите по ссылке в письме, чтобы активировать аккаунт.")}</p>
@@ -1776,7 +1787,7 @@ function createApp() {
   sidebar.innerHTML = `
     <div class="aton-sidebar-header">
       <div class="aton-sidebar-header-main">
-        <div class="aton-logo"><div class="aton-logo-inner"></div></div>
+        <img class="aton-logo" src="aten-logo.png" alt="ATEN" width="28" height="28" />
         <div class="aton-product-name">
           <div class="aton-title">${t("АТОН")}</div>
           <div class="aton-subtitle">${t("мессенджер под светом диска")}</div>
@@ -5392,6 +5403,9 @@ function createApp() {
         text.classList.add("aton-message-text--media", "aton-message-text--voice");
         bubble.classList.add("aton-message-bubble--voice");
         text.appendChild(createVoicePlayer(msg.audioDataUrl, isSelf));
+      } else if (msg.type === "audio") {
+        text.classList.add("aton-message-text--media-pending");
+        text.textContent = t("Загрузка голосового…");
       } else if (msg.type === "image" && msg.imageDataUrl) {
         text.classList.add("aton-message-text--media");
         const img = document.createElement("img");
@@ -5406,6 +5420,9 @@ function createApp() {
           openImageLightbox(msg.imageDataUrl, gallery, clickedIndex);
         });
         text.appendChild(img);
+      } else if (msg.type === "image") {
+        text.classList.add("aton-message-text--media-pending");
+        text.textContent = t("Загрузка фото…");
       }
       if (msg.text) {
         const textNode = document.createElement("div");

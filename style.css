@@ -254,18 +254,10 @@ body {
   width: 28px;
   height: 28px;
   border-radius: 999px;
-  background: conic-gradient(from 200deg, #f97316, #fde68a, #22d3ee, #f97316);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 24px rgba(251, 191, 36, 0.8);
-}
-
-.aton-logo-inner {
-  width: 18px;
-  height: 18px;
-  border-radius: 999px;
-  background: radial-gradient(circle at top, #fee2b3, #f97316 60%, #7c2d12 100%);
+  display: block;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 0 24px rgba(251, 191, 36, 0.5);
 }
 
 .aton-product-name {
@@ -4213,6 +4205,8 @@ body {
 }
 
 .aton-verify-card .aton-logo {
+  width: 64px;
+  height: 64px;
   margin: 0 auto 20px;
 }
 
@@ -4318,10 +4312,6 @@ body {
 
 [data-theme="light"] .aton-sidebar-header {
   border-bottom-color: rgba(0, 0, 0, 0.06);
-}
-
-[data-theme="light"] .aton-logo-inner {
-  filter: brightness(0.85);
 }
 
 [data-theme="light"] .aton-title {
@@ -5467,11 +5457,6 @@ body {
   .aton-logo {
     width: 28px;
     height: 28px;
-  }
-
-  .aton-logo-inner {
-    width: 18px;
-    height: 18px;
   }
 
   .aton-title {

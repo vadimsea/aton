@@ -44,6 +44,14 @@ try {
         Copy-Item -LiteralPath $GolosAvatar -Destination (Join-Path $ProjectRoot "build\release\golos-aton-avatar.png") -Force
     }
 
+    $ReleaseDir = Join-Path $ProjectRoot "build\release"
+    foreach ($asset in @("aten-logo.png", "aten-logo.ico")) {
+        $from = Join-Path $ProjectRoot "resources\$asset"
+        if (Test-Path $from) {
+            Copy-Item -LiteralPath $from -Destination (Join-Path $ReleaseDir $asset) -Force
+        }
+    }
+
     Write-Host "Built: $ProjectRoot\build\release\ATEN.exe"
 } finally {
     Pop-Location

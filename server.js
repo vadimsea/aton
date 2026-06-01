@@ -1,6 +1,7 @@
 // Backend мессенджера «Атон»: PostgreSQL (Prisma), почта через SMTP.
 
 const express = require("express");
+const compression = require("compression");
 const path = require("path");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
@@ -74,6 +75,7 @@ const STATIC_FILE_ALLOWLIST = new Set([
   "/reset.html",
   "/admin-users.html",
   "/golos-aton-avatar.png",
+  "/aten-logo.png",
   "/notification.mp3",
 ]);
 const IMAGE_MEDIA_MAX_BYTES = Math.max(
@@ -430,6 +432,7 @@ const registerLimiter = rateLimit({
 const lastSeenWriteCache = new Map();
 const LAST_SEEN_DEBOUNCE_MS = 30_000;
 
+app.use(compression());
 app.use(express.json({ limit: "8mb" }));
 // Кросс-доменные запросы: фронт на хостинге, API на Render и т.д.
 app.use((req, res, next) => {

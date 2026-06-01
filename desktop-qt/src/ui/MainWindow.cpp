@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <functional>
+#include <QGuiApplication>
+#include <QApplication>
 #include <QAudioOutput>
 #include <QCoreApplication>
 #include <QDateTime>
@@ -327,6 +329,31 @@ QPixmap makeAtenMarkPixmap(int size, bool glow)
     painter.drawEllipse(QRectF(innerRect.left() + innerSize * 0.16, innerRect.top() + innerSize * 0.08, innerSize * 0.34, innerSize * 0.34));
 
     return pixmap;
+}
+
+QStringList atenLogoPaths()
+{
+    const QString appDir = QCoreApplication::applicationDirPath();
+    return {
+        appDir + "/aten-logo.png",
+        appDir + "/../resources/aten-logo.png",
+        appDir + "/../../resources/aten-logo.png",
+    };
+}
+
+QPixmap loadAtenLogoPixmap(int size, bool glowFallback)
+{
+    for (const QString &path : atenLogoPaths()) {
+        if (!QFile::exists(path)) {
+            continue;
+        }
+        QPixmap src(path);
+        if (src.isNull()) {
+            continue;
+        }
+        return src.scaled(size, size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+    return makeAtenMarkPixmap(size, glowFallback);
 }
 
 QPushButton *makeToolbarButton(const QString &text, QWidget *parent)
@@ -797,6 +824,11 @@ MainWindow::MainWindow(ApiClient *apiClient, SessionStore *sessionStore, QWidget
       m_sessionStore(sessionStore)
 {
     setWindowTitle("ATEN");
+    if (auto *guiApp = qobject_cast<QGuiApplication *>(QCoreApplication::instance())) {
+        if (!guiApp->windowIcon().isNull()) {
+            setWindowIcon(guiApp->windowIcon());
+        }
+    }
     resize(1280, 780);
     setMinimumSize(960, 620);
     setStyleSheet(Theme::styleSheet());
@@ -859,7 +891,7 @@ QWidget *MainWindow::buildAuthPage()
     auto *logo = new QLabel(brandRow);
     logo->setObjectName("AtenLogo");
     logo->setFixedSize(38, 38);
-    logo->setPixmap(makeAtenMarkPixmap(38, false));
+    logo->setPixmap(loadAtenLogoPixmap(38, false));
     logo->setScaledContents(true);
     auto *brandText = new QWidget(brandRow);
     auto *brandTextLayout = new QVBoxLayout(brandText);
@@ -1008,7 +1040,7 @@ QWidget *MainWindow::buildAuthPage()
     heroLogo->setObjectName("AtenHeroLogo");
     heroLogo->setFixedSize(300, 300);
     heroLogo->setAlignment(Qt::AlignCenter);
-    heroLogo->setPixmap(makeAtenMarkPixmap(300, true));
+    heroLogo->setPixmap(loadAtenLogoPixmap(300, true));
     heroLogo->setScaledContents(true);
     m_authHeroEyebrowLabel = new QLabel(hero);
     m_authHeroEyebrowLabel->setObjectName("HeroEyebrow");

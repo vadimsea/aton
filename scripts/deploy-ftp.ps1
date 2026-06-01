@@ -50,6 +50,7 @@ $files = @(
   @{ src = "index.html"; patch = $true },
   @{ src = "main.js"; patch = $false },
   @{ src = "style.css"; patch = $false },
+  @{ src = "aten-logo.png"; patch = $false },
   @{ src = "forgot.html"; patch = $true },
   @{ src = "reset.html"; patch = $true }
 )
