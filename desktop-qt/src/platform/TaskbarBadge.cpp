@@ -61,22 +61,36 @@ HICON pixmapToHicon(const QPixmap &pixmap)
 
 QPixmap makeBadgePixmap(int count)
 {
-    QPixmap pixmap(32, 32);
+    // Windows overlay: 16×16 canvas, badge tucked in the corner (like Telegram/Viber).
+    constexpr int canvas = 16;
+    QPixmap pixmap(canvas, canvas);
     pixmap.fill(Qt::transparent);
 
     QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setBrush(QColor("#ef4444"));
+
+    const QString text = count > 99 ? QStringLiteral("99+") : QString::number(count);
+    const bool wide = text.size() > 1;
+    const int badgeW = wide ? 13 : 10;
+    const int badgeH = 10;
+    const int x = canvas - badgeW + 1;
+    const int y = canvas - badgeH + 1;
+    const QRect badgeRect(x, y, badgeW, badgeH);
+
+    painter.setBrush(QColor("#e53e3e"));
     painter.setPen(Qt::NoPen);
-    painter.drawEllipse(0, 0, 32, 32);
+    if (wide) {
+        painter.drawRoundedRect(badgeRect, badgeH / 2.0, badgeH / 2.0);
+    } else {
+        painter.drawEllipse(badgeRect);
+    }
 
     QFont font = painter.font();
     font.setBold(true);
-    font.setPixelSize(count > 99 ? 9 : (count > 9 ? 11 : 13));
+    font.setPixelSize(wide ? 6 : 7);
     painter.setFont(font);
     painter.setPen(Qt::white);
-    const QString text = count > 99 ? QStringLiteral("99+") : QString::number(count);
-    painter.drawText(pixmap.rect(), Qt::AlignCenter, text);
+    painter.drawText(badgeRect, Qt::AlignCenter, text);
     return pixmap;
 }
 
