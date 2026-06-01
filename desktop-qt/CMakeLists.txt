@@ -31,6 +31,10 @@ qt_add_executable(aten-desktop
   src/net/ApiClient.h
   src/session/SessionStore.cpp
   src/session/SessionStore.h
+  src/platform/TaskbarBadge.cpp
+  src/platform/TaskbarBadge.h
+  src/ui/NotificationHub.cpp
+  src/ui/NotificationHub.h
   src/ui/MainWindow.cpp
   src/ui/MainWindow.h
   src/ui/Theme.cpp
@@ -55,6 +59,7 @@ set_target_properties(aten-desktop PROPERTIES
 
 if(WIN32)
   target_sources(aten-desktop PRIVATE resources/aten-desktop.rc)
+  target_link_libraries(aten-desktop PRIVATE ole32 shell32)
 endif()
 
 install(TARGETS aten-desktop

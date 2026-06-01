@@ -34,10 +34,12 @@ public:
     void pinMessage(const QString &messageId);
     void deleteMessage(const QString &messageId);
     void sendTextMessage(const QString &chatId, const QString &text, const QString &replyTo = {});
+    void markMessagesRead(const QString &chatId);
 
 signals:
     void requestSucceeded(QString endpoint, QJsonDocument body);
     void requestFailed(QString endpoint, QString message);
+    void sessionExpired();
 
 private:
     void getJson(const QString &endpoint);

@@ -97,6 +97,13 @@ void ApiClient::sendTextMessage(const QString &chatId, const QString &text, cons
     postJson("/api/messages", payload);
 }
 
+void ApiClient::markMessagesRead(const QString &chatId)
+{
+    QJsonObject payload;
+    payload.insert("chatId", chatId);
+    postJson("/api/messages/read", payload);
+}
+
 void ApiClient::updateProfile(const QString &displayName, const QString &bio, const QString &publicId)
 {
     QJsonObject payload;
@@ -185,6 +192,9 @@ void ApiClient::handleReply(QNetworkReply *reply, const QString &endpoint)
     const auto doc = QJsonDocument::fromJson(bytes, &parseError);
 
     if (reply->error() != QNetworkReply::NoError || status >= 400) {
+        if (status == 401) {
+            emit sessionExpired();
+        }
         auto message = reply->errorString();
         if (parseError.error == QJsonParseError::NoError && doc.isObject()) {
             const auto apiError = doc.object().value("error").toString();
@@ -218,6 +228,7 @@ QNetworkRequest ApiClient::makeRequest(const QString &endpoint) const
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setRawHeader("Accept", "application/json");
+    request.setTransferTimeout(endpoint.startsWith("/api/messages") ? 120000 : 45000);
 
     const auto token = m_sessionStore ? m_sessionStore->token() : QString();
     if (!token.isEmpty()) {

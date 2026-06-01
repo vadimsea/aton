@@ -1,11 +1,15 @@
 #include "ui/MainWindow.h"
 
+#include "ui/NotificationHub.h"
+#include "ui/Theme.h"
+
 #include <algorithm>
 #include <functional>
-#include <QGuiApplication>
 #include <QApplication>
 #include <QAudioOutput>
-#include <QCoreApplication>
+#include <QDateTime>
+#include <QEvent>
+#include <QGuiApplication>
 #include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -66,6 +70,7 @@ struct ChatRow {
     QString avatarDataUrl;
     bool verified = false;
     bool system = false;
+    int unread = 0;
 };
 
 QString messagePreview(const QJsonObject &msg)
@@ -431,9 +436,23 @@ QWidget *makeChatRowWidget(const ChatRow &row, QWidget *parent)
     meta->setAlignment(Qt::AlignTop | Qt::AlignRight);
     meta->setMinimumWidth(44);
 
+    auto *metaColumn = new QWidget(wrap);
+    auto *metaLayout = new QVBoxLayout(metaColumn);
+    metaLayout->setContentsMargins(0, 0, 0, 0);
+    metaLayout->setSpacing(6);
+    metaLayout->addWidget(meta, 0, Qt::AlignTop | Qt::AlignRight);
+    if (row.unread > 0) {
+        auto *badge = new QLabel(metaColumn);
+        badge->setObjectName("ChatUnreadBadge");
+        badge->setAlignment(Qt::AlignCenter);
+        badge->setFixedSize(24, 24);
+        badge->setText(row.unread > 99 ? "99+" : QString::number(row.unread));
+        metaLayout->addWidget(badge, 0, Qt::AlignTop | Qt::AlignRight);
+    }
+
     layout->addWidget(avatar);
     layout->addWidget(copy, 1);
-    layout->addWidget(meta);
+    layout->addWidget(metaColumn);
     return wrap;
 }
 
@@ -811,6 +830,12 @@ QString trAuth(const QString &lang, const QString &key)
         {"fillFields", {{"ru", "Заполните обязательные поля"}, {"de", "Füllen Sie die Pflichtfelder aus"}, {"en", "Fill in the required fields"}}},
         {"passwordMismatch", {{"ru", "Пароли не совпадают"}, {"de", "Passwörter stimmen nicht überein"}, {"en", "Passwords do not match"}}},
         {"verifyEmail", {{"ru", "Аккаунт создан. Проверьте email для подтверждения."}, {"de", "Konto erstellt. Prüfen Sie Ihre Email zur Bestätigung."}, {"en", "Account created. Check your email to verify it."}}},
+        {"signedIn", {{"ru", "Вход выполнен"}, {"de", "Angemeldet"}, {"en", "Signed in"}}},
+        {"signedOut", {{"ru", "Вы вышли из аккаунта"}, {"de", "Abgemeldet"}, {"en", "Signed out"}}},
+        {"signedInAs", {{"ru", "Вы вошли как %1"}, {"de", "Angemeldet als %1"}, {"en", "Signed in as %1"}}},
+        {"sessionExpired", {{"ru", "Сессия истекла — войдите снова"}, {"de", "Sitzung abgelaufen — bitte erneut anmelden"}, {"en", "Session expired — please sign in again"}}},
+        {"selectChat", {{"ru", "Сначала выберите чат"}, {"de", "Wählen Sie zuerst einen Chat"}, {"en", "Select a chat first"}}},
+        {"sending", {{"ru", "Отправка..."}, {"de", "Senden..."}, {"en", "Sending..."}}},
     };
     const auto item = dict.value(key);
     return item.value(lang, item.value("ru", key));
@@ -834,9 +859,30 @@ MainWindow::MainWindow(ApiClient *apiClient, SessionStore *sessionStore, QWidget
     setStyleSheet(Theme::styleSheet());
 
     buildUi();
+    m_notifications = new NotificationHub(this, this);
+    connect(m_notifications, &NotificationHub::notificationActivated, this, [this](const QString &chatId) {
+        if (chatId.isEmpty() || !m_chatList) {
+            return;
+        }
+        for (int i = 0; i < m_chatList->count(); ++i) {
+            auto *item = m_chatList->item(i);
+            if (!item) {
+                continue;
+            }
+            if (item->data(Qt::UserRole).toString() != chatId) {
+                continue;
+            }
+            m_chatList->setCurrentRow(i);
+            openSelectedChat();
+            showNormal();
+            raise();
+            activateWindow();
+            break;
+        }
+    });
     wireApi();
     m_syncTimer = new QTimer(this);
-    m_syncTimer->setInterval(30000);
+    m_syncTimer->setInterval(8000);
     connect(m_syncTimer, &QTimer::timeout, this, &MainWindow::syncActiveChat);
     refreshSessionUi();
 
@@ -1213,11 +1259,6 @@ QWidget *MainWindow::buildMessengerPage()
     m_userPillButton->setObjectName("UserPillButton");
     m_userPillButton->setCursor(Qt::PointingHandCursor);
     connect(m_userPillButton, &QPushButton::clicked, this, &MainWindow::showProfileDialog);
-    connect(m_userPillButton, &QPushButton::clicked, this, [this]() {
-        setStatusText("Профиль в desktop-клиенте будет добавлен отдельным экраном. Сейчас профиль редактируется в веб-версии.");
-    });
-    m_userPillButton->disconnect();
-    connect(m_userPillButton, &QPushButton::clicked, this, &MainWindow::showProfileDialog);
     headerLayout->addWidget(m_userPillButton);
     contentLayout->addWidget(header);
 
@@ -1259,7 +1300,12 @@ QWidget *MainWindow::buildMessengerPage()
         m_apiClient->contactAction(endpoint, m_currentPeerUsername);
     });
     connect(m_peerNotifyButton, &QPushButton::clicked, this, [this]() {
-        setStatusText("Настройки уведомлений для чата будут синхронизированы с веб-версией отдельным проходом");
+        m_chatNotifyMuted = !m_chatNotifyMuted;
+        if (m_notifications) {
+            m_notifications->setMuted(m_chatNotifyMuted);
+        }
+        setStatusText(m_chatNotifyMuted ? "Уведомления для этого чата выключены"
+                                        : "Уведомления для этого чата включены");
     });
 
     m_profilePage = new QWidget(content);
@@ -1453,7 +1499,9 @@ void MainWindow::wireApi()
             if (!token.isEmpty() && m_sessionStore) {
                 m_sessionStore->setToken(token);
             }
-            setStatusText("Signed in");
+            setStatusText(trAuth(m_authLanguage, "signedIn"));
+            m_messageBaselineReady = false;
+            m_knownMessageIds.clear();
             refreshSessionUi();
             loadAuthenticatedData();
             return;
@@ -1465,7 +1513,16 @@ void MainWindow::wireApi()
         }
         if (endpoint == "/api/logout") {
             if (m_syncTimer) m_syncTimer->stop();
-            setStatusText("Signed out");
+            m_messageBaselineReady = false;
+            m_knownMessageIds.clear();
+            m_unreadByChat.clear();
+            if (m_sessionStore) {
+                m_sessionStore->clearChatReads();
+            }
+            if (m_notifications) {
+                m_notifications->setUnreadCount(0);
+            }
+            setStatusText(trAuth(m_authLanguage, "signedOut"));
             return;
         }
         if (endpoint == "/api/me") {
@@ -1480,9 +1537,8 @@ void MainWindow::wireApi()
             if (m_userPillButton) {
                 m_userPillButton->setText(QString("●  %1 ✓").arg(name));
             }
-            setStatusText(QString("Signed in as %1").arg(name));
+            setStatusText(QString(trAuth(m_authLanguage, "signedInAs")).arg(name));
             populateProfilePage();
-            renderSidebar();
             return;
         }
         if (endpoint == "/api/profile") {
@@ -1524,6 +1580,9 @@ void MainWindow::wireApi()
             renderMessagesAll(body);
             return;
         }
+        if (endpoint == "/api/messages/read") {
+            return;
+        }
         if (endpoint.startsWith("/api/messages?chatId=")) {
             renderMessages(body);
             return;
@@ -1560,7 +1619,30 @@ void MainWindow::wireApi()
             setStatusText(QString("Не удалось загрузить диалоги: %1").arg(message));
             return;
         }
-        setStatusText(QString("%1 failed: %2").arg(endpoint, message));
+        setStatusText(QString("Ошибка %1: %2").arg(endpoint, message));
+    });
+
+    connect(m_apiClient, &ApiClient::sessionExpired, this, [this]() {
+        if (m_sessionStore) {
+            m_sessionStore->clear();
+        }
+        if (m_syncTimer) {
+            m_syncTimer->stop();
+        }
+        m_currentChatId.clear();
+        m_currentPeerUsername.clear();
+        m_groupChats = {};
+        m_allMessages = {};
+        m_unreadByChat.clear();
+        m_messageBaselineReady = false;
+        if (m_sessionStore) {
+            m_sessionStore->clearChatReads();
+        }
+        if (m_notifications) {
+            m_notifications->setUnreadCount(0);
+        }
+        setStatusText(trAuth(m_authLanguage, "sessionExpired"));
+        refreshSessionUi();
     });
 }
 
@@ -1681,36 +1763,16 @@ void MainWindow::loadAuthenticatedData()
     if (m_syncTimer && !m_syncTimer->isActive()) m_syncTimer->start();
     m_apiClient->getMe();
     m_apiClient->getDialogs();
+    m_apiClient->getChats();
     m_apiClient->getContacts();
+    m_apiClient->getMessagesAll();
 }
 
 void MainWindow::renderChats(const QJsonDocument &body)
 {
     m_groupChats = body.array();
-    renderSidebar();
-    return;
-
-    if (!m_chatList) return;
-    m_chatList->clear();
-    const auto chats = body.array();
-    if (chats.isEmpty()) {
-        m_chatList->addItem("No chats yet");
-        return;
-    }
-    for (const auto &value : chats) {
-        const auto chat = value.toObject();
-        auto title = chat.value("title").toString();
-        if (title.isEmpty()) {
-            title = chat.value("name").toString(chat.value("id").toString("Chat"));
-        }
-        const auto type = chat.value("type").toString("group");
-        const auto id = chat.value("id").toString();
-        auto *item = new QListWidgetItem(QString("%1  ·  %2").arg(title, type));
-        item->setData(Qt::UserRole, id);
-        m_chatList->addItem(item);
-    }
-    if (m_chatList->count() > 0) {
-        m_chatList->setCurrentRow(0);
+    if (!m_allMessages.isEmpty()) {
+        renderSidebar();
     }
 }
 
@@ -1740,8 +1802,10 @@ void MainWindow::renderDialogs(const QJsonDocument &body)
             dialog.value("avatarDataUrl").toString(dialog.value("peerAvatarDataUrl").toString()),
             dialog.value("verified").toBool(dialog.value("peerVerified").toBool()),
             dialog.value("isSystem").toBool(),
+            m_unreadByChat.value(dialog.value("id").toString(), 0),
         };
         if (row.id.isEmpty()) continue;
+        m_dialogTitles.insert(row.id, row.title);
         if (!m_chatFilter.isEmpty()) {
             const auto haystack = QString("%1 %2 %3").arg(row.title, row.type, row.preview);
             if (!haystack.contains(m_chatFilter, Qt::CaseInsensitive)) continue;
@@ -1752,8 +1816,6 @@ void MainWindow::renderDialogs(const QJsonDocument &body)
         item->setData(Qt::UserRole + 1, row.title);
         item->setData(Qt::UserRole + 2, row.peerUsername);
         item->setData(Qt::UserRole + 3, row.type);
-        item->setData(Qt::UserRole + 4, row.verified);
-        item->setData(Qt::UserRole + 5, row.system);
         item->setData(Qt::UserRole + 4, row.verified);
         item->setData(Qt::UserRole + 5, row.system);
         item->setSizeHint(QSize(340, 88));
@@ -1768,12 +1830,19 @@ void MainWindow::renderDialogs(const QJsonDocument &body)
         return;
     }
     m_chatList->setCurrentRow(std::min(selectedRow, m_chatList->count() - 1));
+    openSelectedChat();
 }
 
 void MainWindow::renderMessagesAll(const QJsonDocument &body)
 {
     m_allMessages = body.array();
-    renderSidebar();
+    processMessageSnapshot(m_allMessages, true);
+    if (!m_groupChats.isEmpty()) {
+        renderSidebar();
+    }
+    if (m_apiClient && m_messageBaselineReady) {
+        m_apiClient->getDialogs();
+    }
 }
 
 void MainWindow::renderSidebar()
@@ -1802,6 +1871,7 @@ void MainWindow::renderSidebar()
                                  chat.value("avatarDataUrl").toString(),
                                  chat.value("verified").toBool(),
                                  false,
+                                 m_unreadByChat.value(id, 0),
                              });
     }
 
@@ -1827,7 +1897,7 @@ void MainWindow::renderSidebar()
                     const auto parts = chatId.split("|");
                     title = parts.isEmpty() ? chatId : parts.last();
                 }
-                row = ChatRow{chatId, title, "private", {}, {}, peer, {}, false, peer.compare("golos_aton", Qt::CaseInsensitive) == 0};
+                row = ChatRow{chatId, title, "private", {}, {}, peer, {}, false, peer.compare("golos_aton", Qt::CaseInsensitive) == 0, m_unreadByChat.value(chatId, 0)};
             }
             if (row.lastTime.isEmpty() || lastTime >= row.lastTime) {
                 row.preview = preview;
@@ -1848,6 +1918,9 @@ void MainWindow::renderSidebar()
     }
 
     auto rows = rowsById.values();
+    for (auto &row : rows) {
+        row.unread = m_unreadByChat.value(row.id, 0);
+    }
     std::sort(rows.begin(), rows.end(), [](const ChatRow &a, const ChatRow &b) {
         if (a.lastTime == b.lastTime) return a.title.toLower() < b.title.toLower();
         if (a.lastTime.isEmpty()) return false;
@@ -1918,6 +1991,9 @@ void MainWindow::renderMessages(const QJsonDocument &body)
         m_messageList->setItemWidget(item, row);
     }
     m_messageList->scrollToBottom();
+    if (isActiveWindow() && !isMinimized()) {
+        markCurrentChatRead();
+    }
 }
 
 void MainWindow::showProfileDialog()
@@ -2123,6 +2199,7 @@ void MainWindow::openSelectedChat()
     updatePeerActionBar();
     setStatusText("Загрузка сообщений...");
     m_apiClient->getMessages(m_currentChatId);
+    markCurrentChatRead();
 }
 
 QString MainWindow::currentPeerStatus() const
@@ -2215,6 +2292,7 @@ void MainWindow::syncActiveChat()
 {
     if (!m_apiClient || !m_sessionStore || !m_sessionStore->hasToken()) return;
     if (!m_stack || m_stack->currentWidget() != m_messengerPage) return;
+    m_apiClient->getMessagesAll();
     m_apiClient->getDialogs();
     if (!m_currentChatId.isEmpty() && (!m_profilePage || !m_profilePage->isVisible())) {
         m_apiClient->getMessages(m_currentChatId);
@@ -2226,12 +2304,12 @@ void MainWindow::sendComposerText()
     if (!m_apiClient || !m_composer) return;
     const auto text = m_composer->text().trimmed();
     if (m_currentChatId.isEmpty()) {
-        setStatusText("Select a chat first");
+        setStatusText(trAuth(m_authLanguage, "selectChat"));
         return;
     }
     if (text.isEmpty()) return;
     m_composer->clear();
-    setStatusText("Sending...");
+    setStatusText(trAuth(m_authLanguage, "sending"));
     const auto replyTo = m_replyToMessageId;
     clearReplyToMessage();
     m_apiClient->sendTextMessage(m_currentChatId, text, replyTo);
@@ -2247,6 +2325,165 @@ void MainWindow::setStatusText(const QString &text)
     }
     if (m_loginButton) {
         m_loginButton->setEnabled(true);
+    }
+}
+
+void MainWindow::changeEvent(QEvent *event)
+{
+    QMainWindow::changeEvent(event);
+    if (!event) {
+        return;
+    }
+    if (event->type() == QEvent::WindowStateChange || event->type() == QEvent::ActivationChange) {
+        if (isActiveWindow() && !isMinimized() && !m_currentChatId.isEmpty()) {
+            markCurrentChatRead();
+        }
+    }
+}
+
+void MainWindow::markCurrentChatRead()
+{
+    if (m_currentChatId.isEmpty() || !m_sessionStore) {
+        return;
+    }
+    const auto now = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    m_sessionStore->setChatReadAt(m_currentChatId, now);
+    m_unreadByChat[m_currentChatId] = 0;
+    if (m_notifications) {
+        int total = 0;
+        for (auto it = m_unreadByChat.cbegin(); it != m_unreadByChat.cend(); ++it) {
+            total += it.value();
+        }
+        m_notifications->setUnreadCount(total);
+    }
+    if (m_apiClient) {
+        m_apiClient->markMessagesRead(m_currentChatId);
+    }
+}
+
+QString MainWindow::messageTimeIso(const QJsonObject &msg) const
+{
+    return msg.value("createdAt").toString(msg.value("time").toString());
+}
+
+QString MainWindow::messageSender(const QJsonObject &msg) const
+{
+    return msg.value("from").toString(msg.value("senderUsername").toString());
+}
+
+QString MainWindow::messageChatId(const QJsonObject &msg) const
+{
+    auto chatId = msg.value("chatId").toString();
+    if (!chatId.isEmpty()) {
+        return chatId;
+    }
+    const auto from = messageSender(msg);
+    const auto to = msg.value("to").toString(msg.value("recipientUsername").toString());
+    if (from.isEmpty() || to.isEmpty()) {
+        return {};
+    }
+    return directChatIdForUsers(from, to);
+}
+
+QString MainWindow::chatTitleForId(const QString &chatId) const
+{
+    if (m_dialogTitles.contains(chatId)) {
+        return m_dialogTitles.value(chatId);
+    }
+    if (isDirectChatId(chatId)) {
+        return peerFromDirectChatId(chatId, m_currentUsername);
+    }
+    return chatId;
+}
+
+bool MainWindow::shouldAlertForMessage(const QJsonObject &msg) const
+{
+    if (m_currentUsername.isEmpty() || m_chatNotifyMuted) {
+        return false;
+    }
+    const auto from = messageSender(msg);
+    if (from.isEmpty() || from.compare(m_currentUsername, Qt::CaseInsensitive) == 0) {
+        return false;
+    }
+    const auto chatId = messageChatId(msg);
+    if (chatId.isEmpty()) {
+        return false;
+    }
+    if (isActiveWindow() && !isMinimized() && chatId == m_currentChatId) {
+        return false;
+    }
+    return true;
+}
+
+void MainWindow::processMessageSnapshot(const QJsonArray &messages, bool allowAlerts)
+{
+    QMap<QString, int> unreadByChat;
+    QSet<QString> snapshotIds;
+    int totalUnread = 0;
+
+    for (const auto &value : messages) {
+        const auto msg = value.toObject();
+        const auto id = msg.value("id").toString();
+        if (!id.isEmpty()) {
+            snapshotIds.insert(id);
+        }
+
+        const auto chatId = messageChatId(msg);
+        if (chatId.isEmpty()) {
+            continue;
+        }
+        const auto from = messageSender(msg);
+        if (from.isEmpty() || from.compare(m_currentUsername, Qt::CaseInsensitive) == 0) {
+            continue;
+        }
+
+        const auto readAt = m_sessionStore ? m_sessionStore->chatReadAt(chatId) : QString();
+        const auto msgTime = messageTimeIso(msg);
+        if (!readAt.isEmpty() && !msgTime.isEmpty() && msgTime <= readAt) {
+            continue;
+        }
+        unreadByChat[chatId] += 1;
+        totalUnread += 1;
+    }
+
+    if (!m_messageBaselineReady) {
+        m_knownMessageIds = snapshotIds;
+        m_messageBaselineReady = true;
+        m_unreadByChat = unreadByChat;
+        if (m_notifications) {
+            m_notifications->setMuted(m_chatNotifyMuted);
+            m_notifications->setUnreadCount(totalUnread);
+        }
+        return;
+    }
+
+    if (allowAlerts && m_notifications && !m_chatNotifyMuted) {
+        bool playedSound = false;
+        for (const auto &value : messages) {
+            const auto msg = value.toObject();
+            const auto id = msg.value("id").toString();
+            if (id.isEmpty() || m_knownMessageIds.contains(id)) {
+                continue;
+            }
+            if (!shouldAlertForMessage(msg)) {
+                continue;
+            }
+            const auto chatId = messageChatId(msg);
+            const auto title = chatTitleForId(chatId);
+            const auto from = messageSender(msg);
+            const auto displayTitle = title.isEmpty() ? from : title;
+            m_notifications->enqueueNotification(displayTitle, messagePreview(msg), chatId);
+            if (!playedSound) {
+                m_notifications->playMessageSound();
+                playedSound = true;
+            }
+        }
+    }
+
+    m_knownMessageIds = snapshotIds;
+    m_unreadByChat = unreadByChat;
+    if (m_notifications) {
+        m_notifications->setUnreadCount(totalUnread);
     }
 }
 

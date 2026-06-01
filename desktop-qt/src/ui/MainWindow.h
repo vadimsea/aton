@@ -4,6 +4,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QMap>
+#include <QSet>
 
 class QLabel;
 class QLineEdit;
@@ -17,6 +18,7 @@ class QWidget;
 namespace aten {
 
 class ApiClient;
+class NotificationHub;
 class SessionStore;
 
 class MainWindow final : public QMainWindow {
@@ -55,6 +57,14 @@ private:
     void setReplyToMessage(const QJsonObject &message);
     void clearReplyToMessage();
     void syncActiveChat();
+    void markCurrentChatRead();
+    void processMessageSnapshot(const QJsonArray &messages, bool allowAlerts);
+    QString chatTitleForId(const QString &chatId) const;
+    QString messageTimeIso(const QJsonObject &msg) const;
+    QString messageSender(const QJsonObject &msg) const;
+    QString messageChatId(const QJsonObject &msg) const;
+    bool shouldAlertForMessage(const QJsonObject &msg) const;
+    void changeEvent(QEvent *event) override;
     QString currentPeerStatus() const;
 
     ApiClient *m_apiClient;
@@ -130,6 +140,12 @@ private:
     QString m_replyToMessageId;
     QTimer *m_syncTimer = nullptr;
     bool m_contactsDialogRequested = false;
+    NotificationHub *m_notifications = nullptr;
+    QSet<QString> m_knownMessageIds;
+    bool m_messageBaselineReady = false;
+    QMap<QString, int> m_unreadByChat;
+    QMap<QString, QString> m_dialogTitles;
+    bool m_chatNotifyMuted = false;
 };
 
 } // namespace aten

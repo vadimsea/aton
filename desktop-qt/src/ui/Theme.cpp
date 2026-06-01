@@ -189,6 +189,14 @@ QString Theme::styleSheet()
             color: #64748b;
             font-size: 13px;
         }
+        QLabel#ChatUnreadBadge {
+            background: #ef4444;
+            color: #ffffff;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 0 4px;
+        }
         #ChatRowTime {
             color: #64748b;
             font-size: 12px;

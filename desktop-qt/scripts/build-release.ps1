@@ -45,7 +45,7 @@ try {
     }
 
     $ReleaseDir = Join-Path $ProjectRoot "build\release"
-    foreach ($asset in @("aten-logo.png", "aten-logo.ico")) {
+    foreach ($asset in @("aten-logo.png", "aten-logo.ico", "notification.wav")) {
         $from = Join-Path $ProjectRoot "resources\$asset"
         if (Test-Path $from) {
             Copy-Item -LiteralPath $from -Destination (Join-Path $ReleaseDir $asset) -Force
