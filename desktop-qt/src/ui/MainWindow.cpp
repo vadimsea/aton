@@ -8,8 +8,10 @@
 #include <QApplication>
 #include <QAudioOutput>
 #include <QDateTime>
+#include <QCloseEvent>
 #include <QEvent>
 #include <QGuiApplication>
+#include <QShowEvent>
 #include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -860,6 +862,14 @@ MainWindow::MainWindow(ApiClient *apiClient, SessionStore *sessionStore, QWidget
 
     buildUi();
     m_notifications = new NotificationHub(this, this);
+    connect(m_notifications, &NotificationHub::showWindowRequested, this, &MainWindow::showMainWindow);
+    connect(m_notifications, &NotificationHub::quitRequested, this, [this]() {
+        m_forceQuit = true;
+        if (m_apiClient && m_sessionStore && m_sessionStore->hasToken()) {
+            m_apiClient->logout();
+        }
+        qApp->quit();
+    });
     connect(m_notifications, &NotificationHub::notificationActivated, this, [this](const QString &chatId) {
         if (chatId.isEmpty() || !m_chatList) {
             return;
@@ -874,9 +884,7 @@ MainWindow::MainWindow(ApiClient *apiClient, SessionStore *sessionStore, QWidget
             }
             m_chatList->setCurrentRow(i);
             openSelectedChat();
-            showNormal();
-            raise();
-            activateWindow();
+            showMainWindow();
             break;
         }
     });
@@ -1498,6 +1506,9 @@ void MainWindow::wireApi()
             const auto token = obj.value("token").toString();
             if (!token.isEmpty() && m_sessionStore) {
                 m_sessionStore->setToken(token);
+            }
+            if (m_apiClient) {
+                m_apiClient->resetSessionAuthState();
             }
             setStatusText(trAuth(m_authLanguage, "signedIn"));
             m_messageBaselineReady = false;
@@ -2326,6 +2337,45 @@ void MainWindow::setStatusText(const QString &text)
     if (m_loginButton) {
         m_loginButton->setEnabled(true);
     }
+}
+
+void MainWindow::showMainWindow()
+{
+    showNormal();
+    raise();
+    activateWindow();
+}
+
+void MainWindow::showEvent(QShowEvent *event)
+{
+    QMainWindow::showEvent(event);
+    if (!m_notifications) {
+        return;
+    }
+    int totalUnread = 0;
+    for (auto it = m_unreadByChat.cbegin(); it != m_unreadByChat.cend(); ++it) {
+        totalUnread += it.value();
+    }
+    m_notifications->setUnreadCount(totalUnread);
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    if (m_forceQuit) {
+        QMainWindow::closeEvent(event);
+        return;
+    }
+    const bool canBackground =
+        m_sessionStore && m_sessionStore->hasToken() && m_notifications && m_notifications->isTrayActive();
+    if (!canBackground) {
+        m_forceQuit = true;
+        QMainWindow::closeEvent(event);
+        qApp->quit();
+        return;
+    }
+    event->ignore();
+    hide();
+    m_notifications->showBackgroundHint();
 }
 
 void MainWindow::changeEvent(QEvent *event)

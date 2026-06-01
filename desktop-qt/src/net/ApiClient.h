@@ -35,6 +35,7 @@ public:
     void deleteMessage(const QString &messageId);
     void sendTextMessage(const QString &chatId, const QString &text, const QString &replyTo = {});
     void markMessagesRead(const QString &chatId);
+    void resetSessionAuthState();
 
 signals:
     void requestSucceeded(QString endpoint, QJsonDocument body);
@@ -53,6 +54,7 @@ private:
     QUrl m_apiBaseUrl;
     SessionStore *m_sessionStore;
     QNetworkAccessManager m_network;
+    bool m_sessionExpiredEmitted = false;
 };
 
 } // namespace aten

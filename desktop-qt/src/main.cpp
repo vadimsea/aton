@@ -32,6 +32,7 @@ int main(int argc, char *argv[])
     qtApp.setApplicationDisplayName("ATEN");
     qtApp.setOrganizationName("ATEN");
     qtApp.setOrganizationDomain("aten.vadzim.by");
+    QApplication::setQuitOnLastWindowClosed(false);
 
     const QIcon appIcon = loadAppIcon();
     if (!appIcon.isNull()) {

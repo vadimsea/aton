@@ -2,11 +2,13 @@
 
 #include "platform/TaskbarBadge.h"
 
+#include <QAction>
 #include <QAudioOutput>
 #include <QCoreApplication>
 #include <QFile>
 #include <QGuiApplication>
 #include <QMediaPlayer>
+#include <QMenu>
 #include <QSystemTrayIcon>
 #include <QTimer>
 #include <QUrl>
@@ -28,13 +30,28 @@ NotificationHub::NotificationHub(QWidget *window, QObject *parent)
         m_tray->setIcon(icon);
     }
     m_tray->setToolTip("ATEN");
-    m_tray->show();
+
+    m_trayMenu = new QMenu();
+    auto *showAction = m_trayMenu->addAction(QStringLiteral("Открыть ATEN"));
+    auto *quitAction = m_trayMenu->addAction(QStringLiteral("Выход"));
+    connect(showAction, &QAction::triggered, this, &NotificationHub::showWindowRequested);
+    connect(quitAction, &QAction::triggered, this, &NotificationHub::quitRequested);
+    m_tray->setContextMenu(m_trayMenu);
+
+    connect(m_tray, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
+        if (reason == QSystemTrayIcon::DoubleClick || reason == QSystemTrayIcon::Trigger) {
+            emit showWindowRequested();
+        }
+    });
 
     connect(m_tray, &QSystemTrayIcon::messageClicked, this, [this]() {
         if (!m_queue.isEmpty()) {
             emit notificationActivated(m_queue.head().chatId);
         }
+        emit showWindowRequested();
     });
+
+    m_tray->show();
 
     m_player = new QMediaPlayer(this);
     m_player->setAudioOutput(new QAudioOutput(this));
@@ -58,7 +75,21 @@ void NotificationHub::setUnreadCount(int count)
                                 : QStringLiteral("ATEN");
         m_tray->setToolTip(tip);
     }
-    setTaskbarOverlayBadge(m_window, m_unreadCount);
+    if (m_window && m_window->internalWinId()) {
+        setTaskbarOverlayBadge(m_window, m_unreadCount);
+    }
+}
+
+void NotificationHub::showBackgroundHint()
+{
+    if (!m_tray) {
+        return;
+    }
+    m_tray->showMessage(
+        QStringLiteral("ATEN"),
+        QStringLiteral("Приложение свёрнуто в трей. Уведомления и бейдж на иконке продолжают работать."),
+        QSystemTrayIcon::Information,
+        4000);
 }
 
 void NotificationHub::enqueueNotification(const QString &title, const QString &body, const QString &chatId)

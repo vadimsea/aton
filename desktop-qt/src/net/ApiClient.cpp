@@ -104,6 +104,11 @@ void ApiClient::markMessagesRead(const QString &chatId)
     postJson("/api/messages/read", payload);
 }
 
+void ApiClient::resetSessionAuthState()
+{
+    m_sessionExpiredEmitted = false;
+}
+
 void ApiClient::updateProfile(const QString &displayName, const QString &bio, const QString &publicId)
 {
     QJsonObject payload;
@@ -187,12 +192,14 @@ void ApiClient::handleReply(QNetworkReply *reply, const QString &endpoint)
     reply->deleteLater();
 
     const auto status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const auto path = endpoint.split('?').constFirst();
     const auto bytes = reply->readAll();
     QJsonParseError parseError;
     const auto doc = QJsonDocument::fromJson(bytes, &parseError);
 
     if (reply->error() != QNetworkReply::NoError || status >= 400) {
-        if (status == 401) {
+        if (status == 401 && path != "/api/login" && path != "/api/register" && !m_sessionExpiredEmitted) {
+            m_sessionExpiredEmitted = true;
             emit sessionExpired();
         }
         auto message = reply->errorString();
@@ -212,6 +219,9 @@ void ApiClient::handleReply(QNetworkReply *reply, const QString &endpoint)
     }
 
     emit requestSucceeded(endpoint, doc);
+    if (path == "/api/login" || path == "/api/me") {
+        m_sessionExpiredEmitted = false;
+    }
 }
 
 QNetworkRequest ApiClient::makeRequest(const QString &endpoint) const

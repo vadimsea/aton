@@ -65,6 +65,9 @@ private:
     QString messageChatId(const QJsonObject &msg) const;
     bool shouldAlertForMessage(const QJsonObject &msg) const;
     void changeEvent(QEvent *event) override;
+    void closeEvent(QCloseEvent *event) override;
+    void showEvent(QShowEvent *event) override;
+    void showMainWindow();
     QString currentPeerStatus() const;
 
     ApiClient *m_apiClient;
@@ -146,6 +149,7 @@ private:
     QMap<QString, int> m_unreadByChat;
     QMap<QString, QString> m_dialogTitles;
     bool m_chatNotifyMuted = false;
+    bool m_forceQuit = false;
 };
 
 } // namespace aten

@@ -112,10 +112,14 @@ void setTaskbarOverlayBadge(QWidget *window, int unreadCount)
     }
 
     static const bool comReady = []() {
-        CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-        return true;
+        const HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+        return SUCCEEDED(hr) || hr == RPC_E_CHANGED_MODE || hr == S_FALSE;
     }();
     Q_UNUSED(comReady);
+
+    if (!window->internalWinId()) {
+        return;
+    }
 
     ITaskbarList3 *taskbar = nullptr;
     if (FAILED(CoCreateInstance(CLSID_TaskbarList, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskbarList3,
