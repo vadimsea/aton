@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QIcon>
 #include <QQueue>
 #include <QString>
 
@@ -47,6 +48,7 @@ private:
     QMediaPlayer *m_player = nullptr;
     QTimer *m_drainTimer = nullptr;
     QQueue<PendingNotification> m_queue;
+    QIcon m_baseIcon;
     int m_unreadCount = 0;
     bool m_muted = false;
 };

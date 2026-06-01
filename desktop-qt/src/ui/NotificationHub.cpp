@@ -24,10 +24,11 @@ NotificationHub::NotificationHub(QWidget *window, QObject *parent)
         return;
     }
 
+    m_baseIcon = qApp->windowIcon();
+
     m_tray = new QSystemTrayIcon(this);
-    const QIcon icon = qApp->windowIcon();
-    if (!icon.isNull()) {
-        m_tray->setIcon(icon);
+    if (!m_baseIcon.isNull()) {
+        m_tray->setIcon(m_baseIcon);
     }
     m_tray->setToolTip("ATEN");
 
@@ -75,9 +76,12 @@ void NotificationHub::setUnreadCount(int count)
                                 : QStringLiteral("ATEN");
         m_tray->setToolTip(tip);
     }
-    if (m_window && m_window->internalWinId()) {
-        setTaskbarOverlayBadge(m_window, m_unreadCount);
+
+    const QIcon icon = appIconWithUnreadBadge(m_baseIcon, m_unreadCount);
+    if (m_tray && !icon.isNull()) {
+        m_tray->setIcon(icon);
     }
+    applyUnreadBadgeToWindow(m_window, m_baseIcon, m_unreadCount);
 }
 
 void NotificationHub::showBackgroundHint()
