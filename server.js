@@ -2234,6 +2234,7 @@ app.get("/api/dialogs", authMiddleware, requireVerified, async (req, res) => {
           avatarDataUrl: peerUser.avatarDataUrl || "",
           peerVerified: Boolean(peerUser.isVerified || peerUser.verified),
           verified: Boolean(peerUser.isVerified || peerUser.verified),
+          peerLastSeen: peerUser.lastSeen || null,
           isSystem: peer === GOLOS_ATON_USERNAME,
         };
       }
