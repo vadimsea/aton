@@ -30,7 +30,7 @@ AppConfig AppConfig::fromEnvironment()
         apiUrl = readApiUrlFile();
     }
     if (apiUrl.isEmpty()) {
-        apiUrl = QStringLiteral("https://aton-api.onrender.com");
+        apiUrl = QStringLiteral("https://aton-api-2.onrender.com");
     }
     config.setApiBaseUrl(QUrl(apiUrl));
     return config;

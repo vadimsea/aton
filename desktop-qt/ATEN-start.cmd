@@ -7,6 +7,6 @@ if not exist "ATEN.exe" (
   exit /b 1
 )
 if not exist "aten-api.url" (
-  echo https://aton-api.onrender.com>aten-api.url
+  echo https://aton-api-2.onrender.com>aten-api.url
 )
 start "" "%cd%\ATEN.exe"
