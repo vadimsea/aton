@@ -706,7 +706,7 @@ function getApiBase() {
   const meta = document.querySelector('meta[name="aton-api-base"]')?.getAttribute("content")?.trim();
   if (meta) return meta.replace(/\/$/, "");
   if (host === "aten.vadzim.by" || host === "www.aten.vadzim.by") {
-    return "https://aton-api.onrender.com";
+    return "https://aton-api-2.onrender.com";
   }
   const origin = window.location.origin;
   if (!origin) return "";
