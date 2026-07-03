@@ -6,19 +6,19 @@
 
 :root,
 [data-theme="dark"] {
-  --aton-bg: #020617;
-  --aton-bg-elevated: #02081b;
-  --aton-bg-soft: #0b1120;
+  --aton-bg: #050914;
+  --aton-bg-elevated: #080d17;
+  --aton-bg-soft: #0a101c;
   --aton-border-soft: rgba(148, 163, 184, 0.25);
-  --aton-text-main: #f9fafb;
-  --aton-text-muted: #9ca3af;
+  --aton-text-main: #f4f7fb;
+  --aton-text-muted: #a8b2c2;
   --aton-accent-gold: #fbbf24;
   --aton-accent-amber: #fb923c;
   --aton-accent-blue: #38bdf8;
   --aton-accent-blue-deep: #0ea5e9;
   --aton-error: #f97373;
-  --aton-panel: rgba(2, 6, 23, 0.85);
-  --aton-sidebar-bg: rgba(2, 8, 27, 0.75);
+  --aton-panel: #080d17;
+  --aton-sidebar-bg: #0b1220;
   --aton-msg-own: rgba(56, 189, 248, 0.1);
   --aton-msg-other: rgba(30, 41, 59, 0.6);
   --golos-surface: rgba(12, 20, 36, 0.78);
@@ -84,10 +84,7 @@ body {
 
 [data-theme="dark"] body,
 :root:not([data-theme="light"]) body {
-  background:
-    radial-gradient(circle at top left, rgba(248, 181, 81, 0.28) 0, transparent 55%),
-    radial-gradient(circle at bottom right, rgba(56, 189, 248, 0.22) 0, transparent 60%),
-    linear-gradient(145deg, var(--aton-bg), var(--aton-bg) 40%, #02011a 100%);
+  background: var(--aton-bg);
 }
 
 [data-theme="light"] body {
@@ -112,10 +109,7 @@ body {
   flex: 1;
   width: 100%;
   height: 100%;
-  background:
-    radial-gradient(circle at top left, rgba(148, 163, 253, 0.18), transparent 55%),
-    radial-gradient(circle at bottom right, rgba(236, 72, 153, 0.24), transparent 55%),
-    rgba(10, 12, 24, 0.96);
+  background: var(--aton-bg);
   border-top: 1px solid rgba(148, 163, 184, 0.25);
   transition: background 0.3s ease;
 }
@@ -128,7 +122,7 @@ body {
 .aton-sidebar {
   width: 320px;
   border-right: 1px solid var(--aton-border-soft);
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(15, 23, 42, 0.96));
+  background: var(--aton-sidebar-bg);
   display: flex;
   flex-direction: column;
   transition: background 0.3s ease;
@@ -1539,6 +1533,10 @@ body {
   align-items: center;
   gap: 10px;
   cursor: pointer;
+  color: var(--aton-text-main);
+  font: inherit;
+  text-align: left;
+  -webkit-text-fill-color: currentColor;
   transition: background 0.12s ease-out;
   box-sizing: border-box;
   width: 100%;
@@ -1563,9 +1561,10 @@ body {
 }
 
 .aton-chat-item-title {
+  color: var(--aton-text-main);
   font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 650;
+  letter-spacing: 0;
   line-height: 1.25;
   max-width: 100%;
   white-space: nowrap;
@@ -1577,7 +1576,7 @@ body {
   font-size: 12px;
   line-height: 1.2;
   color: var(--aton-text-muted);
-  opacity: 0.9;
+  opacity: 1;
   max-width: 100%;
   min-width: 0;
   overflow: hidden;
@@ -1593,16 +1592,24 @@ body {
   font-size: 13px;
   line-height: 1.35;
   color: var(--aton-text-muted);
+  opacity: 0.92;
   margin-top: 2px;
 }
 
 .aton-chat-item.active {
-  background: rgba(56, 189, 248, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.22);
+  background: rgba(14, 165, 233, 0.15);
+  box-shadow:
+    inset 3px 0 0 #38bdf8,
+    inset 0 0 0 1px rgba(56, 189, 248, 0.28);
 }
 
 .aton-chat-item:not(.active):hover {
-  background: rgba(15, 23, 42, 0.55);
+  background: rgba(30, 41, 59, 0.62);
+}
+
+.aton-chat-item:focus-visible {
+  outline: 3px solid rgba(56, 189, 248, 0.38);
+  outline-offset: -3px;
 }
 
 .aton-chat-item-main {
@@ -1709,12 +1716,16 @@ body {
 }
 
 .aton-chat-unread-badge {
-  min-width: 18px;
+  min-width: 20px;
+  min-height: 20px;
   padding: 2px 6px;
   border-radius: 999px;
-  background: rgba(56, 189, 248, 0.95);
+  background: #38bdf8;
   color: #020617;
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
   text-align: center;
 }
 
@@ -1733,8 +1744,10 @@ body {
 }
 
 .aton-chat-time {
-  font-size: 10px;
+  font-size: 11px;
+  line-height: 1.2;
   color: var(--aton-text-muted);
+  opacity: 0.88;
   max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
@@ -2183,6 +2196,7 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
+  background: var(--aton-bg);
   backdrop-filter: blur(16px);
   overflow: hidden;
 }
@@ -2941,7 +2955,7 @@ body {
   flex-wrap: wrap;
   opacity: 0;
   transform: translateY(2px);
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition: opacity 0.16s ease, transform 0.16s ease;
 }
 
 .aton-message-bubble:hover .aton-message-actions,
@@ -2951,32 +2965,134 @@ body {
 }
 
 .aton-message-action-button {
-  border: none;
-  background: rgba(15, 23, 42, 0.18);
-  color: rgba(148, 163, 184, 0.95);
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(203, 213, 225, 0.62);
   cursor: pointer;
   font-size: 13px;
   line-height: 1;
   border-radius: 999px;
-  min-width: 24px;
-  height: 24px;
+  min-width: 28px;
+  height: 28px;
   padding: 0 7px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  box-shadow: none;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
 }
 
 .aton-message-action-button:hover {
-  background: rgba(15, 23, 42, 0.72);
-  color: #f97316;
+  background: rgba(148, 163, 184, 0.12);
+  border-color: rgba(148, 163, 184, 0.18);
+  color: rgba(241, 245, 249, 0.86);
   transform: translateY(-1px);
+}
+
+.aton-message-action-button:focus-visible,
+.aton-reaction-pill:focus-visible,
+.aton-reaction-picker-item:focus-visible {
+  outline: 3px solid rgba(56, 189, 248, 0.4);
+  outline-offset: 2px;
 }
 
 .aton-message-action-button.is-active,
 .aton-message-react-trigger.is-active {
-  background: rgba(56, 189, 248, 0.2);
-  color: #38bdf8;
+  background: rgba(59, 130, 246, 0.16);
+  border-color: rgba(96, 165, 250, 0.28);
+  color: rgba(191, 219, 254, 0.92);
+}
+
+.aton-message-react-trigger {
+  gap: 5px;
+}
+
+.aton-message-react-icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.aton-message-react-plus {
+  stroke-width: 2.2;
+}
+
+.aton-message-react-current {
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.aton-message-action-button.aton-message-reply-button {
+  width: 28px;
+  min-width: 28px;
+  padding: 0;
+}
+
+.aton-message-reply-icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.85;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.aton-message-reply-button:hover {
+  background: rgba(59, 130, 246, 0.13);
+  border-color: rgba(96, 165, 250, 0.3);
+  color: rgba(191, 219, 254, 0.9);
+}
+
+.aton-message-reply-button:active {
+  transform: translateY(0) scale(0.94);
+}
+
+.aton-message-action-button.aton-message-delete:hover {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.22);
+  color: rgba(252, 165, 165, 0.92);
+}
+
+[data-theme="light"] .aton-message-action-button {
+  background: transparent;
+  border-color: transparent;
+  color: rgba(71, 85, 105, 0.62);
+  box-shadow: none;
+}
+
+[data-theme="light"] .aton-message-action-button:hover {
+  background: rgba(100, 116, 139, 0.09);
+  border-color: rgba(100, 116, 139, 0.16);
+  color: #334155;
+}
+
+[data-theme="light"] .aton-message-reply-button:hover {
+  background: rgba(37, 99, 235, 0.09);
+  border-color: rgba(37, 99, 235, 0.18);
+  color: #1d4ed8;
+}
+
+[data-theme="light"] .aton-message-action-button.is-active,
+[data-theme="light"] .aton-message-react-trigger.is-active {
+  background: rgba(37, 99, 235, 0.11);
+  border-color: rgba(37, 99, 235, 0.22);
+  color: #1d4ed8;
+}
+
+[data-theme="light"] .aton-message-action-button.aton-message-delete:hover {
+  background: rgba(239, 68, 68, 0.09);
+  border-color: rgba(239, 68, 68, 0.18);
+  color: #b91c1c;
 }
 
 .aton-user-verify-button {
@@ -3041,91 +3157,208 @@ body {
 }
 
 .aton-message-reactions {
-  margin-top: 6px;
+  margin-top: 8px;
   display: inline-flex;
-  gap: 5px;
+  gap: 6px;
   flex-wrap: wrap;
+  max-width: 100%;
 }
 
 .aton-reaction-pill {
-  border: 1px solid rgba(55, 65, 81, 0.9);
-  padding: 5px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  padding: 0 10px 0 8px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.9);
-  color: #e5e7eb;
+  background: rgba(15, 23, 42, 0.76);
+  color: #e2e8f0;
   cursor: pointer;
-  font-size: 19px;
-  line-height: 1.2;
-  min-height: 29px;
+  min-width: 48px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  gap: 6px;
+  box-shadow: 0 4px 12px rgba(2, 6, 23, 0.13);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.aton-reaction-pill-emoji {
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.aton-reaction-pill-count {
+  min-width: 8px;
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .aton-reaction-pill:hover {
-  background: rgba(30, 41, 59, 0.96);
-  transform: translateY(-1px);
+  background: rgba(30, 41, 59, 0.98);
+  border-color: rgba(125, 211, 252, 0.54);
+  transform: translateY(-2px);
 }
 
 .aton-reaction-pill.is-active {
-  background: rgba(56, 189, 248, 0.22);
-  border-color: rgba(56, 189, 248, 0.78);
-  color: #e0f2fe;
+  background: #0758d8;
+  border-color: #60a5fa;
+  color: #ffffff;
+  box-shadow: 0 5px 16px rgba(7, 88, 216, 0.3);
+}
+
+.aton-reaction-pill.is-active .aton-reaction-pill-count {
+  color: #ffffff;
+}
+
+[data-theme="light"] .aton-reaction-pill {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(15, 23, 42, 0.14);
+  color: #334155;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .aton-reaction-pill-count {
+  color: #475569;
+}
+
+[data-theme="light"] .aton-reaction-pill:hover {
+  background: #f8fafc;
+  border-color: rgba(37, 99, 235, 0.42);
+}
+
+[data-theme="light"] .aton-reaction-pill.is-active {
+  background: #2563eb;
+  border-color: #1d4ed8;
+  color: #ffffff;
 }
 
 .aton-reaction-picker {
   z-index: 80;
-  padding: 6px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.96);
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.42);
-  display: inline-grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 41px;
-  gap: 3px;
+  padding: 8px;
+  border-radius: 18px;
+  background: rgba(8, 15, 30, 0.97);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  box-shadow:
+    0 22px 54px rgba(2, 6, 23, 0.48),
+    0 2px 8px rgba(2, 6, 23, 0.28);
   max-width: calc(100vw - 16px);
   box-sizing: border-box;
-  backdrop-filter: blur(16px) saturate(1.2);
-  -webkit-backdrop-filter: blur(16px) saturate(1.2);
-  animation: aton-reaction-pop 0.14s ease-out;
+  backdrop-filter: blur(20px) saturate(1.25);
+  -webkit-backdrop-filter: blur(20px) saturate(1.25);
+  animation: aton-reaction-pop 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.aton-reaction-picker-list {
+  display: grid;
+  grid-template-columns: repeat(8, 46px);
+  gap: 4px;
 }
 
 .aton-reaction-picker-item {
-  border: none;
-  background: transparent;
+  position: relative;
+  border: 1px solid transparent;
+  background: rgba(148, 163, 184, 0.06);
   cursor: pointer;
-  font-size: 27px;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 25px;
   line-height: 1;
-  width: 41px;
-  height: 41px;
-  border-radius: 999px;
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.14s ease, transform 0.14s ease;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    transform 0.14s ease;
 }
 
-.aton-reaction-picker-item:hover {
-  background: rgba(148, 163, 184, 0.16);
+.aton-reaction-picker-item:hover:not(:disabled),
+.aton-reaction-picker-item:focus-visible {
+  background: rgba(148, 163, 184, 0.18);
+  border-color: rgba(125, 211, 252, 0.36);
   transform: translateY(-3px) scale(1.08);
 }
 
 .aton-reaction-picker-item.is-active {
-  background: rgba(56, 189, 248, 0.22);
+  background: rgba(14, 165, 233, 0.24);
+  border-color: #38bdf8;
+  box-shadow: inset 0 0 0 1px rgba(186, 230, 253, 0.18);
+}
+
+.aton-reaction-picker-item.is-active::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 7px;
+  height: 7px;
+  border: 2px solid #08101f;
+  border-radius: 999px;
+  background: #38bdf8;
+}
+
+.aton-reaction-picker-item:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+[data-theme="light"] .aton-reaction-picker {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: rgba(15, 23, 42, 0.14);
+  box-shadow:
+    0 22px 54px rgba(15, 23, 42, 0.2),
+    0 2px 8px rgba(15, 23, 42, 0.1);
+}
+
+[data-theme="light"] .aton-reaction-picker-item {
+  background: #f8fafc;
+}
+
+[data-theme="light"] .aton-reaction-picker-item:hover:not(:disabled),
+[data-theme="light"] .aton-reaction-picker-item:focus-visible {
+  background: #eaf2ff;
+  border-color: rgba(37, 99, 235, 0.36);
+}
+
+[data-theme="light"] .aton-reaction-picker-item.is-active {
+  background: #dbeafe;
+  border-color: #2563eb;
+}
+
+[data-theme="light"] .aton-reaction-picker-item.is-active::after {
+  border-color: #ffffff;
+  background: #2563eb;
 }
 
 @keyframes aton-reaction-pop {
   from {
     opacity: 0;
-    transform: translateY(4px) scale(0.96);
+    transform: translateY(7px) scale(0.94);
   }
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aton-message-actions,
+  .aton-message-action-button,
+  .aton-reaction-pill,
+  .aton-reaction-picker,
+  .aton-reaction-picker-item {
+    animation: none;
+    transition: none;
   }
 }
 
@@ -3863,6 +4096,11 @@ body {
   scrollbar-color: #475569 #0f172a;
 }
 
+.aton-compose-input::placeholder {
+  color: #94a3b8;
+  opacity: 0.88;
+}
+
 .aton-compose-input::-webkit-scrollbar {
   width: 10px;
 }
@@ -4374,7 +4612,9 @@ body {
 
 [data-theme="light"] .aton-chat-item.active {
   background: #e0e7ff;
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.28);
+  box-shadow:
+    inset 3px 0 0 #2563eb,
+    inset 0 0 0 1px rgba(37, 99, 235, 0.28);
 }
 
 [data-theme="light"] .aton-chat-avatar {
@@ -4387,8 +4627,14 @@ body {
   color: #1a1a2e;
 }
 
+[data-theme="light"] .aton-chat-item-subtitle,
 [data-theme="light"] .aton-chat-item-preview {
-  color: #6b7280;
+  color: #526071;
+}
+
+[data-theme="light"] .aton-chat-time {
+  color: #526071;
+  opacity: 1;
 }
 
 [data-theme="light"] .aton-message-bubble {
@@ -4582,6 +4828,11 @@ body {
   color: #0f172a;
   border: none;
   scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+[data-theme="light"] .aton-compose-input::placeholder {
+  color: #64748b;
+  opacity: 0.9;
 }
 
 [data-theme="light"] .aton-compose-input::-webkit-scrollbar-track {
@@ -5887,28 +6138,31 @@ body {
   }
 
   .aton-message-reactions {
-    gap: 6px;
+    gap: 5px;
   }
 
   .aton-reaction-pill {
-    padding: 6px 11px;
-    font-size: 20px;
+    height: 34px;
+    padding: 0 11px 0 9px;
   }
 
   .aton-reaction-picker {
-    grid-auto-flow: row;
-    grid-template-columns: repeat(4, 45px);
-    grid-auto-columns: auto;
     padding: 8px;
     gap: 5px;
-    border-radius: 24px;
+    border-radius: 18px;
     max-width: calc(100vw - 16px);
   }
 
+  .aton-reaction-picker-list {
+    grid-template-columns: repeat(4, 47px);
+    gap: 5px;
+  }
+
   .aton-reaction-picker-item {
-    font-size: 27px;
-    width: 45px;
-    height: 45px;
+    font-size: 26px;
+    width: 47px;
+    height: 47px;
+    border-radius: 13px;
     padding: 0;
     display: inline-flex;
     align-items: center;

@@ -1171,6 +1171,26 @@ function formatTimeLabel(iso) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatMessageDateTimeLabel(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const locale = currentLang === "de" ? "de-DE" : currentLang === "en" ? "en-GB" : "ru-RU";
+  const now = new Date();
+  const dayStart = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const time = d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  const currentDay = dayStart(now);
+  const messageDay = dayStart(d);
+  if (messageDay === currentDay) return time;
+  if (messageDay === currentDay - 24 * 60 * 60 * 1000) {
+    const yesterday = currentLang === "de" ? "gestern" : currentLang === "en" ? "yesterday" : "вчера";
+    return `${yesterday} ${time}`;
+  }
+  const dateOpts = { day: "numeric", month: "short" };
+  if (d.getFullYear() !== now.getFullYear()) dateOpts.year = "numeric";
+  return `${d.toLocaleDateString(locale, dateOpts)} ${time}`;
+}
+
 /** Сайдбар: сегодня — только часы, иначе дата (коротко) + время. */
 function formatChatListMessageTime(iso) {
   if (!iso) return "";
@@ -2118,6 +2138,7 @@ function createApp() {
   /** Ожидаем столько ответов от @golos_aton (после наших исходящих) — для строки «думает…». */
   let golosPendingReplies = 0;
   let openReactionPicker = null;
+  let openReactionTrigger = null;
   let openChatMenu = null;
   let currentSocketChat = null;
   let mainView = "chat";
@@ -2133,6 +2154,16 @@ function createApp() {
   let warmOpenChatMessagesPromise = null;
   const QUICK_REACTION_EMOJI = "👍";
   const MESSAGE_REACTION_EMOJIS = ["👍", "❤️", "🔥", "😁", "😢", "👏", "🤯", "👎"];
+  const MESSAGE_REACTION_LABELS = {
+    "👍": "Нравится",
+    "❤️": "Люблю",
+    "🔥": "Огонь",
+    "😁": "Смешно",
+    "😢": "Грустно",
+    "👏": "Браво",
+    "🤯": "Ничего себе",
+    "👎": "Не нравится",
+  };
   /** Дебаунс pull по chatId — иначе при событиях в двух личках съедалось бы одно из них. */
   const messageStatusPullTimers = new Map();
   /**
@@ -2218,6 +2249,10 @@ function createApp() {
   }
 
   function closeReactionPicker() {
+    if (openReactionTrigger) {
+      openReactionTrigger.setAttribute("aria-expanded", "false");
+      openReactionTrigger = null;
+    }
     if (openReactionPicker) {
       openReactionPicker.remove();
       openReactionPicker = null;
@@ -2252,14 +2287,35 @@ function createApp() {
   }
 
   async function toggleMessageReaction(message, emoji) {
-    if (!message || !message.id || !emoji) return;
-    const updated = await api(`/api/messages/${message.id}/react`, {
-      method: "POST",
-      body: JSON.stringify({ emoji }),
-    });
-    allMessages = allMessages.map((m) => (m.id === updated.id ? updated : m));
+    if (!currentUser || !message || !message.id || !emoji) return;
     closeReactionPicker();
+    const previousReactions = Array.isArray(message.reactions) ? [...message.reactions] : [];
+    const ownReaction = getOwnReaction(message);
+    const optimisticReactions = previousReactions.filter(
+      (reaction) => !(currentUser && reaction && reaction.user === currentUser.username)
+    );
+    if (!ownReaction || ownReaction.emoji !== emoji) {
+      optimisticReactions.push({ user: currentUser.username, emoji });
+    }
+    allMessages = allMessages.map((item) =>
+      item.id === message.id ? { ...item, reactions: optimisticReactions } : item
+    );
     renderMessages();
+
+    try {
+      const updated = await api(`/api/messages/${message.id}/react`, {
+        method: "POST",
+        body: JSON.stringify({ emoji }),
+      });
+      allMessages = allMessages.map((item) => (item.id === updated.id ? updated : item));
+      renderMessages();
+    } catch (error) {
+      allMessages = allMessages.map((item) =>
+        item.id === message.id ? { ...item, reactions: previousReactions } : item
+      );
+      renderMessages();
+      throw error;
+    }
   }
 
   function positionReactionPicker(picker, anchorRect) {
@@ -2274,7 +2330,10 @@ function createApp() {
     const viewportPadding = 8;
     const pickerWidth = Math.min(pickerRect.width, window.innerWidth - viewportPadding * 2);
     const pickerHeight = Math.min(pickerRect.height, window.innerHeight - viewportPadding * 2);
-    const preferredLeft = anchorRect.left + anchorRect.width / 2 - pickerWidth / 2;
+    const alignToRight = anchorRect.left > window.innerWidth / 2;
+    const preferredLeft = alignToRight
+      ? anchorRect.right - pickerWidth
+      : anchorRect.left;
     const left = Math.min(
       Math.max(viewportPadding, preferredLeft),
       Math.max(viewportPadding, window.innerWidth - pickerWidth - viewportPadding)
@@ -2283,6 +2342,8 @@ function createApp() {
     const topBelow = anchorRect.bottom + gap;
     const top = topAbove >= viewportPadding ? topAbove : Math.min(topBelow, window.innerHeight - pickerHeight - viewportPadding);
 
+    picker.dataset.placement = topAbove >= viewportPadding ? "top" : "bottom";
+    picker.dataset.align = alignToRight ? "right" : "left";
     picker.style.left = `${left}px`;
     picker.style.top = `${Math.max(viewportPadding, top)}px`;
     picker.style.visibility = "";
@@ -2301,6 +2362,31 @@ function createApp() {
     if (t && t.closest && t.closest(".aton-chat-menu-btn")) return;
     if (openChatMenu.contains(t)) return;
     closeChatMenu();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (!openReactionPicker) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeReactionPicker();
+      return;
+    }
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+    const items = [...openReactionPicker.querySelectorAll(".aton-reaction-picker-item")];
+    if (!items.length) return;
+    const currentIndex = Math.max(0, items.indexOf(document.activeElement));
+    const columns = window.matchMedia("(max-width: 720px)").matches ? 4 : items.length;
+    const delta =
+      event.key === "ArrowLeft"
+        ? -1
+        : event.key === "ArrowRight"
+          ? 1
+          : event.key === "ArrowUp"
+            ? -columns
+            : columns;
+    const nextIndex = (currentIndex + delta + items.length) % items.length;
+    event.preventDefault();
+    items[nextIndex].focus();
   });
 
   function switchSocketChat(newChatId) {
@@ -2390,7 +2476,7 @@ function createApp() {
       if (!meta) continue;
       const isSelf = isMessageFromSelf(msg, currentUser, currentChatId);
       meta.className = "aton-message-meta" + (isSelf ? " aton-message-meta--self" : "");
-      const timeLabel = formatTimeLabel(msg.time);
+      const timeLabel = formatMessageDateTimeLabel(msg.time);
       const editedLabel = msg.editedAt ? ` · ${t("изм.")}` : "";
       const pinnedLabel = msg.pinned ? " ★" : "";
       const st =
@@ -3019,7 +3105,12 @@ function createApp() {
       const reader = new FileReader();
       reader.onloadend = () => {
         void (async () => {
-          const audioDataUrl = reader.result;
+      const rawDataUrl = String(reader.result || "");
+      const cleanMime = String(blob && blob.type ? blob.type : "audio/webm")
+        .split(";")[0]
+        .trim()
+        .toLowerCase() || "audio/webm";
+      const audioDataUrl = rawDataUrl.replace(/^data:[^,]*;base64,/i, `data:${cleanMime};base64,`);
           const to = dmToForApi();
           const toGolosVoice = to === GOLOS_ATON_USERNAME;
           if (toGolosVoice) golosPendingReplies += 1;
@@ -3043,6 +3134,18 @@ function createApp() {
       reader.onerror = () => reject(new Error(t("Не удалось прочитать запись")));
       reader.readAsDataURL(blob);
     });
+  }
+
+  function preferredVoiceMimeType() {
+    if (!window.MediaRecorder || typeof window.MediaRecorder.isTypeSupported !== "function") return "";
+    const candidates = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/ogg;codecs=opus",
+      "audio/ogg",
+      "audio/mp4",
+    ];
+    return candidates.find((type) => window.MediaRecorder.isTypeSupported(type)) || "";
   }
 
   function abortVoiceUi() {
@@ -5451,7 +5554,7 @@ function createApp() {
       }
       const canAdmin = current && current.isSuperAdmin === true;
       const authorIsVerified = Boolean(author && author.isVerified);
-      const timeLabel = formatTimeLabel(msg.time);
+      const timeLabel = formatMessageDateTimeLabel(msg.time);
       const editedLabel = msg.editedAt ? ` · ${t("изм.")}` : "";
       const pinnedLabel = msg.pinned ? " 📌" : "";
 
@@ -5525,44 +5628,80 @@ function createApp() {
       const reactBtn = document.createElement("button");
       reactBtn.className = "aton-message-action-button aton-message-react-trigger";
       const ownReaction = getOwnReaction(msg);
-      reactBtn.textContent = ownReaction ? ownReaction.emoji : "♡";
+      reactBtn.type = "button";
+      reactBtn.innerHTML = `
+        <svg class="aton-message-react-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="M8 9h.01M14 9h.01M8.5 13.5c.8 1 1.65 1.5 2.5 1.5s1.7-.5 2.5-1.5"></path>
+          <path class="aton-message-react-plus" d="M19 14v6M16 17h6"></path>
+        </svg>
+      `;
+      if (ownReaction) {
+        const currentEmoji = document.createElement("span");
+        currentEmoji.className = "aton-message-react-current";
+        currentEmoji.textContent = ownReaction.emoji;
+        reactBtn.appendChild(currentEmoji);
+      }
       reactBtn.title = ownReaction ? t("Изменить реакцию") : t("Оставить реакцию");
       reactBtn.setAttribute("aria-label", reactBtn.title);
+      reactBtn.setAttribute("aria-haspopup", "menu");
+      reactBtn.setAttribute("aria-expanded", "false");
       if (ownReaction) reactBtn.classList.add("is-active");
       reactBtn.addEventListener("click", (event) => {
         event.stopPropagation();
+        const shouldClose = openReactionTrigger === reactBtn;
         closeReactionPicker();
+        if (shouldClose) return;
+        reactBtn.setAttribute("aria-expanded", "true");
         const picker = document.createElement("div");
         picker.className = "aton-reaction-picker";
         picker.setAttribute("role", "menu");
         picker.setAttribute("aria-label", t("Оставить реакцию"));
+        const pickerList = document.createElement("div");
+        pickerList.className = "aton-reaction-picker-list";
         MESSAGE_REACTION_EMOJIS.forEach((emoji) => {
           const btn = document.createElement("button");
           btn.type = "button";
           btn.className = "aton-reaction-picker-item";
           if (ownReaction && ownReaction.emoji === emoji) btn.classList.add("is-active");
+          const label = MESSAGE_REACTION_LABELS[emoji] || emoji;
           btn.textContent = emoji;
-          btn.title = emoji;
-          btn.setAttribute("aria-label", emoji);
+          btn.title = label;
+          btn.setAttribute("aria-label", label);
+          btn.setAttribute("role", "menuitemradio");
+          btn.setAttribute("aria-checked", ownReaction && ownReaction.emoji === emoji ? "true" : "false");
           btn.addEventListener("click", async (e) => {
             e.stopPropagation();
+            btn.disabled = true;
             try {
               await toggleMessageReaction(msg, emoji);
             } catch (err) {
               alert(err.message);
             }
           });
-          picker.appendChild(btn);
+          pickerList.appendChild(btn);
         });
-        positionReactionPicker(picker, bubble.getBoundingClientRect());
+        picker.appendChild(pickerList);
+        positionReactionPicker(picker, reactBtn.getBoundingClientRect());
         openReactionPicker = picker;
+        openReactionTrigger = reactBtn;
+        const selectedItem = picker.querySelector(".aton-reaction-picker-item.is-active");
+        const firstItem = picker.querySelector(".aton-reaction-picker-item");
+        requestAnimationFrame(() => (selectedItem || firstItem)?.focus({ preventScroll: true }));
       });
       actions.appendChild(reactBtn);
 
       const replyBtn = document.createElement("button");
-      replyBtn.className = "aton-message-action-button";
-      replyBtn.textContent = "↩";
+      replyBtn.type = "button";
+      replyBtn.className = "aton-message-action-button aton-message-reply-button";
+      replyBtn.innerHTML = `
+        <svg class="aton-message-reply-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 14 4 9l5-5"></path>
+          <path d="M4 9h10a6 6 0 0 1 6 6v3"></path>
+        </svg>
+      `;
       replyBtn.title = t("Ответить");
+      replyBtn.setAttribute("aria-label", replyBtn.title);
       replyBtn.addEventListener("click", () => {
         setReplyToMessage(msg);
       });
@@ -5645,9 +5784,18 @@ function createApp() {
           pill.type = "button";
           pill.className = "aton-reaction-pill";
           if (reaction.reactedByMe) pill.classList.add("is-active");
-          pill.textContent = reaction.count > 1 ? `${reaction.emoji} ${reaction.count}` : reaction.emoji;
+          const emojiEl = document.createElement("span");
+          emojiEl.className = "aton-reaction-pill-emoji";
+          emojiEl.textContent = reaction.emoji;
+          const countEl = document.createElement("span");
+          countEl.className = "aton-reaction-pill-count";
+          countEl.textContent = String(reaction.count);
+          pill.append(emojiEl, countEl);
           pill.title = reaction.users.join(", ");
-          pill.setAttribute("aria-label", `${reaction.emoji} ${reaction.count}`);
+          pill.setAttribute(
+            "aria-label",
+            `${MESSAGE_REACTION_LABELS[reaction.emoji] || reaction.emoji}: ${reaction.count}`
+          );
           pill.addEventListener("click", async (event) => {
             event.stopPropagation();
             try {
@@ -6941,7 +7089,8 @@ function createApp() {
       recordedChunks = [];
       voiceSessionChatId = currentChatId;
       const pttToGolosAton = isGolosAtonChat();
-      mediaRecorder = new MediaRecorder(stream);
+      const preferredMime = preferredVoiceMimeType();
+      mediaRecorder = preferredMime ? new MediaRecorder(stream, { mimeType: preferredMime }) : new MediaRecorder(stream);
 
       mediaRecorder.addEventListener("dataavailable", (ev2) => {
         if (ev2.data.size > 0) recordedChunks.push(ev2.data);
@@ -6969,7 +7118,8 @@ function createApp() {
           return;
         }
 
-        const blob = new Blob(recordedChunks, { type: "audio/webm" });
+        const recordedMime = (mediaRecorder && mediaRecorder.mimeType) || preferredMime || "audio/webm";
+        const blob = new Blob(recordedChunks, { type: recordedMime.split(";")[0] || "audio/webm" });
         recordedChunks = [];
         mediaRecorder = null;
 

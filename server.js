@@ -100,9 +100,9 @@ function isAllowedOrigin(origin) {
 
 function validateDataUrlMedia(value, { allowedMime, maxBytes }) {
   const raw = String(value || "").trim();
-  const m = raw.match(/^data:([^;,]+)(?:;[^,]*)?;base64,([A-Za-z0-9+/=\s]+)$/);
+  const m = raw.match(/^data:([^,]+);base64,([A-Za-z0-9+/=\s]+)$/);
   if (!m) return { ok: false, error: "Некорректный формат файла" };
-  const mime = m[1].toLowerCase();
+  const mime = m[1].split(";")[0].trim().toLowerCase();
   if (!allowedMime.has(mime)) return { ok: false, error: "Неподдерживаемый тип файла" };
   const payload = m[2].replace(/\s+/g, "");
   if (!payload || payload.length % 4 === 1) return { ok: false, error: "Некорректный файл" };
@@ -110,7 +110,7 @@ function validateDataUrlMedia(value, { allowedMime, maxBytes }) {
   const bytes = Math.floor((payload.length * 3) / 4) - padding;
   if (bytes <= 0) return { ok: false, error: "Пустой файл" };
   if (bytes > maxBytes) return { ok: false, error: "Файл слишком большой" };
-  return { ok: true, value: raw, mime, bytes };
+  return { ok: true, value: `data:${mime};base64,${payload}`, mime, bytes };
 }
 
 function golosAtonAvatarPublicUrl() {
@@ -249,6 +249,30 @@ async function loadUsersByUsernameMap(ownerUsernames) {
     if (u.username) map[u.username] = u;
   }
   return map;
+}
+
+async function attachSenderProfiles(messages) {
+  const list = Array.isArray(messages) ? messages : [];
+  const usernames = [...new Set(list.map((m) => m && m.from).filter(Boolean))];
+  if (!usernames.length) return list;
+  const rows = await prisma.user.findMany({
+    where: { username: { in: usernames } },
+    select: {
+      username: true,
+      displayName: true,
+      avatarDataUrl: true,
+    },
+  });
+  const byUsername = new Map(rows.map((u) => [u.username, u]));
+  return list.map((m) => {
+    const sender = byUsername.get(m.from);
+    if (!sender) return m;
+    return {
+      ...m,
+      senderDisplayName: sender.displayName || sender.username,
+      senderAvatarDataUrl: sender.avatarDataUrl || "",
+    };
+  });
 }
 
 /**
@@ -676,11 +700,31 @@ async function sendMail(to, subject, text) {
     console.log("===========================================");
     return;
   }
-  await mailer.sendMail({
-    from: process.env.ATON_FROM_EMAIL || process.env.ATON_SMTP_USER,
-    to,
-    subject,
-    text,
+  const timeoutMs = Math.max(
+    1000,
+    parseInt(String(process.env.ATON_SMTP_TIMEOUT_MS || "8000"), 10) || 8000
+  );
+  let timer;
+  try {
+    await Promise.race([
+      mailer.sendMail({
+        from: process.env.ATON_FROM_EMAIL || process.env.ATON_SMTP_USER,
+        to,
+        subject,
+        text,
+      }),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`SMTP send timeout after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function sendMailBestEffort(to, subject, text, label = "sendMail") {
+  sendMail(to, subject, text).catch((e) => {
+    console.error(`${label}:`, e);
   });
 }
 
@@ -1158,7 +1202,7 @@ app.post("/api/register", registerLimiter, async (req, res) => {
     const user = userFromPrismaRow(row);
     const baseUrl = process.env.ATON_PUBLIC_URL || `http://localhost:${PORT}`;
     const verifyLink = `${baseUrl}/?verify=${verifyToken}`;
-    await sendMail(
+    sendMailBestEffort(
       email,
       "Добро пожаловать в Атон!",
       [
@@ -1177,7 +1221,8 @@ app.post("/api/register", registerLimiter, async (req, res) => {
         `Если вы не регистрировались — просто игнорируйте это письмо.`,
         ``,
         `— Атон`,
-      ].join("\n")
+      ].join("\n"),
+      "register verification email"
     );
 
     res.json({
@@ -2826,7 +2871,7 @@ app.get("/api/messages", authMiddleware, requireVerified, async (req, res) => {
       take: limit,
     });
     rows.reverse();
-    res.json(rows.map(messageFromPrismaRow));
+    res.json(await attachSenderProfiles(rows.map(messageFromPrismaRow)));
   } catch (err) {
     console.error("GET /api/messages:", err);
     res.status(500).json({ error: "Ошибка сервера" });
@@ -2892,7 +2937,7 @@ app.post("/api/messages/read", authMiddleware, requireVerified, async (req, res)
       take: 80,
     });
     rows.reverse();
-    const list = rows.map(messageFromPrismaRow);
+    const list = await attachSenderProfiles(rows.map(messageFromPrismaRow));
     res.json({ ok: true, messages: list });
   } catch (err) {
     console.error("POST /api/messages/read:", err);
@@ -2977,7 +3022,7 @@ app.get("/api/messages/all", authMiddleware, requireVerified, async (req, res) =
     if (takeLimit != null) {
       rows.reverse();
     }
-    res.json(rows.map((row) => messageFromPrismaRow(row)));
+    res.json(await attachSenderProfiles(rows.map((row) => messageFromPrismaRow(row))));
   } catch (err) {
     console.error("GET /api/messages/all:", err);
     res.status(500).json({ error: "Ошибка сервера" });
@@ -3110,7 +3155,11 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
         status: "sent",
       },
     });
-    const msg = messageFromPrismaRow(row);
+    const msg = {
+      ...messageFromPrismaRow(row),
+      senderDisplayName: req.user.displayName || req.user.username,
+      senderAvatarDataUrl: req.user.avatarDataUrl || "",
+    };
     io.to(msg.chatId).emit("message:new", msg);
     if (msg.to) {
       io.to(`user:${msg.to}`).emit("message:new", msg);
