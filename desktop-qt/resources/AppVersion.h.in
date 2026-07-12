@@ -1,0 +1,3 @@
+#pragma once
+
+#define ATEN_VERSION "@PROJECT_VERSION@"

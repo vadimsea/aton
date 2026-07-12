@@ -74,6 +74,31 @@ void ApiClient::getDialogs()
     getJson("/api/dialogs");
 }
 
+void ApiClient::getUsers()
+{
+    getJson("/api/users");
+}
+
+void ApiClient::getAdminUsers()
+{
+    getJson("/api/admin/users");
+}
+
+void ApiClient::getAdminChats()
+{
+    getJson("/api/admin/chats");
+}
+
+void ApiClient::getDiscoverChats()
+{
+    getJson("/api/chats/discover");
+}
+
+void ApiClient::getReports()
+{
+    getJson("/api/reports");
+}
+
 void ApiClient::getMessagesAll()
 {
     getJson("/api/messages/all");
@@ -97,8 +122,35 @@ void ApiClient::sendTextMessage(const QString &chatId, const QString &text, cons
     postJson("/api/messages", payload);
 }
 
+void ApiClient::sendImageMessage(const QString &chatId, const QString &imageDataUrl, const QString &replyTo)
+{
+    QJsonObject payload;
+    payload.insert("chatId", chatId);
+    payload.insert("type", "image");
+    payload.insert("imageDataUrl", imageDataUrl);
+    if (!replyTo.trimmed().isEmpty()) {
+        payload.insert("replyTo", replyTo.trimmed());
+    }
+    postJson("/api/messages", payload);
+}
+
+void ApiClient::sendAudioMessage(const QString &chatId, const QString &audioDataUrl, const QString &replyTo)
+{
+    QJsonObject payload;
+    payload.insert("chatId", chatId);
+    payload.insert("type", "audio");
+    payload.insert("audioDataUrl", audioDataUrl);
+    if (!replyTo.trimmed().isEmpty()) {
+        payload.insert("replyTo", replyTo.trimmed());
+    }
+    postJson("/api/messages", payload);
+}
+
 void ApiClient::markMessagesRead(const QString &chatId)
 {
+    if (!m_sessionStore || !m_sessionStore->hasToken()) {
+        return;
+    }
     QJsonObject payload;
     payload.insert("chatId", chatId);
     postJson("/api/messages/read", payload);
@@ -109,12 +161,13 @@ void ApiClient::resetSessionAuthState()
     m_sessionExpiredEmitted = false;
 }
 
-void ApiClient::updateProfile(const QString &displayName, const QString &bio, const QString &publicId)
+void ApiClient::updateProfile(const QString &displayName, const QString &bio, const QString &publicId, const QString &avatarDataUrl)
 {
     QJsonObject payload;
     payload.insert("displayName", displayName.trimmed());
     payload.insert("bio", bio.trimmed());
     payload.insert("publicId", publicId.trimmed());
+    payload.insert("avatarDataUrl", avatarDataUrl);
     postJson("/api/profile", payload);
 }
 
@@ -157,10 +210,85 @@ void ApiClient::deleteMessage(const QString &messageId)
     deleteJson(QString("/api/messages/%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(messageId))));
 }
 
+void ApiClient::verifyUser(const QString &userId)
+{
+    postJson(QString("/api/users/%1/verify").arg(QString::fromUtf8(QUrl::toPercentEncoding(userId))), {});
+}
+
+void ApiClient::createChat(const QString &title, const QString &type, const QString &visibility, const QString &description)
+{
+    QJsonObject payload;
+    payload.insert("title", title.trimmed());
+    payload.insert("type", type.trimmed().isEmpty() ? "group" : type.trimmed());
+    payload.insert("visibility", visibility == "private" ? "private" : "public");
+    if (!description.trimmed().isEmpty()) {
+        payload.insert("description", description.trimmed());
+    }
+    postJson("/api/chats", payload);
+}
+
+void ApiClient::joinChat(const QString &chatId)
+{
+    const auto encoded = QString::fromUtf8(QUrl::toPercentEncoding(chatId));
+    postJson(QString("/api/chats/%1/join").arg(encoded), {});
+}
+
+void ApiClient::leaveChat(const QString &chatId)
+{
+    const auto encoded = QString::fromUtf8(QUrl::toPercentEncoding(chatId));
+    postJson(QString("/api/chats/%1/leave").arg(encoded), {});
+}
+
+void ApiClient::deleteChat(const QString &chatId)
+{
+    deleteJson(QString("/api/chats/%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(chatId))));
+}
+
+void ApiClient::verifyChat(const QString &chatId)
+{
+    postJson(QString("/api/chats/%1/verify").arg(QString::fromUtf8(QUrl::toPercentEncoding(chatId))), {});
+}
+
+void ApiClient::reportChat(const QString &chatId, const QString &reason)
+{
+    QJsonObject payload;
+    payload.insert("reason", reason.trimmed());
+    postJson(QString("/api/chats/%1/report").arg(QString::fromUtf8(QUrl::toPercentEncoding(chatId))), payload);
+}
+
+void ApiClient::reportUser(const QString &userIdOrUsername, const QString &reason)
+{
+    QJsonObject payload;
+    payload.insert("reason", reason.trimmed());
+    postJson(QString("/api/users/%1/report").arg(QString::fromUtf8(QUrl::toPercentEncoding(userIdOrUsername))), payload);
+}
+
+void ApiClient::reportMessage(const QString &messageId, const QString &reason)
+{
+    QJsonObject payload;
+    payload.insert("reason", reason.trimmed());
+    postJson(QString("/api/messages/%1/report").arg(QString::fromUtf8(QUrl::toPercentEncoding(messageId))), payload);
+}
+
+void ApiClient::resolveReport(const QString &reportId)
+{
+    postJson(QString("/api/reports/%1/resolve").arg(QString::fromUtf8(QUrl::toPercentEncoding(reportId))), {});
+}
+
+void ApiClient::rejectReport(const QString &reportId)
+{
+    postJson(QString("/api/reports/%1/reject").arg(QString::fromUtf8(QUrl::toPercentEncoding(reportId))), {});
+}
+
 void ApiClient::getJson(const QString &endpoint)
 {
+    if (m_pendingGets.contains(endpoint)) return;
+    m_pendingGets.insert(endpoint);
     auto *reply = m_network.get(makeRequest(endpoint));
-    connect(reply, &QNetworkReply::finished, this, [this, reply, endpoint]() { handleReply(reply, endpoint); });
+    connect(reply, &QNetworkReply::finished, this, [this, reply, endpoint]() {
+        m_pendingGets.remove(endpoint);
+        handleReply(reply, endpoint);
+    });
 }
 
 void ApiClient::postJson(const QString &endpoint, const QJsonObject &payload)

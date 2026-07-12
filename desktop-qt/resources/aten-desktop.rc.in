@@ -1,0 +1,36 @@
+#include <windows.h>
+
+IDI_ICON1 ICON "@ATEN_ICON_RC_PATH@"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION @ATEN_VERSION_COMMA@
+ PRODUCTVERSION @ATEN_VERSION_COMMA@
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "Vadzim.by\0"
+            VALUE "FileDescription", "ATEN Desktop Messenger\0"
+            VALUE "FileVersion", "@PROJECT_VERSION@\0"
+            VALUE "InternalName", "ATEN\0"
+            VALUE "LegalCopyright", "Copyright (c) Vadzim.by\0"
+            VALUE "OriginalFilename", "ATEN.exe\0"
+            VALUE "ProductName", "ATEN\0"
+            VALUE "ProductVersion", "@PROJECT_VERSION@\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

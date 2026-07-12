@@ -159,6 +159,9 @@ QString Theme::styleSheet()
         #ChatRowWidget {
             background: transparent;
         }
+        #ChatRowTitleLine {
+            background: transparent;
+        }
         #ChatAvatarImage {
             background: transparent;
             border: 0;
@@ -183,6 +186,14 @@ QString Theme::styleSheet()
             color: #172033;
             font-size: 16px;
             font-weight: 800;
+        }
+        #ChatOfficialBadge {
+            background: #2563eb;
+            border: none;
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 900;
         }
         #ChatRowSubtitle,
         #ChatRowPreview {
@@ -212,6 +223,16 @@ QString Theme::styleSheet()
             color: #64748b;
             font-size: 13px;
         }
+        QLabel#ProductMeta {
+            color: #7c8da6;
+            font-size: 11px;
+            line-height: 1.3;
+            background: transparent;
+        }
+        QLabel#ProductMeta a {
+            color: #5277ad;
+            text-decoration: none;
+        }
         QPushButton#SidebarLogoutButton {
             min-height: 46px;
             border-radius: 9px;
@@ -231,9 +252,11 @@ QString Theme::styleSheet()
             font-size: 14px;
         }
         QPushButton#HeaderIconButton {
-            min-height: 50px;
-            max-height: 50px;
-            border-radius: 12px;
+            min-height: 42px;
+            max-height: 42px;
+            min-width: 42px;
+            max-width: 42px;
+            border-radius: 10px;
             background: #f1f5f9;
             border: 1px solid #dbe4ef;
             color: #2563eb;
@@ -272,10 +295,19 @@ QString Theme::styleSheet()
             font-size: 36px;
             font-weight: 800;
         }
+        #ProfileAvatar[hasAvatar="true"] {
+            background: transparent;
+            border: 0;
+        }
         #ProfileHeroName {
             color: #0f172a;
             font-size: 32px;
             font-weight: 900;
+        }
+        #ProfileHeroStatus {
+            color: #16a34a;
+            font-size: 14px;
+            font-weight: 700;
         }
         #ProfileVerifiedPill {
             max-width: 260px;
@@ -294,12 +326,13 @@ QString Theme::styleSheet()
         }
         QLineEdit#ProfileInput,
         QTextEdit#ProfileTextEdit {
+            min-height: 0;
             background: #ffffff;
             border: 1px solid #d4dde8;
-            border-radius: 13px;
+            border-radius: 10px;
             color: #172033;
-            font-size: 17px;
-            padding: 10px 14px;
+            font-size: 16px;
+            padding: 8px 12px;
         }
         QLineEdit#ProfileInput:read-only {
             color: #475569;
@@ -366,6 +399,18 @@ QString Theme::styleSheet()
         #MessageRow {
             background: transparent;
         }
+        #MessageDateSeparatorWrap {
+            background: transparent;
+        }
+        #MessageDateSeparatorLabel {
+            border-radius: 13px;
+            padding: 5px 12px;
+            background: rgba(30, 41, 59, 0.88);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            color: #e5edf8;
+            font-size: 13px;
+            font-weight: 700;
+        }
         #MessageBubbleOther {
             background: #e8eef5;
             border: 1px solid #cfd8e3;
@@ -389,6 +434,15 @@ QString Theme::styleSheet()
             background: transparent;
             color: #64748b;
             font-size: 12px;
+        }
+        #MessagePinnedBadge {
+            background: #fff7ed;
+            border: 1px solid #fdba74;
+            border-radius: 10px;
+            color: #9a3412;
+            font-size: 12px;
+            font-weight: 800;
+            padding: 3px 8px;
         }
         #MessageReplyPreview {
             background: rgba(255, 255, 255, 0.55);
@@ -446,19 +500,65 @@ QString Theme::styleSheet()
             font-size: 15px;
         }
         QPushButton#MessageActionButton {
-            background: rgba(255, 255, 255, 0.72);
-            border: 1px solid rgba(148, 163, 184, 0.4);
-            color: #2563eb;
+            background: transparent;
+            border: 1px solid transparent;
+            color: #7890ad;
         }
         QPushButton#MessageActionButtonActive {
-            background: #dbeafe;
-            border: 1px solid #60a5fa;
-            color: #1d4ed8;
+            background: rgba(37, 99, 235, 0.10);
+            border: 1px solid rgba(37, 99, 235, 0.20);
+            color: #2563eb;
         }
         QPushButton#MessageActionButton:hover,
         QPushButton#MessageActionButtonActive:hover {
-            background: #eef4ff;
-            border-color: #93c5fd;
+            background: rgba(100, 116, 139, 0.09);
+            border-color: rgba(100, 116, 139, 0.18);
+        }
+        QPushButton#MessageReplyButton {
+            min-width: 28px;
+            max-width: 28px;
+            min-height: 28px;
+            max-height: 28px;
+            border-radius: 14px;
+            padding: 0;
+            background: transparent;
+            border: 1px solid transparent;
+            color: #7890ad;
+        }
+        QPushButton#MessageReplyButton:hover {
+            background: rgba(37, 99, 235, 0.09);
+            border-color: rgba(37, 99, 235, 0.18);
+        }
+        QPushButton#MessageReplyButton:pressed {
+            background: rgba(37, 99, 235, 0.14);
+            border-color: rgba(37, 99, 235, 0.24);
+        }
+        QMenu#ReactionMenu {
+            min-width: 210px;
+            padding: 6px;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+        }
+        QMenu#ReactionMenu::item {
+            min-height: 34px;
+            padding: 4px 12px;
+            border-radius: 7px;
+            color: #172033;
+            font-size: 14px;
+        }
+        QMenu#ReactionMenu::item:selected {
+            background: #e0f2fe;
+            color: #075985;
+        }
+        QMenu#ReactionMenu::item:checked {
+            background: #dbeafe;
+            color: #1d4ed8;
+            font-weight: 700;
+        }
+        QMenu#ReactionMenu::indicator {
+            width: 0;
+            height: 0;
         }
         QPushButton#MessageDeleteButton {
             min-width: 28px;
@@ -466,16 +566,16 @@ QString Theme::styleSheet()
             min-height: 28px;
             max-height: 28px;
             border-radius: 14px;
-            background: rgba(255, 255, 255, 0.72);
-            border: 1px solid rgba(248, 113, 113, 0.45);
-            color: #dc2626;
+            background: transparent;
+            border: 1px solid transparent;
+            color: #b97878;
             padding: 0;
             font-size: 18px;
             font-weight: 800;
         }
         QPushButton#MessageDeleteButton:hover {
-            background: #fee2e2;
-            border-color: #f87171;
+            background: rgba(239, 68, 68, 0.09);
+            border-color: rgba(239, 68, 68, 0.18);
         }
         #MessageImage {
             background: transparent;
@@ -494,14 +594,14 @@ QString Theme::styleSheet()
         #VoiceMessageLabel {
             background: transparent;
             color: inherit;
-            font-size: 16px;
+            font-size: 13px;
         }
         QPushButton#VoicePlayButton {
-            min-width: 56px;
-            max-width: 56px;
-            min-height: 56px;
-            max-height: 56px;
-            border-radius: 28px;
+            min-width: 44px;
+            max-width: 44px;
+            min-height: 44px;
+            max-height: 44px;
+            border-radius: 22px;
             background: #ffffff;
             border: 1px solid #bfdbfe;
             color: #2563eb;
@@ -525,12 +625,12 @@ QString Theme::styleSheet()
             background: #2563eb;
         }
         QSlider#VoiceTrack::handle:horizontal {
-            width: 14px;
-            height: 14px;
+            width: 12px;
+            height: 12px;
             margin: -4px 0;
-            border-radius: 7px;
-            background: #ffffff;
-            border: 1px solid #93c5fd;
+            border-radius: 6px;
+            background: #5b8def;
+            border: 0;
         }
         #Composer {
             background: #ffffff;
@@ -577,12 +677,14 @@ QString Theme::styleSheet()
             border: 1px solid #dbe4ef;
             border-radius: 30px;
         }
-        QLineEdit#ComposerInput {
+        QTextEdit#ComposerInput {
             min-height: 44px;
+            max-height: 116px;
             border: 0;
             background: transparent;
             font-size: 16px;
             color: #172033;
+            padding: 8px 2px;
         }
         QPushButton#RoundComposerButton {
             min-width: 50px;
@@ -600,6 +702,11 @@ QString Theme::styleSheet()
             background: #f1f5f9;
             border-color: #dbe4ef;
             color: #94a3b8;
+        }
+        QPushButton#RoundComposerButton[recording="true"] {
+            background: #ef4444;
+            border-color: #dc2626;
+            color: #ffffff;
         }
         QScrollBar:vertical {
             background: #f8fafc;
@@ -669,6 +776,267 @@ QString Theme::styleSheet()
             color: #ffffff;
             font-size: 20px;
             box-shadow: 0 14px 28px rgba(37, 99, 235, 0.22);
+        }
+
+        /* Desktop visual system: restrained surfaces and one consistent icon weight. */
+        #Sidebar {
+            background: #f5f7fa;
+            border-right: 1px solid #e2e6ec;
+        }
+        #ChatHeader {
+            min-height: 56px;
+            background: #ffffff;
+            border-bottom: 1px solid #e7eaf0;
+        }
+        #SidebarSectionLabel {
+            color: #7a8494;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        QPushButton#SmallPillButton {
+            min-height: 34px;
+            border-radius: 6px;
+            padding: 0 11px;
+            background: #ffffff;
+            border: 1px solid #d9dee7;
+            color: #344054;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        QPushButton#SmallPillButton:hover,
+        QPushButton#SmallIconButton:hover {
+            background: #eef2f7;
+            border-color: #c7cfdb;
+        }
+        QPushButton#SmallIconButton {
+            min-width: 34px;
+            max-width: 34px;
+            min-height: 34px;
+            max-height: 34px;
+            padding: 0;
+            border-radius: 6px;
+            background: #ffffff;
+            border: 1px solid #d9dee7;
+        }
+        QLineEdit#ChatSearch {
+            min-height: 38px;
+            max-height: 38px;
+            border-radius: 7px;
+            padding: 0 12px;
+            background: #ffffff;
+            border: 1px solid #dfe3ea;
+            color: #273142;
+            font-size: 14px;
+        }
+        QListWidget#ChatList {
+            padding: 4px 0 0 0;
+            background: transparent;
+        }
+        QListWidget#ChatList::item {
+            min-height: 72px;
+            border-radius: 7px;
+            margin: 1px 6px;
+        }
+        QListWidget#ChatList::item:selected {
+            background: #e8eef8;
+            border: 1px solid #c9d7ec;
+        }
+        #ChatRowTitle {
+            color: #182230;
+            font-size: 15px;
+            font-weight: 700;
+        }
+        #ChatOfficialBadge {
+            background: #2563eb;
+            border: none;
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 900;
+        }
+        #ChatRowSubtitle,
+        #ChatRowPreview {
+            color: #667085;
+            font-size: 13px;
+        }
+        QPushButton#HeaderIconButton {
+            min-width: 40px;
+            max-width: 40px;
+            min-height: 40px;
+            max-height: 40px;
+            border-radius: 7px;
+            background: transparent;
+            border: 1px solid transparent;
+            padding: 0;
+        }
+        QPushButton#HeaderIconButton:hover {
+            background: #f2f4f7;
+            border-color: #e1e5eb;
+        }
+        QPushButton#UserPillButton {
+            min-height: 38px;
+            border-radius: 7px;
+            background: #ffffff;
+            border: 1px solid #dde2e9;
+            color: #273142;
+            padding: 0 13px;
+            font-size: 13px;
+            font-weight: 650;
+        }
+        #PeerActionBar {
+            background: #fafbfc;
+            border-bottom: 1px solid #e7eaf0;
+        }
+        QPushButton#PeerIconButton {
+            min-width: 36px;
+            max-width: 36px;
+            min-height: 36px;
+            max-height: 36px;
+            border-radius: 7px;
+            padding: 0;
+            background: #ffffff;
+            border: 1px solid #dce2ea;
+        }
+        QPushButton#PeerActionButton {
+            min-height: 36px;
+            border-radius: 7px;
+            padding: 0 13px;
+            background: #ffffff;
+            border: 1px solid #dce2ea;
+            color: #344054;
+            font-weight: 600;
+        }
+        QListWidget#MessageList {
+            background: #fbfcfd;
+            padding: 14px 12px 10px 0;
+        }
+        #MessageDateSeparatorWrap {
+            background: transparent;
+        }
+        #MessageDateSeparatorLabel {
+            border-radius: 13px;
+            padding: 5px 12px;
+            background: rgba(226, 232, 240, 0.94);
+            border: 1px solid rgba(148, 163, 184, 0.24);
+            color: #334155;
+            font-size: 13px;
+            font-weight: 700;
+        }
+        #MessageBubbleOther {
+            background: #ffffff;
+            border: 1px solid #e0e5ec;
+            border-radius: 8px;
+            color: #202938;
+        }
+        #MessageBubbleSelf {
+            background: #e7f0ff;
+            border: 1px solid #c6d9f5;
+            border-radius: 8px;
+            color: #172b4d;
+        }
+        #MessageText {
+            font-size: 15px;
+            color: #202938;
+        }
+        #MessageBubbleSelf #MessageText {
+            color: #172b4d;
+        }
+        #VoiceMessageLabel {
+            color: #667085;
+        }
+        QPushButton#MessageActionButton,
+        QPushButton#MessageDeleteButton {
+            min-width: 26px;
+            max-width: 26px;
+            min-height: 26px;
+            max-height: 26px;
+            border-radius: 5px;
+            background: transparent;
+            border: 1px solid transparent;
+            padding: 0;
+        }
+        QPushButton#MessageActionButtonActive {
+            min-width: 26px;
+            max-width: 26px;
+            min-height: 26px;
+            max-height: 26px;
+            border-radius: 5px;
+            background: rgba(37, 99, 235, 0.10);
+            border: 1px solid rgba(37, 99, 235, 0.20);
+            color: #2563eb;
+            padding: 0;
+        }
+        QPushButton#MessageActionButton:hover,
+        QPushButton#MessageActionButtonActive:hover {
+            background: rgba(100, 116, 139, 0.09);
+            border-color: rgba(100, 116, 139, 0.18);
+        }
+        QPushButton#MessageDeleteButton:hover {
+            background: rgba(239, 68, 68, 0.09);
+            border-color: rgba(239, 68, 68, 0.18);
+        }
+        QPushButton#VoicePlayButton {
+            min-width: 40px;
+            max-width: 40px;
+            min-height: 40px;
+            max-height: 40px;
+            border-radius: 20px;
+            background: #ffffff;
+            border: 1px solid #d2ddec;
+            padding: 0;
+        }
+        QSlider#VoiceTrack::groove:horizontal {
+            height: 4px;
+            border-radius: 2px;
+            background: #d3dbe7;
+        }
+        QSlider#VoiceTrack::sub-page:horizontal {
+            height: 4px;
+            border-radius: 2px;
+            background: #5b8def;
+        }
+        #Composer {
+            background: #ffffff;
+            border-top: 1px solid #e6e9ef;
+        }
+        #ComposerBox {
+            background: #f8fafc;
+            border: 1px solid #dfe4eb;
+            border-radius: 9px;
+        }
+        QTextEdit#ComposerInput {
+            min-height: 42px;
+            max-height: 116px;
+            font-size: 15px;
+            color: #273142;
+        }
+        QPushButton#RoundComposerButton {
+            min-width: 40px;
+            max-width: 40px;
+            min-height: 40px;
+            max-height: 40px;
+            border-radius: 7px;
+            background: transparent;
+            border: 1px solid transparent;
+            padding: 0;
+        }
+        QPushButton#RoundComposerButton:hover {
+            background: #edf2f7;
+            border-color: #d8dee8;
+        }
+        QPushButton#PrimaryButton {
+            min-height: 42px;
+            border-radius: 7px;
+            padding: 0 18px;
+            background: #356ae6;
+            border: 1px solid #356ae6;
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 700;
+        }
+        #ProfileCard {
+            border-radius: 8px;
         }
     )";
 }

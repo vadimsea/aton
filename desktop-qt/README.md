@@ -35,6 +35,45 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1
 
 The executable will be built as `build/debug/ATEN.exe` or `build/release/ATEN.exe`.
 
+## Versioning
+
+The desktop version has one source of truth:
+
+```text
+desktop-qt/VERSION
+```
+
+Use the `MAJOR.MINOR.PATCH` format, for example `0.2.0`. The value is applied to:
+
+- the version shown at the bottom of the desktop application;
+- the Windows metadata of `ATEN.exe`;
+- the portable ZIP filename;
+- the installer filename and Windows uninstall information.
+
+## Windows installer
+
+Install NSIS once:
+
+```powershell
+winget install NSIS.NSIS
+```
+
+Then build the release, portable package, and installer:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build-installer.ps1
+```
+
+Generated files:
+
+```text
+dist/ATEN-desktop-<version>-win64.zip
+dist/ATEN-Setup-<version>.exe
+```
+
+The installer works without administrator rights, displays the user agreement,
+creates Start Menu and desktop shortcuts, and registers an uninstaller.
+
 ## Architecture Direction
 
 - `app/` owns startup, configuration, and composition.
@@ -49,4 +88,4 @@ Next implementation steps:
 3. Add message list rendering and composer send flow.
 4. Add websocket/socket.io strategy or polling fallback.
 5. Add media upload/download, reactions, replies, profile settings.
-6. Add Windows installer and app icon.
+6. Maintain release versioning and the Windows installer.

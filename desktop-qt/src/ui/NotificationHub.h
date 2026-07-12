@@ -17,6 +17,7 @@ struct PendingNotification {
     QString title;
     QString body;
     QString chatId;
+    QIcon senderIcon;
 };
 
 class NotificationHub final : public QObject {
@@ -27,7 +28,11 @@ public:
 
     bool isTrayActive() const { return m_tray != nullptr; }
     void setUnreadCount(int count);
-    void enqueueNotification(const QString &title, const QString &body, const QString &chatId);
+    void enqueueNotification(
+        const QString &title,
+        const QString &body,
+        const QString &chatId,
+        const QIcon &senderIcon = {});
     void playMessageSound();
     void setMuted(bool muted);
     bool isMuted() const { return m_muted; }
@@ -47,6 +52,7 @@ private:
     QMenu *m_trayMenu = nullptr;
     QMediaPlayer *m_player = nullptr;
     QTimer *m_drainTimer = nullptr;
+    QWidget *m_toast = nullptr;
     QQueue<PendingNotification> m_queue;
     QIcon m_baseIcon;
     int m_unreadCount = 0;

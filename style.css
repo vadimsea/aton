@@ -2510,6 +2510,31 @@ body {
 }
 
 /* Личный чат 1:1: в треде только пузырь и время (как Telegram), без колонки аватара */
+.aton-message-date-separator {
+  align-self: center;
+  margin: 11px auto 9px;
+  padding: 5px 12px;
+  max-width: min(86%, 360px);
+  border-radius: 999px;
+  background: rgba(226, 232, 240, 0.94);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 700;
+  text-align: center;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+  user-select: none;
+}
+
+[data-theme="dark"] .aton-message-date-separator,
+:root:not([data-theme="light"]) .aton-message-date-separator {
+  background: rgba(30, 41, 59, 0.88);
+  border-color: rgba(148, 163, 184, 0.18);
+  color: #e5edf8;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
 .aton-chat--private-dm .aton-message-inner {
   gap: 0;
 }
@@ -3063,6 +3088,18 @@ body {
   color: rgba(252, 165, 165, 0.92);
 }
 
+.aton-message-action-button.aton-message-report-button {
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(148, 163, 184, 0.82);
+}
+
+.aton-message-action-button.aton-message-report-button:hover {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.24);
+  color: rgba(253, 230, 138, 0.95);
+}
+
 [data-theme="light"] .aton-message-action-button {
   background: transparent;
   border-color: transparent;
@@ -3074,6 +3111,12 @@ body {
   background: rgba(100, 116, 139, 0.09);
   border-color: rgba(100, 116, 139, 0.16);
   color: #334155;
+}
+
+[data-theme="light"] .aton-message-action-button.aton-message-report-button:hover {
+  background: rgba(217, 119, 6, 0.08);
+  border-color: rgba(217, 119, 6, 0.2);
+  color: #92400e;
 }
 
 [data-theme="light"] .aton-message-reply-button:hover {
@@ -4332,7 +4375,7 @@ body {
 }
 
 /* Только десктоп: крупный символ солнца в гостевом лендинге */
-.aton-landing-sun {
+.aton-landing-logo {
   display: none;
 }
 
@@ -4386,7 +4429,7 @@ body {
     font-size: 24px;
   }
 
-  .aton-landing-sun {
+  .aton-landing-logo {
     display: block;
     position: relative;
     width: clamp(120px, 16vw, 220px);
@@ -4394,20 +4437,10 @@ body {
     margin: 0 auto 28px;
     flex-shrink: 0;
     border-radius: 50%;
-    background: conic-gradient(from 200deg, #f97316, #fde68a, #22d3ee, #f97316);
+    object-fit: contain;
     box-shadow:
       0 0 48px rgba(251, 191, 36, 0.55),
-      0 0 96px rgba(251, 146, 60, 0.22),
-      inset 0 0 32px rgba(254, 226, 179, 0.12);
-  }
-
-  .aton-landing-sun::after {
-    content: "";
-    position: absolute;
-    inset: 18%;
-    border-radius: 50%;
-    background: radial-gradient(circle at 35% 25%, #fee2b3, #f97316 58%, #7c2d12 100%);
-    box-shadow: inset 0 0 24px rgba(124, 45, 18, 0.35);
+      0 0 96px rgba(251, 146, 60, 0.22);
   }
 }
 
@@ -5405,10 +5438,6 @@ body {
   background: linear-gradient(135deg, #c27803, #d4590c);
   color: #ffffff;
   box-shadow: 0 4px 12px rgba(194, 120, 3, 0.2);
-}
-
-[data-theme="light"] .aton-landing-sun {
-  filter: saturate(0.8);
 }
 
 [data-theme="light"] .aton-empty-kicker {

@@ -46,6 +46,8 @@ struct AtonMessage: Identifiable, Codable, Hashable {
     var status: String?
     var pinned: Bool?
     var reactions: [AtonReaction]?
+    var senderDisplayName: String?
+    var senderAvatarDataUrl: String?
 }
 
 struct AtonReaction: Codable, Hashable {

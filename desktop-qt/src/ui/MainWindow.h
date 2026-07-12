@@ -1,15 +1,21 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QByteArray>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QMap>
 #include <QSet>
+#include <functional>
 
 class QLabel;
 class QLineEdit;
 class QListWidget;
 class QPushButton;
+class QAudioInput;
+class QMediaCaptureSession;
+class QMediaRecorder;
+class QNetworkAccessManager;
 class QStackedWidget;
 class QTextEdit;
 class QTimer;
@@ -26,6 +32,7 @@ class MainWindow final : public QMainWindow {
 
 public:
     explicit MainWindow(ApiClient *apiClient, SessionStore *sessionStore, QWidget *parent = nullptr);
+    void showMainWindow();
 
 private:
     void buildUi();
@@ -38,25 +45,53 @@ private:
     void setLanguage(const QString &lang);
     void updateAuthTexts();
     void loadAuthenticatedData();
+    void checkForUpdates();
+    void handleReleaseManifest(const QJsonDocument &body);
     void renderChats(const QJsonDocument &body);
     void renderDialogs(const QJsonDocument &body);
     void renderMessagesAll(const QJsonDocument &body);
     void renderSidebar();
-    void renderMessages(const QJsonDocument &body);
+    void renderMessages(const QJsonDocument &body, const QString &requestedChatId);
+    void removeMessageRowAnimated(const QString &messageId);
     void showProfileDialog();
+    bool isSuperAdmin() const;
+    void updateAdminControls();
+    void requestAdminUsers();
+    void showAdminUsersDialog(const QJsonDocument &body);
+    void requestReports();
+    void showReportsDialog(const QJsonDocument &body);
+    void showReportDialog(const QString &title, const std::function<void(const QString &)> &submit);
+    void reportCurrentChatOrPeer();
+    void reportMessage(const QJsonObject &message);
+    void verifyCurrentChat();
     void closeProfilePage();
     void saveProfilePage();
     void populateProfilePage();
     void showContactsDialog(const QJsonDocument &body);
+    void showDiscoveryDialog();
     void showNotReady(const QString &title);
     void openSelectedChat();
     void sendComposerText();
     void setStatusText(const QString &text);
+    void applyDesktopTheme(bool dark);
+    void refreshChatStatusText();
     void updatePeerActionBar();
+    QJsonObject currentGroupChatObject() const;
+    bool canPostCurrentChat() const;
     void renameCurrentPeer();
+    void showCreateChatDialog();
+    bool canDeleteCurrentChat() const;
+    void deleteCurrentChat();
+    void sendImageAttachment();
+    void sendAudioAttachment();
+    void selectProfileAvatar();
+    void startVoiceRecording();
+    void stopVoiceRecording();
+    void finishVoiceRecording();
     void setReplyToMessage(const QJsonObject &message);
     void clearReplyToMessage();
     void syncActiveChat();
+    void requestMessagesBootstrap();
     void markCurrentChatRead();
     void processMessageSnapshot(const QJsonArray &messages, bool allowAlerts);
     QString chatTitleForId(const QString &chatId) const;
@@ -67,7 +102,7 @@ private:
     void changeEvent(QEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
     void showEvent(QShowEvent *event) override;
-    void showMainWindow();
+    bool eventFilter(QObject *watched, QEvent *event) override;
     QString currentPeerStatus() const;
 
     ApiClient *m_apiClient;
@@ -109,9 +144,11 @@ private:
     QListWidget *m_messageList = nullptr;
     QWidget *m_profilePage = nullptr;
     QWidget *m_composerPanel = nullptr;
-    QLineEdit *m_composer = nullptr;
+    QTextEdit *m_composer = nullptr;
     QPushButton *m_sendButton = nullptr;
     QPushButton *m_userPillButton = nullptr;
+    QPushButton *m_adminUsersButton = nullptr;
+    QPushButton *m_reportsButton = nullptr;
     QWidget *m_peerActionBar = nullptr;
     QWidget *m_replyCompose = nullptr;
     QLabel *m_replyComposeAuthorLabel = nullptr;
@@ -120,16 +157,25 @@ private:
     QPushButton *m_peerRenameButton = nullptr;
     QPushButton *m_peerBlockButton = nullptr;
     QPushButton *m_peerFriendButton = nullptr;
+    QPushButton *m_peerReportButton = nullptr;
     QPushButton *m_peerNotifyButton = nullptr;
     QLabel *m_profileAvatarLabel = nullptr;
     QLabel *m_profileNameLabel = nullptr;
     QLabel *m_profilePublicIdLabel = nullptr;
+    QLabel *m_profileBioLabel = nullptr;
     QLabel *m_profileVerifiedLabel = nullptr;
     QLineEdit *m_profileEmailInput = nullptr;
     QLineEdit *m_profileNameInput = nullptr;
     QLineEdit *m_profilePublicIdInput = nullptr;
     QTextEdit *m_profileBioInput = nullptr;
+    QLabel *m_profileLanguageLabel = nullptr;
+    QPushButton *m_profileRuButton = nullptr;
+    QPushButton *m_profileDeButton = nullptr;
+    QPushButton *m_profileEnButton = nullptr;
+    QPushButton *m_profileAvatarButton = nullptr;
+    QPushButton *m_micButton = nullptr;
     QString m_currentChatId;
+    QString m_pendingChatDeleteEndpoint;
     QString m_currentPeerUsername;
     QString m_currentUsername;
     QJsonObject m_currentUser;
@@ -138,17 +184,40 @@ private:
     QString m_authLanguage = "ru";
     bool m_registerMode = false;
     QJsonArray m_groupChats;
+    QJsonArray m_adminChats;
+    QJsonArray m_users;
+    QJsonArray m_discoverChats;
     QJsonArray m_allMessages;
+    QByteArray m_renderedDialogsFingerprint;
+    QByteArray m_renderedMessagesFingerprint;
+    QString m_renderedMessagesChatId;
+    bool m_scrollToBottomOnNextMessages = false;
     QJsonObject m_replyToMessage;
     QString m_replyToMessageId;
     QTimer *m_syncTimer = nullptr;
+    QTimer *m_updateTimer = nullptr;
+    QNetworkAccessManager *m_updateNetwork = nullptr;
+    bool m_updateCheckInProgress = false;
     bool m_contactsDialogRequested = false;
+    bool m_adminUsersDialogRequested = false;
+    bool m_reportsDialogRequested = false;
     NotificationHub *m_notifications = nullptr;
     QSet<QString> m_knownMessageIds;
     bool m_messageBaselineReady = false;
+    bool m_messagesAllRequested = false;
     QMap<QString, int> m_unreadByChat;
     QMap<QString, QString> m_dialogTitles;
+    QMap<QString, QString> m_dialogPeerLastSeen;
+    QMap<QString, QString> m_peerLastSeenByUsername;
+    QMap<QString, QString> m_peerBioByUsername;
     bool m_chatNotifyMuted = false;
+    QString m_profileAvatarDataUrl;
+    QMediaCaptureSession *m_voiceCaptureSession = nullptr;
+    QAudioInput *m_voiceAudioInput = nullptr;
+    QMediaRecorder *m_voiceRecorder = nullptr;
+    QString m_voiceRecordingPath;
+    bool m_voiceRecording = false;
+    bool m_darkTheme = false;
     bool m_forceQuit = false;
 };
 

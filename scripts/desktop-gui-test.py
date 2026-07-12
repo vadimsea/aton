@@ -1,4 +1,4 @@
-"""Launch ATEN desktop and verify main window appears."""
+"""Launch ATEN desktop and verify startup plus message-scroll stability."""
 from __future__ import annotations
 
 import subprocess
@@ -31,8 +31,7 @@ def main() -> int:
     proc = subprocess.Popen([str(EXE)], cwd=str(RELEASE))
 
     try:
-        from pywinauto import Desktop
-        from pywinauto.findwindows import ElementNotFoundError
+        from pywinauto import Desktop, mouse
     except ImportError:
         print("pywinauto not installed; process started, skipping window check")
         time.sleep(5)
@@ -67,6 +66,51 @@ def main() -> int:
     edits = window.descendants(control_type="Edit")
     buttons = window.descendants(control_type="Button")
     print(f"OK: {len(edits)} text fields, {len(buttons)} buttons visible")
+
+    content_deadline = time.time() + 20
+    lists = window.descendants(control_type="List")
+    while time.time() < content_deadline:
+        if len(lists) >= 2:
+            sidebar_probe = min(lists, key=lambda item: item.rectangle().width())
+            if len(sidebar_probe.descendants(control_type="ListItem")) >= 3:
+                break
+        time.sleep(0.25)
+        lists = window.descendants(control_type="List")
+
+    if len(lists) >= 2:
+        sidebar = min(lists, key=lambda item: item.rectangle().width())
+        chats = sidebar.descendants(control_type="ListItem")
+        if chats:
+            target = chats[min(3, len(chats) - 1)].rectangle()
+            mouse.click(coords=(target.mid_point().x, target.mid_point().y))
+            time.sleep(3)
+
+            lists = window.descendants(control_type="List")
+            messages = max(lists, key=lambda item: item.rectangle().width())
+
+            def item_positions() -> list[tuple[int, int]]:
+                return [
+                    (item.rectangle().top, item.rectangle().bottom)
+                    for item in messages.descendants(control_type="ListItem")
+                ]
+
+            before = item_positions()
+            rect = messages.rectangle()
+            center = (rect.mid_point().x, rect.mid_point().y)
+            mouse.scroll(coords=center, wheel_dist=12)
+            time.sleep(1)
+            scrolled = item_positions()
+
+            if before != scrolled:
+                time.sleep(9)
+                after_sync = item_positions()
+                if after_sync != scrolled:
+                    print("FAIL: message history jumped after background sync")
+                    proc.terminate()
+                    return 1
+                print("OK: upward scroll survives background sync")
+            else:
+                print("SKIP: selected chat has no scrollable history")
 
     proc.terminate()
     try:

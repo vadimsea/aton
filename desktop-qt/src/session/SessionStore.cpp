@@ -5,6 +5,8 @@ namespace aten {
 namespace {
 constexpr auto TokenKey = "auth/token";
 constexpr auto ReadPrefix = "reads/";
+constexpr auto MutedPrefix = "muted/";
+constexpr auto LanguageKey = "ui/language";
 } // namespace
 
 SessionStore::SessionStore()
@@ -59,6 +61,40 @@ void SessionStore::clearChatReads()
         if (key.startsWith(ReadPrefix)) {
             m_settings.remove(key);
         }
+    }
+}
+
+bool SessionStore::isChatMuted(const QString &chatId) const
+{
+    return !chatId.isEmpty() && m_settings.value(MutedPrefix + chatId, false).toBool();
+}
+
+void SessionStore::setChatMuted(const QString &chatId, bool muted)
+{
+    if (chatId.isEmpty()) {
+        return;
+    }
+    if (muted) {
+        m_settings.setValue(MutedPrefix + chatId, true);
+    } else {
+        m_settings.remove(MutedPrefix + chatId);
+    }
+}
+
+QString SessionStore::uiLanguage() const
+{
+    const auto language = m_settings.value(LanguageKey, "ru").toString().trimmed().toLower();
+    if (language == "de" || language == "en") {
+        return language;
+    }
+    return "ru";
+}
+
+void SessionStore::setUiLanguage(const QString &language)
+{
+    const auto normalized = language.trimmed().toLower();
+    if (normalized == "ru" || normalized == "de" || normalized == "en") {
+        m_settings.setValue(LanguageKey, normalized);
     }
 }
 

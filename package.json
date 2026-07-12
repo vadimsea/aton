@@ -1,6 +1,6 @@
 {
   "name": "aton-messenger",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Веб‑мессенджер Атон: фронтенд + Node.js backend (PostgreSQL, Prisma).",
   "engines": {
     "node": ">=18.0.0"

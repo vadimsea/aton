@@ -12,11 +12,13 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
 
-const PORT = 5433;
+const PORT = Number(process.env.EMBEDDED_PG_PORT || 5433);
 const PG_USER = "postgres";
 const PG_PASS = "aton_embed_dev";
 const DB_NAME = "aton";
-const DATA_DIR = path.join(root, ".data", "embedded-pg");
+const DATA_DIR =
+  process.env.EMBEDDED_PG_DATA_DIR ||
+  path.join(root, ".data", PORT === 5433 ? "embedded-pg" : `embedded-pg-${PORT}`);
 
 function databaseUrl() {
   const pass = encodeURIComponent(PG_PASS);
@@ -56,6 +58,7 @@ async function main() {
     user: PG_USER,
     password: PG_PASS,
     persistent: true,
+    initdbFlags: ["--encoding=UTF8", "--locale=C"],
   });
 
   console.log("Инициализация embedded PostgreSQL (первый запуск может скачать бинарники)…");

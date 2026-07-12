@@ -1176,19 +1176,50 @@ function formatMessageDateTimeLabel(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   const locale = currentLang === "de" ? "de-DE" : currentLang === "en" ? "en-GB" : "ru-RU";
+  return d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+}
+
+function messageDateKey(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatMessageDaySeparator(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const locale = currentLang === "de" ? "de-DE" : currentLang === "en" ? "en-GB" : "ru-RU";
   const now = new Date();
   const dayStart = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const time = d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
   const currentDay = dayStart(now);
   const messageDay = dayStart(d);
-  if (messageDay === currentDay) return time;
-  if (messageDay === currentDay - 24 * 60 * 60 * 1000) {
-    const yesterday = currentLang === "de" ? "gestern" : currentLang === "en" ? "yesterday" : "вчера";
-    return `${yesterday} ${time}`;
+  if (messageDay === currentDay) {
+    if (currentLang === "de") return "Heute";
+    if (currentLang === "en") return "Today";
+    return "Сегодня";
   }
-  const dateOpts = { day: "numeric", month: "short" };
+  if (messageDay === currentDay - 24 * 60 * 60 * 1000) {
+    if (currentLang === "de") return "Gestern";
+    if (currentLang === "en") return "Yesterday";
+    return "Вчера";
+  }
+  const dateOpts = { day: "numeric", month: "long" };
   if (d.getFullYear() !== now.getFullYear()) dateOpts.year = "numeric";
-  return `${d.toLocaleDateString(locale, dateOpts)} ${time}`;
+  return d.toLocaleDateString(locale, dateOpts);
+}
+
+function createMessageDateSeparator(iso) {
+  const label = formatMessageDaySeparator(iso);
+  if (!label) return null;
+  const el = document.createElement("div");
+  el.className = "aton-message-date-separator";
+  el.textContent = label;
+  return el;
 }
 
 /** Сайдбар: сегодня — только часы, иначе дата (коротко) + время. */
@@ -1818,6 +1849,12 @@ function createApp() {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           <span class="aton-topbar-icon-badge" id="aton-sidebar-friends-badge"></span>
         </button>
+        <button type="button" class="aton-topbar-icon" id="aton-sidebar-admin-users" title="Все пользователи" style="display:none;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
+        </button>
+        <button type="button" class="aton-topbar-icon" id="aton-sidebar-moderation" title="Модерация" style="display:none;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </button>
         <button type="button" class="aton-topbar-icon" id="aton-sidebar-theme-btn" title="${t("Сменить тему")}">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         </button>
@@ -2111,6 +2148,7 @@ function createApp() {
   let allUsers = [];
   let allChats = [];
   let discoverChats = [];
+  let adminChats = [];
   let allMessages = [];
   let reports = [];
   let contacts = { friends: [], blocked: [], requestsIn: [], requestsOut: [] };
@@ -2917,6 +2955,8 @@ function createApp() {
   const sidebarToolbar = document.getElementById("aton-sidebar-toolbar");
   const sidebarFriendsBtn = document.getElementById("aton-sidebar-friends-btn");
   const sidebarThemeBtn = document.getElementById("aton-sidebar-theme-btn");
+  const sidebarAdminUsersButton = document.getElementById("aton-sidebar-admin-users");
+  const sidebarModerationButton = document.getElementById("aton-sidebar-moderation");
   const friendsSidebarBadge = document.getElementById("aton-sidebar-friends-badge");
   const notifyPermissionBtn = document.getElementById("aton-notify-permission");
   function syncLangButtons() {
@@ -3280,6 +3320,10 @@ function createApp() {
     voicePreviewSendBtn.addEventListener("click", async (e) => {
       e.stopPropagation();
       if (!pendingVoiceBlob || !currentChatId) return;
+      if (!canPostCurrentChat()) {
+        explainCannotPostCurrentChat();
+        return;
+      }
       const blob = pendingVoiceBlob;
       clearVoicePreview();
       setMicButtonIdle();
@@ -3720,6 +3764,8 @@ function createApp() {
         sidebarToolbar.hidden = false;
       }
       if (sidebarFriendsBtn) sidebarFriendsBtn.style.display = "none";
+      if (sidebarAdminUsersButton) sidebarAdminUsersButton.style.display = "none";
+      if (sidebarModerationButton) sidebarModerationButton.style.display = "none";
       if (notifyPermissionBtn) notifyPermissionBtn.style.display = "none";
       if (friendsOverlay) friendsOverlay.hidden = true;
     } else {
@@ -3754,6 +3800,12 @@ function createApp() {
       }
       if (sidebarFriendsBtn) {
         sidebarFriendsBtn.style.display = user.verified ? "inline-flex" : "none";
+      }
+      if (sidebarAdminUsersButton) {
+        sidebarAdminUsersButton.style.display = currentUser?.isSuperAdmin ? "inline-flex" : "none";
+      }
+      if (sidebarModerationButton) {
+        sidebarModerationButton.style.display = currentUser?.isSuperAdmin ? "inline-flex" : "none";
       }
       if (adminUsersButton) {
         adminUsersButton.style.display = currentUser?.isSuperAdmin ? "inline-flex" : "none";
@@ -3921,6 +3973,26 @@ function createApp() {
     return p === undefined ? null : p;
   }
 
+  function currentJoinedGroupChat() {
+    if (!currentChatId || !currentChatId.startsWith("group:") && !currentChatId.startsWith("channel:")) return null;
+    return allChats.find((c) => c.id === currentChatId) || null;
+  }
+
+  function canPostCurrentChat() {
+    if (!currentUser || !currentChatId) return false;
+    if (!currentChatId.startsWith("channel:")) return true;
+    const chat = currentJoinedGroupChat();
+    if (!chat) return false;
+    if (currentUser.isSuperAdmin === true) return true;
+    if (chat.owner === currentUser.username) return true;
+    if (chat.ownerId && currentUser.id && String(chat.ownerId) === String(currentUser.id)) return true;
+    return Array.isArray(chat.admins) && chat.admins.some((id) => String(id) === String(currentUser.id));
+  }
+
+  function explainCannotPostCurrentChat() {
+    showToast(t("В канале писать могут только владелец и администраторы"));
+  }
+
   function peerContactStatus(username) {
     if (!username) return "none";
     if (contacts.blocked.some((b) => b.username === username)) return "blocked";
@@ -4082,6 +4154,7 @@ function createApp() {
         ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 11A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14.07"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
         : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>'
     }</button>`;
+    html += `<button type="button" class="aton-peer-btn aton-peer-report" data-peer="${escHtml(peer)}">${escHtml(t("Пожаловаться"))}</button>`;
     html += `</div></div>`;
     inner.innerHTML = html;
   }
@@ -4233,6 +4306,15 @@ function createApp() {
       if (!btn || !peerActionBar.contains(btn)) return;
       const peer = btn.getAttribute("data-peer");
       if (!peer) return;
+      if (btn.classList.contains("aton-peer-report")) {
+        e.preventDefault();
+        const peerUser = userByUsername(peer);
+        openReportModal({
+          title: t("Пожаловаться на пользователя"),
+          endpoint: `/api/users/${encodeURIComponent(peerUser?.id || peer)}/report`,
+        });
+        return;
+      }
       try {
         if (btn.classList.contains("aton-peer-block")) {
           await api("/api/contacts/block", { method: "POST", body: JSON.stringify({ username: peer }) });
@@ -4643,7 +4725,7 @@ function createApp() {
         );
 
         // Жалоба (для обычного пользователя)
-        if (!isSuperAdmin) {
+        if (current) {
           dropdown.appendChild(
             createMenuItem({
               label: t("Пожаловаться"),
@@ -5038,7 +5120,7 @@ function createApp() {
   function renderPublicLandingState(container) {
     container.innerHTML = `
       <div class="aton-empty-state aton-empty-state--landing">
-        <div class="aton-landing-sun" aria-hidden="true"></div>
+        <img class="aton-landing-logo" src="aten-logo.png" alt="ATEN" width="220" height="220" />
         <p class="aton-empty-kicker">${escHtml(t("Под солнцем Ахетатона"))}</p>
         <h2 class="aton-empty-title">${escHtml(t("Спокойные диалоги — без лишнего шума"))}</h2>
         <p class="aton-empty-lead">
@@ -5446,7 +5528,7 @@ function createApp() {
 
     if (!filtered.length) {
       renderEmptyChatState(messagesEl);
-      setComposeEnabled(true);
+      setComposeEnabled(canPostCurrentChat());
       compose.style.display = "flex";
       return;
     }
@@ -5471,7 +5553,16 @@ function createApp() {
       setChatReads(current.username, updatedReads);
     }
 
+    let previousMessageDateKey = "";
     filtered.forEach((msg) => {
+      const messageIso = msg.time || msg.createdAt;
+      const currentMessageDateKey = messageDateKey(messageIso);
+      if (currentMessageDateKey && currentMessageDateKey !== previousMessageDateKey) {
+        const separator = createMessageDateSeparator(messageIso);
+        if (separator) messagesEl.appendChild(separator);
+        previousMessageDateKey = currentMessageDateKey;
+      }
+
       const isSelf = isMessageFromSelf(msg, current, currentChatId);
 
       const row = document.createElement("div");
@@ -5485,16 +5576,18 @@ function createApp() {
       inner.className = "aton-message-inner";
 
       const author = userByUsername(msg.from);
+      const senderAvatarDataUrl = msg.senderAvatarDataUrl || author?.avatarDataUrl || "";
+      const senderTitle = msg.senderDisplayName || author?.displayName || msg.from || "?";
       let avatarWrap = null;
       if (!privateDmUi) {
         avatarWrap = document.createElement("div");
         avatarWrap.className = "aton-message-avatar";
-        if (author?.avatarDataUrl) {
+        if (senderAvatarDataUrl) {
           const img = document.createElement("img");
-          img.src = author.avatarDataUrl;
+          img.src = senderAvatarDataUrl;
           avatarWrap.appendChild(img);
         } else {
-          avatarWrap.textContent = (msg.from || "?").slice(0, 1).toUpperCase();
+          avatarWrap.textContent = senderTitle.slice(0, 1).toUpperCase();
         }
       }
 
@@ -5707,6 +5800,23 @@ function createApp() {
       });
       actions.appendChild(replyBtn);
 
+      if (current && msg.id && msg.from !== current.username) {
+        const reportMsgBtn = document.createElement("button");
+        reportMsgBtn.type = "button";
+        reportMsgBtn.className = "aton-message-action-button aton-message-report-button";
+        reportMsgBtn.textContent = "!";
+        reportMsgBtn.title = t("Пожаловаться");
+        reportMsgBtn.setAttribute("aria-label", reportMsgBtn.title);
+        reportMsgBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          openReportModal({
+            title: t("Пожаловаться на сообщение"),
+            endpoint: `/api/messages/${encodeURIComponent(msg.id)}/report`,
+          });
+        });
+        actions.appendChild(reportMsgBtn);
+      }
+
       if (current && msg.from === current.username) {
         const editBtn = document.createElement("button");
         editBtn.className = "aton-message-action-button";
@@ -5832,7 +5942,7 @@ function createApp() {
       }
     }
     // Для выбранного чата показываем поле ввода
-    setComposeEnabled(true);
+    setComposeEnabled(canPostCurrentChat());
     compose.style.display = "flex";
     } finally {
       lastMessagesRenderChatId = currentUser && currentChatId ? currentChatId : null;
@@ -5843,6 +5953,10 @@ function createApp() {
     unlockNotificationAudio();
     const user = currentUser;
     if (!user || !currentChatId) return;
+    if (!canPostCurrentChat()) {
+      explainCannotPostCurrentChat();
+      return;
+    }
     const text = inputMessage.value.trim();
     if (!text) return;
     // Защита от двойного клика
@@ -5934,6 +6048,10 @@ function createApp() {
   attachButton.addEventListener("click", () => {
     const user = currentUser;
     if (!user || !currentChatId) return;
+    if (!canPostCurrentChat()) {
+      explainCannotPostCurrentChat();
+      return;
+    }
     attachInput.click();
   });
 
@@ -5941,6 +6059,11 @@ function createApp() {
     const user = currentUser;
     if (!user || !currentChatId) {
       attachInput.value = "";
+      return;
+    }
+    if (!canPostCurrentChat()) {
+      attachInput.value = "";
+      explainCannotPostCurrentChat();
       return;
     }
     const file = attachInput.files?.[0];
@@ -6714,10 +6837,55 @@ function createApp() {
     });
   }
 
+  function openReportModal({ title, endpoint }) {
+    if (!currentUser || !endpoint) return;
+    const overlay = document.createElement("div");
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,0.78);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;z-index:92;";
+    const modal = document.createElement("div");
+    modal.style.cssText = "background:rgba(15,23,42,0.98);border-radius:16px;border:1px solid rgba(148,163,184,0.7);padding:16px;width:min(360px,92vw);color:#e5e7eb;box-shadow:0 24px 70px rgba(0,0,0,0.35);";
+    modal.innerHTML = `
+      <div style="font-size:15px;font-weight:700;margin-bottom:10px;">${escHtml(title || t("Пожаловаться"))}</div>
+      <label class="aton-input-label" for="aton-report-reason-common">${escHtml(t("Причина"))}</label>
+      <select id="aton-report-reason-common" class="aton-input" style="margin-bottom:12px;">
+        <option value="Спам">Спам</option>
+        <option value="Оскорбления">Оскорбления</option>
+        <option value="Мошенничество">Мошенничество</option>
+        <option value="Нарушение правил">Нарушение правил</option>
+        <option value="Другое">Другое</option>
+      </select>
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button type="button" id="aton-report-common-cancel" class="aton-new-chat-button">${escHtml(t("Отмена"))}</button>
+        <button type="button" id="aton-report-common-submit" class="aton-primary-button" style="margin-top:0;padding-inline:14px;">${escHtml(t("Отправить"))}</button>
+      </div>
+    `;
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    modal.querySelector("#aton-report-common-cancel").addEventListener("click", close);
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) close();
+    });
+    modal.querySelector("#aton-report-common-submit").addEventListener("click", async () => {
+      const reason = modal.querySelector("#aton-report-reason-common").value;
+      try {
+        await api(endpoint, { method: "POST", body: JSON.stringify({ reason }) });
+        close();
+        showToast(t("Жалоба отправлена"));
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  }
+
   async function openModerationModal() {
     if (!currentUser || !currentUser.isSuperAdmin) return;
     try {
-      reports = await api("/api/reports");
+      const [reportRows, chatRows] = await Promise.all([
+        api("/api/reports"),
+        api("/api/admin/chats").catch(() => []),
+      ]);
+      reports = Array.isArray(reportRows) ? reportRows : [];
+      adminChats = Array.isArray(chatRows) ? chatRows : [];
     } catch (err) {
       alert(err.message);
       return;
@@ -6767,24 +6935,31 @@ function createApp() {
         return;
       }
 
-      // Подгружаем discover для названий чатов, если они не в allChats
-      let discover = [];
-      try {
-        discover = await api("/api/chats/discover");
-      } catch {
-        discover = [];
-      }
-
       const pending = reports.filter((r) => (r.status || "pending") === "pending");
       const rest = reports.filter((r) => (r.status || "pending") !== "pending");
       const orderedReports = [...pending, ...rest];
 
       orderedReports.forEach((r) => {
+        const targetType = r.targetType || (r.messageId ? "message" : r.targetUserId ? "user" : "chat");
         const chatInJoined = allChats.find((c) => c.id === r.chatId);
-        const chatInDiscover = discover.find((c) => c.id === r.chatId);
-        const chatTitle = chatInJoined?.title || chatInDiscover?.title || r.chatId;
-        const reporter = allUsers.find((u) => u.id === r.reportedBy);
-        const reporterLabel = reporter?.username || r.reportedBy;
+        const chatInAdmin = adminChats.find((c) => c.id === r.chatId);
+        const chatTitle = r.chat?.title || chatInJoined?.title || chatInAdmin?.title || r.chatId || "";
+        const reporter = r.reporter || allUsers.find((u) => u.id === r.reportedBy);
+        const reporterLabel = reporter?.displayName || reporter?.username || r.reportedBy;
+        const targetUserLabel =
+          r.targetUser?.displayName || r.targetUser?.username || r.targetUserId || "";
+        const targetLabel =
+          targetType === "message"
+            ? `Сообщение${chatTitle ? ` в чате «${chatTitle}»` : ""}`
+            : targetType === "user"
+              ? `Пользователь ${targetUserLabel}`
+              : chatTitle;
+        const messagePreview =
+          r.message && r.message.text
+            ? String(r.message.text).slice(0, 180)
+            : targetType === "message"
+              ? (r.message?.type || "сообщение")
+              : "";
         const status = r.status || "pending";
         const statusLabel =
           status === "resolved" ? "Решена" : status === "rejected" ? "Отклонена" : "В ожидании";
@@ -6795,7 +6970,7 @@ function createApp() {
         row.style.padding = "10px";
         row.style.background = "rgba(15,23,42,0.45)";
         row.innerHTML = `
-          <div style="font-size:12px;font-weight:600;margin-bottom:4px;">${chatTitle}</div>
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px;">${escHtml(targetLabel || r.id)}</div>
           <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">Пожаловался: ${reporterLabel}</div>
           <div style="font-size:11px;color:#cbd5e1;margin-bottom:8px;">Причина: ${r.reason}</div>
           <div style="font-size:10px;color:#38bdf8;margin-bottom:8px;">Статус: ${statusLabel}</div>
@@ -6809,8 +6984,11 @@ function createApp() {
         const openBtn = row.querySelector(".aton-report-open");
         const deleteBtn = row.querySelector(".aton-report-delete");
         const ignoreBtn = row.querySelector(".aton-report-ignore");
+        if (!r.chatId) openBtn.disabled = true;
+        if (targetType !== "chat" || !r.chatId) deleteBtn.disabled = true;
 
         openBtn.addEventListener("click", () => {
+          if (!r.chatId) return;
           leaveProfileForChatSelection();
           currentChatId = r.chatId;
           switchSocketChat(currentChatId);
@@ -6985,6 +7163,26 @@ function createApp() {
           td5.textContent = fl.length ? fl.join(", ") : "—";
           const td6 = document.createElement("td");
           td6.style.cssText = "padding:6px;word-break:break-all;font-size:10px;opacity:0.85;";
+          const td7 = document.createElement("td");
+          td7.style.padding = "6px";
+          const verifyBtn = document.createElement("button");
+          verifyBtn.type = "button";
+          verifyBtn.className = "aton-search-action";
+          const userVerified = Boolean(u.verified || u.isVerified);
+          verifyBtn.textContent = userVerified ? "Верифицирован" : "Верифицировать";
+          verifyBtn.disabled = userVerified || !u.id;
+          verifyBtn.addEventListener("click", async () => {
+            try {
+              await api(`/api/users/${encodeURIComponent(u.id)}/verify`, { method: "POST" });
+              u.verified = true;
+              u.isVerified = true;
+              renderRows(filterInput.value);
+              showToast("Профиль верифицирован");
+            } catch (err) {
+              alert(err.message);
+            }
+          });
+          td7.appendChild(verifyBtn);
           td6.textContent = u.id || "—";
           tr.appendChild(td0);
           tr.appendChild(td1);
@@ -6993,6 +7191,7 @@ function createApp() {
           tr.appendChild(td4);
           tr.appendChild(td5);
           tr.appendChild(td6);
+          tr.appendChild(td7);
           tbody.appendChild(tr);
         }
         if (n === 0 && needle) {
@@ -7021,8 +7220,20 @@ function createApp() {
     });
   }
 
+  if (sidebarAdminUsersButton) {
+    sidebarAdminUsersButton.addEventListener("click", () => {
+      openAdminUsersModal();
+    });
+  }
+
   if (moderationButton) {
     moderationButton.addEventListener("click", () => {
+      openModerationModal();
+    });
+  }
+
+  if (sidebarModerationButton) {
+    sidebarModerationButton.addEventListener("click", () => {
       openModerationModal();
     });
   }
@@ -7048,6 +7259,10 @@ function createApp() {
     unlockNotificationAudio();
     const user = currentUser;
     if (!user || !currentChatId) return;
+    if (!canPostCurrentChat()) {
+      explainCannotPostCurrentChat();
+      return;
+    }
     if (e.button != null && e.button !== 0) return;
     if (pttInFlight) return;
     if (mediaRecorder && mediaRecorder.state === "recording") return;
@@ -7227,7 +7442,12 @@ function createApp() {
         if (chatMeta) {
           const verified = Boolean(chatMeta.verified);
           setTitle(chatMeta.title, verified);
-          statusEl.textContent = t("Групповой чат");
+          statusEl.textContent =
+            currentChatId.startsWith("channel:") && !canPostCurrentChat()
+              ? t("Канал · писать могут владелец и администраторы")
+              : currentChatId.startsWith("channel:")
+                ? t("Канал")
+                : t("Групповой чат");
           statusEl.removeAttribute("title");
           return;
         }

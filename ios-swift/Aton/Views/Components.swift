@@ -161,9 +161,16 @@ struct MessageBubble: View {
     var body: some View {
         HStack(alignment: .bottom) {
             if isMine { Spacer(minLength: 42) }
+            if !isMine {
+                AvatarView(
+                    title: message.senderDisplayName ?? message.from,
+                    imageDataUrl: message.senderAvatarDataUrl,
+                    size: 34
+                )
+            }
             VStack(alignment: .leading, spacing: 7) {
                 if !isMine {
-                    Text(message.from)
+                    Text(message.senderDisplayName ?? message.from)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
