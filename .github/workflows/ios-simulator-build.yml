@@ -1,0 +1,45 @@
+name: iOS Simulator Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios-swift/**"
+      - ".github/workflows/ios-simulator-build.yml"
+  pull_request:
+    paths:
+      - "ios-swift/**"
+      - ".github/workflows/ios-simulator-build.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build SwiftUI app for iPhone Simulator
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: ios-swift
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build for simulator
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Aton.xcodeproj \
+            -scheme Aton \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            clean build

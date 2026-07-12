@@ -7,6 +7,7 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const http = require("http");
+const http2 = require("http2");
 const { Server } = require("socket.io");
 const rateLimit = require("express-rate-limit");
 const { prisma } = require("./lib/prisma");
@@ -56,6 +57,8 @@ const DEFAULT_ALLOWED_ORIGINS = [
   "http://localhost:5173",
   "http://127.0.0.1:3000",
   "http://127.0.0.1:5173",
+  "capacitor://localhost",
+  "ionic://localhost",
 ];
 const ALLOWED_ORIGINS = new Set(
   [
@@ -728,6 +731,186 @@ function sendMailBestEffort(to, subject, text, label = "sendMail") {
   });
 }
 
+function apnsConfig() {
+  const teamId = String(process.env.APNS_TEAM_ID || "").trim();
+  const keyId = String(process.env.APNS_KEY_ID || "").trim();
+  const bundleId = String(process.env.APNS_BUNDLE_ID || "by.vadzim.aten").trim();
+  const rawKey = String(process.env.APNS_PRIVATE_KEY || "").trim().replace(/\\n/g, "\n");
+  const env = String(process.env.APNS_ENV || "sandbox").trim().toLowerCase();
+  if (!teamId || !keyId || !bundleId || !rawKey) return null;
+  return {
+    teamId,
+    keyId,
+    bundleId,
+    privateKey: rawKey,
+    origin: env === "production" ? "https://api.push.apple.com" : "https://api.sandbox.push.apple.com",
+  };
+}
+
+function base64Url(input) {
+  return Buffer.from(input)
+    .toString("base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+}
+
+function derToJoseSignature(der, size = 32) {
+  let offset = 0;
+  if (der[offset++] !== 0x30) throw new Error("Invalid ECDSA signature");
+  let seqLen = der[offset++];
+  if (seqLen & 0x80) {
+    const bytes = seqLen & 0x7f;
+    seqLen = 0;
+    for (let i = 0; i < bytes; i++) seqLen = (seqLen << 8) | der[offset++];
+  }
+  if (der[offset++] !== 0x02) throw new Error("Invalid ECDSA r marker");
+  const rLen = der[offset++];
+  let r = der.subarray(offset, offset + rLen);
+  offset += rLen;
+  if (der[offset++] !== 0x02) throw new Error("Invalid ECDSA s marker");
+  const sLen = der[offset++];
+  let s = der.subarray(offset, offset + sLen);
+  while (r.length > 0 && r[0] === 0) r = r.subarray(1);
+  while (s.length > 0 && s[0] === 0) s = s.subarray(1);
+  if (r.length > size || s.length > size) throw new Error("Invalid ECDSA signature length");
+  return Buffer.concat([Buffer.alloc(size - r.length), r, Buffer.alloc(size - s.length), s]);
+}
+
+function createApnsJwt(cfg) {
+  const header = { alg: "ES256", kid: cfg.keyId };
+  const payload = { iss: cfg.teamId, iat: Math.floor(Date.now() / 1000) };
+  const body = `${base64Url(JSON.stringify(header))}.${base64Url(JSON.stringify(payload))}`;
+  const der = crypto.sign("sha256", Buffer.from(body), cfg.privateKey);
+  return `${body}.${base64Url(derToJoseSignature(der))}`;
+}
+
+function sendApnsPayload(deviceToken, payload) {
+  const cfg = apnsConfig();
+  if (!cfg || !deviceToken) return Promise.resolve({ skipped: true, reason: "APNS is not configured" });
+  const jwt = createApnsJwt(cfg);
+  const body = JSON.stringify(payload);
+  return new Promise((resolve, reject) => {
+    const client = http2.connect(cfg.origin);
+    const req = client.request({
+      ":method": "POST",
+      ":path": `/3/device/${deviceToken}`,
+      authorization: `bearer ${jwt}`,
+      "apns-topic": cfg.bundleId,
+      "apns-push-type": "alert",
+      "apns-priority": "10",
+    });
+    let data = "";
+    let status = 0;
+    req.setEncoding("utf8");
+    req.on("response", (headers) => {
+      status = Number(headers[":status"] || 0);
+    });
+    req.on("data", (chunk) => {
+      data += chunk;
+    });
+    req.on("end", () => {
+      client.close();
+      resolve({ ok: status >= 200 && status < 300, status, body: data });
+    });
+    req.on("error", (err) => {
+      client.close();
+      reject(err);
+    });
+    client.on("error", reject);
+    req.end(body);
+  });
+}
+
+async function unreadBadgeCount(username) {
+  if (!username) return 0;
+  try {
+    return await prisma.message.count({
+      where: {
+        recipientUsername: username,
+        status: { not: "read" },
+      },
+    });
+  } catch (e) {
+    console.error("unreadBadgeCount:", e);
+    return 0;
+  }
+}
+
+async function sendPushToUser(username, notification) {
+  if (!username) return;
+  const rows = await prisma.deviceToken.findMany({
+    where: { username, enabled: true, platform: "ios" },
+  });
+  if (!rows.length) return;
+  const badge = await unreadBadgeCount(username);
+  for (const row of rows) {
+    sendApnsPayload(row.token, {
+      aps: {
+        alert: { title: notification.title, body: notification.body },
+        badge,
+        sound: "default",
+      },
+      chatId: notification.chatId,
+      messageId: notification.messageId,
+      senderUsername: notification.senderUsername,
+      url: notification.url,
+    }).then(async (result) => {
+      if (!result || result.ok || result.skipped) return;
+      if (/BadDeviceToken|Unregistered|DeviceTokenNotForTopic/i.test(String(result.body || ""))) {
+        await prisma.deviceToken.updateMany({ where: { token: row.token }, data: { enabled: false } });
+      }
+    }).catch((e) => console.error("APNS send:", e));
+  }
+}
+
+async function notifyNewMessagePush(msg, sender) {
+  const preview =
+    msg.type === "text"
+      ? (msg.text || "").slice(0, 120)
+      : msg.type === "audio"
+        ? "Голосовое сообщение"
+        : msg.type === "image"
+          ? "Изображение"
+          : "Новое сообщение";
+  const senderLabel = (sender && (sender.displayName || sender.username)) || msg.from || "Атон";
+  const recipientUsername = msg.recipientUsername || msg.to;
+
+  if (recipientUsername) {
+    if (recipientUsername === GOLOS_ATON_USERNAME || recipientUsername === msg.from) return;
+    if (isUserOnline(recipientUsername)) return;
+    await sendPushToUser(recipientUsername, {
+      title: senderLabel,
+      body: preview,
+      chatId: msg.chatId,
+      messageId: msg.id,
+      senderUsername: msg.from,
+      url: `aten://message/${msg.id}`,
+    });
+    return;
+  }
+
+  if (!msg.chatId || msg.chatId === "global") return;
+  const chatRow = await prisma.chat.findUnique({ where: { id: msg.chatId } });
+  if (!chatRow) return;
+  const memberIds = Array.isArray(chatRow.members) ? chatRow.members : [];
+  if (!memberIds.length) return;
+  const members = await prisma.user.findMany({ where: { id: { in: memberIds } }, select: { username: true } });
+  const chatName = chatRow.title || chatRow.description || msg.chatId;
+  for (const member of members) {
+    if (!member.username || member.username === sender.username) continue;
+    if (isUserOnline(member.username)) continue;
+    await sendPushToUser(member.username, {
+      title: chatName,
+      body: `${senderLabel}: ${preview}`,
+      chatId: msg.chatId,
+      messageId: msg.id,
+      senderUsername: msg.from,
+      url: `aten://message/${msg.id}`,
+    });
+  }
+}
+
 /** Письмо получателю при новой заявке в друзья */
 async function sendFriendRequestEmail({ to, senderDisplayName, senderUsername }) {
   if (!to || !String(to).includes("@")) return;
@@ -867,6 +1050,9 @@ async function postGolosAtonMessage({ text, toUsername, chatId, type = "text", a
   }
   notifyNewMessage(msg, { username: GOLOS_ATON_USERNAME, displayName: "Голос Атона" }).catch((e) =>
     console.error("notifyNewMessage (golos):", e)
+  );
+  notifyNewMessagePush(msg, { username: GOLOS_ATON_USERNAME, displayName: "Голос Атона" }).catch((e) =>
+    console.error("notifyNewMessagePush (golos):", e)
   );
 }
 
@@ -1406,6 +1592,96 @@ app.post("/api/logout", authMiddleware, async (req, res) => {
 });
 
 /** Один псевдоним собеседника; синхронно на всех устройствах (хранится в БД). */
+app.post("/api/push/register", authMiddleware, requireVerified, async (req, res) => {
+  const token = String(req.body?.token || "").trim();
+  const platform = String(req.body?.platform || "ios").trim().toLowerCase();
+  const appVersion = req.body?.appVersion == null ? null : String(req.body.appVersion).slice(0, 64);
+  const environment = req.body?.environment == null ? null : String(req.body.environment).slice(0, 32);
+  if (!token || token.length < 20 || token.length > 512) {
+    return res.status(400).json({ error: "Invalid device token" });
+  }
+  if (platform !== "ios") {
+    return res.status(400).json({ error: "Unsupported push platform" });
+  }
+  try {
+    const row = await prisma.deviceToken.upsert({
+      where: { token },
+      create: {
+        id: generateToken(),
+        userId: req.user.id,
+        username: req.user.username,
+        platform,
+        token,
+        appVersion,
+        environment,
+        enabled: true,
+      },
+      update: {
+        userId: req.user.id,
+        username: req.user.username,
+        platform,
+        appVersion,
+        environment,
+        enabled: true,
+      },
+    });
+    res.json({ ok: true, id: row.id, apnsConfigured: Boolean(apnsConfig()) });
+  } catch (err) {
+    console.error("POST /api/push/register:", err);
+    res.status(500).json({ error: "Push register failed" });
+  }
+});
+
+app.post("/api/push/unregister", authMiddleware, async (req, res) => {
+  const token = String(req.body?.token || "").trim();
+  try {
+    if (token) {
+      await prisma.deviceToken.updateMany({
+        where: { token, userId: req.user.id },
+        data: { enabled: false },
+      });
+    } else {
+      await prisma.deviceToken.updateMany({
+        where: { userId: req.user.id, platform: "ios" },
+        data: { enabled: false },
+      });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("POST /api/push/unregister:", err);
+    res.status(500).json({ error: "Push unregister failed" });
+  }
+});
+
+app.get("/api/push/status", authMiddleware, async (req, res) => {
+  try {
+    const count = await prisma.deviceToken.count({
+      where: { userId: req.user.id, platform: "ios", enabled: true },
+    });
+    res.json({ ok: true, registeredDevices: count, apnsConfigured: Boolean(apnsConfig()) });
+  } catch (err) {
+    console.error("GET /api/push/status:", err);
+    res.status(500).json({ error: "Push status failed" });
+  }
+});
+
+app.post("/api/push/test", authMiddleware, requireVerified, async (req, res) => {
+  try {
+    await sendPushToUser(req.user.username, {
+      title: "Атон",
+      body: "Тестовое уведомление",
+      chatId: null,
+      messageId: null,
+      senderUsername: "system",
+      url: "aten://chat/global",
+    });
+    res.json({ ok: true, apnsConfigured: Boolean(apnsConfig()) });
+  } catch (err) {
+    console.error("POST /api/push/test:", err);
+    res.status(500).json({ error: "Push test failed" });
+  }
+});
+
 app.put("/api/peer-alias", authMiddleware, requireVerified, async (req, res) => {
   const { peerUsername, alias } = req.body || {};
   try {
@@ -2145,7 +2421,6 @@ app.get("/api/admin/users", authMiddleware, requireVerified, async (req, res) =>
 // Верификация пользователя (только super admin)
 app.post("/api/users/:id/verify", authMiddleware, requireVerified, async (req, res) => {
   const { id } = req.params;
-  console.log("VERIFY USER HIT", id, "as", req.user?.username, "super:", req.user?.isSuperAdmin);
   if (!req.user || !req.user.isSuperAdmin) return res.status(403).json({ error: "Недостаточно прав" });
   try {
     const row = await prisma.user.findUnique({ where: { id } });
@@ -2511,7 +2786,6 @@ app.delete("/api/chats/:id", authMiddleware, requireVerified, async (req, res) =
 // Верификация чата (только super admin)
 app.post("/api/chats/:id/verify", authMiddleware, requireVerified, async (req, res) => {
   const { id } = req.params;
-  console.log("VERIFY CHAT HIT", id, "as", req.user?.username, "super:", req.user?.isSuperAdmin);
   if (!req.user || !req.user.isSuperAdmin) return res.status(403).json({ error: "Недостаточно прав" });
   try {
     const row = await prisma.chat.findUnique({ where: { id } });
@@ -2525,6 +2799,68 @@ app.post("/api/chats/:id/verify", authMiddleware, requireVerified, async (req, r
 });
 
 // Жалоба на чат
+function reportDto(report) {
+  if (!report) return null;
+  const targetType = report.targetType || (report.messageId ? "message" : report.targetUserId ? "user" : "chat");
+  return {
+    id: report.id,
+    targetType,
+    chatId: report.chatId || null,
+    targetUserId: report.targetUserId || null,
+    messageId: report.messageId || null,
+    reportedBy: report.reportedBy,
+    reason: report.reason,
+    status: report.status || "pending",
+    createdAt: report.createdAt ? report.createdAt.toISOString() : null,
+  };
+}
+
+function publicUserForReport(user) {
+  if (!user) return null;
+  return {
+    id: user.id,
+    username: user.username,
+    publicId: user.publicId,
+    displayName: user.displayName || user.username,
+    avatarDataUrl: user.avatarDataUrl || null,
+    isVerified: Boolean(user.isVerified || user.verified),
+    isSuperAdmin: Boolean(user.isSuperAdmin),
+  };
+}
+
+async function createModerationReport({ targetType, chatId = null, targetUserId = null, messageId = null, reportedBy, reason }) {
+  const cleanReason = String(reason || "").trim();
+  if (!cleanReason) {
+    const e = new Error("reason");
+    e.code = "BAD_REASON";
+    throw e;
+  }
+  const duplicate = await prisma.report.findFirst({
+    where: {
+      targetType,
+      reportedBy,
+      status: "pending",
+      chatId: chatId || null,
+      targetUserId: targetUserId || null,
+      messageId: messageId || null,
+    },
+  });
+  if (duplicate) return { report: duplicate, duplicate: true };
+  const report = await prisma.report.create({
+    data: {
+      id: generateToken(),
+      targetType,
+      chatId: chatId || null,
+      targetUserId: targetUserId || null,
+      messageId: messageId || null,
+      reportedBy,
+      reason: cleanReason.slice(0, 500),
+      status: "pending",
+    },
+  });
+  return { report, duplicate: false };
+}
+
 app.post("/api/chats/:id/report", authMiddleware, requireVerified, async (req, res) => {
   const { id } = req.params;
   const { reason } = req.body || {};
@@ -2600,20 +2936,121 @@ app.post("/api/chats/:id/report", authMiddleware, requireVerified, async (req, r
 });
 
 // Жалобы (только super admin)
+// Жалоба на пользователя
+app.post("/api/users/:id/report", authMiddleware, requireVerified, async (req, res) => {
+  const { id } = req.params;
+  const { reason } = req.body || {};
+  try {
+    const target = await prisma.user.findFirst({
+      where: { OR: [{ id }, { username: id }, { publicId: id }] },
+      select: { id: true },
+    });
+    if (!target) return res.status(404).json({ error: "Пользователь не найден" });
+    if (target.id === req.user.id) return res.status(400).json({ error: "Нельзя пожаловаться на себя" });
+    const result = await createModerationReport({
+      targetType: "user",
+      targetUserId: target.id,
+      reportedBy: req.user.id,
+      reason,
+    });
+    res.json({ ok: true, report: reportDto(result.report), duplicate: result.duplicate });
+  } catch (err) {
+    if (err.code === "BAD_REASON") return res.status(400).json({ error: "reason обязателен" });
+    console.error("POST /api/users/:id/report:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+// Жалоба на сообщение
+app.post("/api/messages/:id/report", authMiddleware, requireVerified, async (req, res) => {
+  const { id } = req.params;
+  const { reason } = req.body || {};
+  try {
+    const message = await prisma.message.findUnique({
+      where: { id },
+      select: { id: true, chatId: true, senderUsername: true },
+    });
+    if (!message) return res.status(404).json({ error: "Сообщение не найдено" });
+    const ac = await assertUserCanAccessChat(req, message.chatId);
+    if (!ac.ok) {
+      return res.status(ac.error === "Чат не найден" ? 404 : 403).json({ error: ac.error });
+    }
+    const author = await prisma.user.findUnique({
+      where: { username: message.senderUsername },
+      select: { id: true },
+    });
+    const result = await createModerationReport({
+      targetType: "message",
+      chatId: message.chatId,
+      targetUserId: author?.id || null,
+      messageId: message.id,
+      reportedBy: req.user.id,
+      reason,
+    });
+    res.json({ ok: true, report: reportDto(result.report), duplicate: result.duplicate });
+  } catch (err) {
+    if (err.code === "BAD_REASON") return res.status(400).json({ error: "reason обязателен" });
+    console.error("POST /api/messages/:id/report:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
 app.get("/api/reports", authMiddleware, requireVerified, async (req, res) => {
   if (!req.user || !req.user.isSuperAdmin) {
     return res.status(403).json({ error: "Недостаточно прав" });
   }
   try {
     const rows = await prisma.report.findMany({ orderBy: { createdAt: "desc" } });
-    const reports = rows.map((r) => ({
-      id: r.id,
-      chatId: r.chatId,
-      reportedBy: r.reportedBy,
-      reason: r.reason,
-      status: r.status || "pending",
-      createdAt: r.createdAt.toISOString(),
-    }));
+    const userIds = new Set();
+    const chatIds = new Set();
+    const messageIds = new Set();
+    for (const r of rows) {
+      if (r.reportedBy) userIds.add(r.reportedBy);
+      if (r.targetUserId) userIds.add(r.targetUserId);
+      if (r.chatId) chatIds.add(r.chatId);
+      if (r.messageId) messageIds.add(r.messageId);
+    }
+    const [userRows, chatRows, messageRows] = await Promise.all([
+      userIds.size
+        ? prisma.user.findMany({ where: { id: { in: [...userIds] } }, select: PRISMA_USER_SELECT_LIST })
+        : Promise.resolve([]),
+      chatIds.size ? prisma.chat.findMany({ where: { id: { in: [...chatIds] } } }) : Promise.resolve([]),
+      messageIds.size
+        ? prisma.message.findMany({ where: { id: { in: [...messageIds] } }, select: MESSAGE_BOOTSTRAP_SELECT })
+        : Promise.resolve([]),
+    ]);
+    const usersById = new Map(userRows.map((u) => [u.id, u]));
+    const chatsById = new Map(chatRows.map((c) => [c.id, ensureChatFields(chatFromPrismaRow(c), {})]));
+    const messagesById = new Map(messageRows.map((m) => [m.id, messageFromPrismaRow(m)]));
+    const reports = rows.map((r) => {
+      const dto = reportDto(r);
+      const chat = dto.chatId ? chatsById.get(dto.chatId) : null;
+      const message = dto.messageId ? messagesById.get(dto.messageId) : null;
+      return {
+        ...dto,
+        reporter: publicUserForReport(usersById.get(dto.reportedBy)),
+        targetUser: publicUserForReport(usersById.get(dto.targetUserId)),
+        chat: chat
+          ? {
+              id: chat.id,
+              title: chat.title,
+              type: chat.type,
+              owner: chat.owner,
+              verified: Boolean(chat.verified),
+            }
+          : null,
+        message: message
+          ? {
+              id: message.id,
+              chatId: message.chatId,
+              from: message.from,
+              type: message.type,
+              text: message.text || "",
+              time: message.time,
+            }
+          : null,
+      };
+    });
     res.json(reports);
   } catch (err) {
     console.error("GET /api/reports:", err);
@@ -3180,6 +3617,9 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
     // Async email notifications — don't block the response
     notifyNewMessage(msg, req.user).catch((e) =>
       console.error("notifyNewMessage error:", e)
+    );
+    notifyNewMessagePush(msg, req.user).catch((e) =>
+      console.error("notifyNewMessagePush error:", e)
     );
   } catch (err) {
     console.error("prisma.message.create (POST /api/messages):", err);

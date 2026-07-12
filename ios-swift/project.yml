@@ -1,0 +1,34 @@
+name: Aton
+options:
+  bundleIdPrefix: by.vadzim
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""
+targets:
+  Aton:
+    type: application
+    platform: iOS
+    sources:
+      - Aton
+    resources:
+      - Aton/Resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: by.vadzim.aten
+        INFOPLIST_FILE: Aton/Info.plist
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_ENTITLEMENTS: Aton/Aton.entitlements
+        CODE_SIGN_STYLE: Automatic
+      configs:
+        Debug:
+          APS_ENVIRONMENT: development
+        Release:
+          APS_ENVIRONMENT: production
+    scheme:
+      testTargets: []

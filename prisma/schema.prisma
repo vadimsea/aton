@@ -55,6 +55,23 @@ model Session {
   @@map("sessions")
 }
 
+model DeviceToken {
+  id          String   @id
+  userId      String
+  username    String
+  platform    String   @default("ios")
+  token       String   @unique
+  appVersion  String?
+  environment String?
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, enabled])
+  @@index([username, enabled])
+  @@map("device_tokens")
+}
+
 model Chat {
   id            String   @id
   type          String
@@ -99,13 +116,20 @@ model Message {
 }
 
 model Report {
-  id         String   @id
-  chatId     String
-  reportedBy String
-  reason     String
-  status     String   @default("pending")
-  createdAt  DateTime @default(now())
+  id           String   @id
+  targetType   String   @default("chat") @map("target_type")
+  chatId       String?
+  targetUserId String?  @map("target_user_id")
+  messageId    String?  @map("message_id")
+  reportedBy   String
+  reason       String
+  status       String   @default("pending")
+  createdAt    DateTime @default(now())
 
-  @@unique([chatId, reportedBy])
+  @@index([targetType, status, createdAt])
+  @@index([reportedBy, createdAt])
+  @@index([chatId])
+  @@index([targetUserId])
+  @@index([messageId])
   @@map("reports")
 }

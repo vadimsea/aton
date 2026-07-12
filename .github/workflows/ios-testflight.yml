@@ -1,0 +1,102 @@
+name: iOS TestFlight Archive
+
+on:
+  workflow_dispatch:
+    inputs:
+      export_method:
+        description: "Export method"
+        required: true
+        default: "app-store-connect"
+        type: choice
+        options:
+          - app-store-connect
+          - ad-hoc
+          - development
+
+jobs:
+  archive:
+    name: Archive iOS app
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: ios-swift
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Import App Store Connect API key
+        env:
+          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+        run: |
+          mkdir -p private_keys
+          printf "%s" "$APP_STORE_CONNECT_API_KEY" > private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_KEY_ID }}.p8
+          chmod 600 private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_KEY_ID }}.p8
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Archive
+        env:
+          DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Aton.xcodeproj \
+            -scheme Aton \
+            -configuration Release \
+            -archivePath build/Aton.xcarchive \
+            -destination 'generic/platform=iOS' \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_KEY_ID }}.p8" \
+            -authenticationKeyID "${{ secrets.APP_STORE_CONNECT_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" \
+            clean archive
+
+      - name: Create export options
+        run: |
+          cat > build/ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>${{ inputs.export_method }}</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+            <key>teamID</key>
+            <string>${{ secrets.APPLE_DEVELOPMENT_TEAM }}</string>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          PLIST
+
+      - name: Export IPA
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -exportArchive \
+            -archivePath build/Aton.xcarchive \
+            -exportPath build/export \
+            -exportOptionsPlist build/ExportOptions.plist \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_KEY_ID }}.p8" \
+            -authenticationKeyID "${{ secrets.APP_STORE_CONNECT_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ATEN-iOS-IPA
+          path: ios-swift/build/export/*.ipa
+          if-no-files-found: error
