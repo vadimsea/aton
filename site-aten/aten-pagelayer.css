@@ -1,0 +1,541 @@
+body:has(.aten-page) .pagelayer-footer,
+body:has(.aten-page) .site-footer,
+body:has(.aten-page) #colophon,
+body:has(.aten-page) #ast-scroll-top,
+body:has(.aten-page) .entry-title,
+body:has(.aten-page) .pagelayer-post-title,
+body.page-id-1563 .pagelayer-footer,
+body.page-id-1563 .site-footer,
+body.page-id-1563 #colophon,
+body.page-id-1563 #ast-scroll-top,
+body.page-id-1563 .entry-title,
+body.page-id-1563 .pagelayer-post-title {
+  display: none !important;
+}
+
+body:has(.aten-page),
+body.page-id-1563 {
+  background: #070b14 !important;
+}
+
+body:has(.aten-page) #primary,
+body:has(.aten-page) .content-area,
+body.page-id-1563 #primary,
+body.page-id-1563 .content-area {
+  width: 100% !important;
+  max-width: none !important;
+  margin: -24px 0 0 !important;
+  padding: 0 !important;
+}
+
+body:has(.aten-page) .p-aten002 > .pagelayer-row-holder,
+body.page-id-1563 .p-aten002 > .pagelayer-row-holder {
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+body:has(.aten-page) .p-aten002,
+body.page-id-1563 .p-aten002 {
+  left: 0 !important;
+  right: auto !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.aten-page {
+  --gold: #f6b338;
+  --gold-2: #ffe08b;
+  --lapis: #1e4f8f;
+  --rose: #f07d8f;
+  --sand: #d8a85b;
+  --paper: #fff7df;
+  --ink: #070b14;
+  --night: #0a101d;
+  --panel: #101827;
+  --line: rgba(255, 255, 255, 0.12);
+  --text: #f7fbff;
+  --muted: #cbd6e7;
+  --soft: #94a3b8;
+  position: relative;
+  left: auto;
+  width: 100%;
+  margin-left: 0;
+  overflow: hidden;
+  background: #070b14;
+  color: var(--text) !important;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.aten-page * {
+  box-sizing: border-box;
+  letter-spacing: 0;
+}
+
+.aten-wrap {
+  width: min(1160px, calc(100% - 40px));
+  margin: 0 auto;
+  position: relative;
+  z-index: 2;
+}
+
+.aten-hero {
+  position: relative;
+  min-height: 760px;
+  display: grid;
+  align-items: center;
+  background:
+    radial-gradient(circle at 74% 19%, rgba(255, 219, 122, 0.3), transparent 19%),
+    linear-gradient(90deg, rgba(4, 8, 15, 0.98) 0%, rgba(6, 11, 21, 0.94) 38%, rgba(7, 11, 20, 0.28) 66%, rgba(7, 11, 20, 0.74) 100%),
+    url("https://vadzim.by/wp-content/uploads/aten/aten-hero-akhenaten.png") center / cover no-repeat;
+  border-bottom: 1px solid rgba(246, 179, 56, 0.28);
+  overflow: hidden;
+}
+
+.aten-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(7, 11, 20, 0.36), transparent 42%),
+    repeating-linear-gradient(90deg, transparent 0 82px, rgba(246, 179, 56, 0.045) 83px 84px);
+  mix-blend-mode: screen;
+  opacity: 0.72;
+}
+
+.aten-hero::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 130px;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, #070b14 86%);
+}
+
+.aten-petals {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.aten-petals span {
+  position: absolute;
+  top: -42px;
+  width: 13px;
+  height: 22px;
+  border-radius: 12px 12px 12px 2px;
+  background: linear-gradient(145deg, #ffb3be, #d94e6b 64%, #84263b);
+  opacity: 0.66;
+  filter: drop-shadow(0 0 10px rgba(240, 125, 143, 0.38));
+  animation: atenPetalFall 14s linear infinite;
+}
+
+.aten-petals span:nth-child(1) { left: 11%; animation-delay: -2s; animation-duration: 15s; }
+.aten-petals span:nth-child(2) { left: 19%; animation-delay: -10s; animation-duration: 18s; transform: scale(0.72); }
+.aten-petals span:nth-child(3) { left: 31%; animation-delay: -5s; animation-duration: 13s; transform: scale(0.9); }
+.aten-petals span:nth-child(4) { left: 43%; animation-delay: -12s; animation-duration: 19s; transform: scale(0.62); }
+.aten-petals span:nth-child(5) { left: 56%; animation-delay: -4s; animation-duration: 16s; }
+.aten-petals span:nth-child(6) { left: 68%; animation-delay: -9s; animation-duration: 14s; transform: scale(0.8); }
+.aten-petals span:nth-child(7) { left: 76%; animation-delay: -1s; animation-duration: 17s; transform: scale(0.58); }
+.aten-petals span:nth-child(8) { left: 84%; animation-delay: -7s; animation-duration: 20s; }
+.aten-petals span:nth-child(9) { left: 91%; animation-delay: -13s; animation-duration: 15s; transform: scale(0.7); }
+.aten-petals span:nth-child(10) { left: 24%; animation-delay: -15s; animation-duration: 21s; transform: scale(0.55); }
+.aten-petals span:nth-child(11) { left: 62%; animation-delay: -6s; animation-duration: 18s; transform: scale(0.66); }
+.aten-petals span:nth-child(12) { left: 38%; animation-delay: -17s; animation-duration: 16s; transform: scale(0.76); }
+
+@keyframes atenPetalFall {
+  0% {
+    translate: 0 -48px;
+    rotate: 0deg;
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.66;
+  }
+  92% {
+    opacity: 0.58;
+  }
+  100% {
+    translate: 0 calc(100vh + 90px);
+    rotate: 360deg;
+    opacity: 0;
+  }
+}
+
+.aten-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 13px;
+  border: 1px solid rgba(246, 179, 56, 0.44);
+  border-radius: 999px;
+  background: rgba(246, 179, 56, 0.12);
+  color: var(--gold-2) !important;
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04), 0 18px 44px rgba(0, 0, 0, 0.32);
+}
+
+.aten-kicker::before {
+  content: "";
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff6c7 0 24%, var(--gold) 25% 100%);
+  box-shadow: 0 0 18px rgba(255, 224, 139, 0.72);
+}
+
+.aten-hero h1 {
+  max-width: 820px;
+  margin: 22px 0 18px;
+  color: #fff !important;
+  font-size: clamp(48px, 7vw, 94px) !important;
+  line-height: 0.98 !important;
+  font-weight: 950 !important;
+  text-wrap: balance;
+  text-shadow: 0 14px 46px rgba(0, 0, 0, 0.56);
+}
+
+.aten-lead {
+  max-width: 760px;
+  margin: 0 0 30px;
+  color: #dde8f6 !important;
+  font-size: clamp(18px, 2vw, 23px) !important;
+  line-height: 1.55 !important;
+}
+
+.aten-actions {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.aten-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 54px;
+  padding: 0 22px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  color: #fff !important;
+  text-decoration: none !important;
+  font-size: 16px;
+  font-weight: 900;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.aten-btn:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 224, 139, 0.55);
+}
+
+.aten-btn.primary {
+  border: 0;
+  background: linear-gradient(135deg, #ffad13, #ffe08b);
+  color: #211400 !important;
+  box-shadow: 0 18px 46px rgba(246, 179, 56, 0.3);
+}
+
+.aten-btn.secondary {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.aten-btn.disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.aten-section {
+  position: relative;
+  padding: 86px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(circle at 12% 18%, rgba(30, 79, 143, 0.18), transparent 26%),
+    linear-gradient(180deg, #070b14, #090f1b);
+}
+
+.aten-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.16;
+  background-image:
+    linear-gradient(90deg, rgba(216, 168, 91, 0.38) 1px, transparent 1px),
+    linear-gradient(rgba(216, 168, 91, 0.16) 1px, transparent 1px);
+  background-size: 92px 92px;
+}
+
+.aten-section h2 {
+  margin: 0 0 18px;
+  color: #fff !important;
+  font-size: clamp(34px, 4vw, 56px) !important;
+  line-height: 1.05 !important;
+  font-weight: 950 !important;
+  text-wrap: balance;
+}
+
+.aten-section-mark {
+  display: inline-flex;
+  margin-bottom: 14px;
+  padding: 7px 12px;
+  border: 1px solid rgba(246, 179, 56, 0.35);
+  border-radius: 999px;
+  color: var(--gold-2) !important;
+  background: rgba(246, 179, 56, 0.08);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.aten-section p {
+  color: var(--muted) !important;
+  font-size: 18px !important;
+  line-height: 1.72 !important;
+}
+
+.aten-split {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 38px;
+  align-items: center;
+}
+
+.aten-panel,
+.aten-card,
+.aten-platform {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.035));
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.24);
+  position: relative;
+  overflow: hidden;
+}
+
+.aten-panel::before,
+.aten-card::before,
+.aten-platform::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--gold), var(--lapis), var(--gold-2));
+  opacity: 0.9;
+}
+
+.aten-panel {
+  border-color: rgba(246, 179, 56, 0.26);
+  border-radius: 26px;
+  padding: 32px;
+  background:
+    radial-gradient(circle at top left, rgba(246, 179, 56, 0.16), transparent 35%),
+    rgba(12, 20, 35, 0.9);
+}
+
+.aten-list {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.aten-list li {
+  padding: 16px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #eef5ff !important;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.aten-list b,
+.aten-card strong {
+  color: var(--gold-2) !important;
+}
+
+.aten-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-top: 32px;
+}
+
+.aten-card {
+  min-height: 210px;
+  padding: 28px;
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.035)),
+    radial-gradient(circle at top right, rgba(246, 179, 56, 0.12), transparent 32%),
+    #101827;
+}
+
+.aten-card strong {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 21px;
+}
+
+.aten-card p {
+  margin: 0;
+  color: #d3deeb !important;
+  font-size: 16px !important;
+  line-height: 1.65 !important;
+}
+
+.aten-platforms {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-top: 30px;
+}
+
+.aten-platform {
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 28px;
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(17, 26, 42, 0.96), rgba(12, 19, 32, 0.98)),
+    radial-gradient(circle at 80% 10%, rgba(246, 179, 56, 0.18), transparent 32%);
+}
+
+.aten-platform h3 {
+  margin: 0 0 12px;
+  color: #fff !important;
+  font-size: 24px;
+  font-weight: 950;
+}
+
+.aten-platform p {
+  margin: 0;
+  color: #bac7d9 !important;
+  font-size: 16px !important;
+  line-height: 1.65 !important;
+}
+
+.aten-note {
+  color: #8fa0b8 !important;
+  font-size: 14px !important;
+  overflow-wrap: anywhere;
+}
+
+.aten-footer {
+  padding: 34px 0;
+  color: #9fb0c6 !important;
+  text-align: center;
+  background: #070b14;
+  font-size: 15px;
+}
+
+@media (max-width: 900px) {
+  .aten-wrap {
+    width: min(100% - 28px, 1160px);
+  }
+
+  .aten-hero {
+    min-height: 720px;
+    align-items: end;
+    padding: 84px 0 42px;
+    background:
+      linear-gradient(90deg, rgba(7, 11, 20, 0.82) 0%, rgba(7, 11, 20, 0.48) 54%, rgba(7, 11, 20, 0.18) 100%),
+      linear-gradient(180deg, rgba(7, 11, 20, 0.16) 0%, rgba(7, 11, 20, 0.68) 40%, rgba(7, 11, 20, 0.98) 100%),
+      url("https://vadzim.by/wp-content/uploads/aten/aten-hero-akhenaten.png") 88% center / cover no-repeat;
+  }
+
+  .aten-hero h1 {
+    max-width: 620px;
+    font-size: 44px !important;
+    line-height: 1 !important;
+  }
+
+  .aten-lead {
+    max-width: 620px;
+    font-size: 17px !important;
+  }
+
+  .aten-btn {
+    width: 100%;
+    min-height: 52px;
+    padding: 0 16px;
+  }
+
+  .aten-split,
+  .aten-grid,
+  .aten-platforms {
+    grid-template-columns: 1fr;
+  }
+
+  .aten-section {
+    padding: 58px 0;
+  }
+
+  .aten-section h2 {
+    font-size: 34px !important;
+  }
+
+  .aten-section p {
+    font-size: 16px !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .aten-hero {
+    min-height: 690px;
+    padding-bottom: 30px;
+    background:
+      linear-gradient(90deg, rgba(7, 11, 20, 0.86) 0%, rgba(7, 11, 20, 0.54) 58%, rgba(7, 11, 20, 0.2) 100%),
+      linear-gradient(180deg, rgba(7, 11, 20, 0.14) 0%, rgba(7, 11, 20, 0.66) 36%, rgba(7, 11, 20, 0.99) 100%),
+      url("https://vadzim.by/wp-content/uploads/aten/aten-hero-akhenaten.png") 96% center / cover no-repeat;
+  }
+
+  .aten-kicker {
+    font-size: 11px;
+  }
+
+  .aten-hero h1 {
+    font-size: 39px !important;
+  }
+
+  .aten-lead {
+    font-size: 16px !important;
+  }
+
+  .aten-panel,
+  .aten-card,
+  .aten-platform {
+    border-radius: 18px;
+    padding: 20px;
+  }
+
+  .aten-card {
+    min-height: 0;
+  }
+
+  .aten-petals span:nth-child(n + 8) {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aten-petals span,
+  .aten-btn {
+    animation: none !important;
+    transition: none !important;
+  }
+}
