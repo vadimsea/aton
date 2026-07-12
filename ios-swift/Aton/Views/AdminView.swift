@@ -124,6 +124,7 @@ struct AdminView: View {
         isLoading = true
         defer { isLoading = false }
         users = (try? await app.loadAdminUsers()) ?? []
+        _ = try? await app.loadAdminChats()
         reports = (try? await app.loadReports()) ?? []
         await app.refreshData()
     }
@@ -137,7 +138,7 @@ struct AdminView: View {
     }
 
     private var adminChats: [AtonChat] {
-        app.chats
+        app.adminChats
             .filter { ["group", "channel"].contains($0.type) }
             .sorted { $0.displayTitle.localizedCaseInsensitiveCompare($1.displayTitle) == .orderedAscending }
     }

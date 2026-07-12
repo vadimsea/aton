@@ -878,7 +878,6 @@ async function notifyNewMessagePush(msg, sender) {
 
   if (recipientUsername) {
     if (recipientUsername === GOLOS_ATON_USERNAME || recipientUsername === msg.from) return;
-    if (isUserOnline(recipientUsername)) return;
     await sendPushToUser(recipientUsername, {
       title: senderLabel,
       body: preview,
@@ -898,8 +897,7 @@ async function notifyNewMessagePush(msg, sender) {
   const members = await prisma.user.findMany({ where: { id: { in: memberIds } }, select: { username: true } });
   const chatName = chatRow.title || chatRow.description || msg.chatId;
   for (const member of members) {
-    if (!member.username || member.username === sender.username) continue;
-    if (isUserOnline(member.username)) continue;
+    if (!member.username || member.username === sender?.username || member.username === msg.from) continue;
     await sendPushToUser(member.username, {
       title: chatName,
       body: `${senderLabel}: ${preview}`,
@@ -2957,6 +2955,26 @@ app.post("/api/users/:id/report", authMiddleware, requireVerified, async (req, r
   } catch (err) {
     if (err.code === "BAD_REASON") return res.status(400).json({ error: "reason обязателен" });
     console.error("POST /api/users/:id/report:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+// Полный список групп и каналов для модерации (только super admin).
+app.get("/api/admin/chats", authMiddleware, requireVerified, async (req, res) => {
+  if (!req.user || !req.user.isSuperAdmin) {
+    return res.status(403).json({ error: "Недостаточно прав" });
+  }
+  try {
+    const chatRows = await prisma.chat.findMany({ orderBy: { createdAt: "asc" } });
+    const scopedRows = chatRows.filter((row) => {
+      const type = row.type || (String(row.id).startsWith("channel:") ? "channel" : "group");
+      return type === "group" || type === "channel";
+    });
+    const ownerNames = scopedRows.map((r) => r && r.owner).filter(Boolean);
+    const usersByUsername = await loadUsersByUsernameMap(ownerNames);
+    res.json(scopedRows.map((row) => ensureChatFields(chatFromPrismaRow(row), usersByUsername)));
+  } catch (err) {
+    console.error("GET /api/admin/chats:", err);
     res.status(500).json({ error: "Ошибка сервера" });
   }
 });

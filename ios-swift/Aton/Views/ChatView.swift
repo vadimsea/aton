@@ -34,17 +34,38 @@ struct ChatView: View {
                 }
             }
 
-            composer
-                .padding()
-                .background(.ultraThinMaterial)
+            if app.canPost(in: app.selectedChat) {
+                composer
+                    .padding()
+                    .background(.ultraThinMaterial)
+            } else {
+                Label("В этом канале писать могут владелец и администраторы", systemImage: "lock.fill")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(.ultraThinMaterial)
+            }
         }
         .background(AtonPalette.background)
         .navigationTitle(app.selectedChat?.title ?? "Чат")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             Menu {
+                if let peer = app.selectedChat?.peerUsername, !peer.isEmpty {
+                    Button("Пожаловаться на пользователя", role: .destructive) {
+                        Task { await app.reportUser(peer, reason: "Жалоба из iOS") }
+                    }
+                }
                 Button("Пожаловаться", role: .destructive) {
                     Task { await reportCurrentChat() }
+                }
+                if let chat = app.selectedChat, app.canDeleteChat(chat) {
+                    Button("Удалить чат", role: .destructive) {
+                        Task {
+                            await app.deleteChat(chat)
+                        }
+                    }
                 }
                 Button("Отключить уведомления") {}
             } label: {

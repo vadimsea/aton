@@ -21,12 +21,16 @@ struct AtonChat: Identifiable, Codable, Hashable {
     var title: String?
     var description: String?
     var owner: String?
+    var ownerId: String?
+    var visibility: String?
     var verified: Bool?
     var avatarDataUrl: String?
+    var peerUsername: String?
     var peerDisplayName: String?
     var peerAvatarDataUrl: String?
     var createdAt: Date?
     var members: [String]?
+    var admins: [String]?
 }
 
 struct AtonMessage: Identifiable, Codable, Hashable {

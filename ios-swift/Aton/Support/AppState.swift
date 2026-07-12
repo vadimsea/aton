@@ -6,6 +6,8 @@ import UIKit
 final class AppState: ObservableObject {
     @Published var currentUser: AtonUser?
     @Published var chats: [AtonChat] = []
+    @Published var adminChats: [AtonChat] = []
+    @Published var discoverChats: [AtonChat] = []
     @Published var messages: [AtonMessage] = []
     @Published var selectedChatId: String?
     @Published var isLoading = false
@@ -231,6 +233,29 @@ final class AppState: ObservableObject {
         }
     }
 
+    func loadDiscoverChats() async {
+        guard let token else { return }
+        do {
+            discoverChats = try await api.request("/api/chats/discover", token: token)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func joinChat(_ chat: AtonChat) async {
+        guard let token else { return }
+        do {
+            let response: JoinChatResponse = try await api.request("/api/chats/\(chat.id)/join", method: "POST", token: token)
+            chats.removeAll { $0.id == response.chat.id }
+            chats.append(response.chat)
+            discoverChats.removeAll { $0.id == response.chat.id }
+            selectedChatId = response.chat.id
+            await refreshData(silent: true)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func deleteChat(_ chat: AtonChat) async {
         guard let token else { return }
         do {
@@ -241,6 +266,23 @@ final class AppState: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    func canDeleteChat(_ chat: AtonChat) -> Bool {
+        guard let user = currentUser else { return false }
+        if user.isSuperAdmin == true { return true }
+        if chat.owner == user.username { return true }
+        if chat.ownerId == user.id { return true }
+        return false
+    }
+
+    func canPost(in chat: AtonChat?) -> Bool {
+        guard let chat else { return true }
+        guard let user = currentUser else { return false }
+        if chat.type != "channel" { return true }
+        if user.isSuperAdmin == true { return true }
+        if chat.owner == user.username || chat.ownerId == user.id { return true }
+        return (chat.admins ?? []).contains(user.id)
     }
 
     func verifyChat(_ chat: AtonChat) async throws {
@@ -273,6 +315,13 @@ final class AppState: ObservableObject {
     func loadAdminUsers() async throws -> [AtonUser] {
         guard let token else { return [] }
         return try await api.request("/api/admin/users", token: token)
+    }
+
+    func loadAdminChats() async throws -> [AtonChat] {
+        guard let token else { return [] }
+        let rows: [AtonChat] = try await api.request("/api/admin/chats", token: token)
+        adminChats = rows
+        return rows
     }
 
     func verifyUser(_ id: String) async throws {
@@ -309,6 +358,11 @@ struct ChatCreateBody: Encodable {
     let type: String
     let visibility: String
     let description: String?
+}
+
+struct JoinChatResponse: Decodable {
+    let ok: Bool
+    let chat: AtonChat
 }
 
 struct ProfileUpdateBody: Encodable {
