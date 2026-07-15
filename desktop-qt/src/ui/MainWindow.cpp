@@ -758,7 +758,7 @@ int messageRowHeight(const QJsonObject &msg)
         const auto text = msg.value("text").toString();
         const int explicitLines = std::max(1, static_cast<int>(text.count('\n') + 1));
         const int wrappedLines = std::max(1, static_cast<int>(text.simplified().size() / 34 + 1));
-        height = 62 + std::max(explicitLines, wrappedLines) * 24;
+        height = 74 + std::max(explicitLines, wrappedLines) * 28;
     }
     if (!msg.value("replyTo").toString().isEmpty()) height += 54;
     if (!msg.value("reactions").toArray().isEmpty()) height += 36;
@@ -773,6 +773,16 @@ int messageTextWidth(const QString &text, const QFont &font)
     if (clean.size() > 42) return 360;
     const auto natural = metrics.horizontalAdvance(clean);
     return std::clamp(natural + 8, 48, 360);
+}
+
+int richMessageTextHeight(const QString &html, const QFont &font, int width)
+{
+    QTextDocument doc;
+    doc.setDefaultFont(font);
+    doc.setDocumentMargin(0);
+    doc.setTextWidth(width);
+    doc.setHtml(html);
+    return static_cast<int>(std::ceil(doc.size().height())) + 6;
 }
 
 QWidget *makeChatRowWidget(const ChatRow &row, QWidget *parent)
@@ -1143,9 +1153,10 @@ QWidget *makeMessageRowWidget(
         label->setTextInteractionFlags(Qt::TextBrowserInteraction);
         const auto textWidth = messageTextWidth(textValue, label->font());
         label->setFixedWidth(textWidth);
+        label->setMinimumHeight(richMessageTextHeight(label->text(), label->font(), textWidth));
         const int actionWidth = isSelf ? 190 : 104;
         bubble->setFixedWidth(std::max(textWidth + 32, actionWidth));
-        label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::MinimumExpanding);
+        label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
         bubbleLayout->addWidget(label);
         const QString previewUrl = firstMessageUrl(textValue);
         if (apiClient && !previewUrl.isEmpty()) {
