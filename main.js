@@ -1164,6 +1164,93 @@ function escHtml(s) {
     .replace(/'/g, "&#39;");
 }
 
+const ATON_URL_RE = /https?:\/\/[^\s<>"']+/gi;
+const atonLinkPreviewCache = new Map();
+
+function cleanMessageUrl(raw) {
+  return String(raw || "").replace(/[),.;!?]+$/g, "");
+}
+
+function extractFirstUrl(text) {
+  ATON_URL_RE.lastIndex = 0;
+  const match = ATON_URL_RE.exec(String(text || ""));
+  return match ? cleanMessageUrl(match[0]) : "";
+}
+
+function appendLinkifiedText(target, value) {
+  const source = String(value || "");
+  ATON_URL_RE.lastIndex = 0;
+  let last = 0;
+  let match;
+  while ((match = ATON_URL_RE.exec(source))) {
+    const rawUrl = match[0];
+    const url = cleanMessageUrl(rawUrl);
+    const trailing = rawUrl.slice(url.length);
+    const start = match.index;
+    const end = start + rawUrl.length;
+    if (start > last) target.appendChild(document.createTextNode(source.slice(last, start)));
+    const a = document.createElement("a");
+    a.className = "aton-message-link";
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = url;
+    target.appendChild(a);
+    if (trailing) target.appendChild(document.createTextNode(trailing));
+    last = end;
+  }
+  if (last < source.length) target.appendChild(document.createTextNode(source.slice(last)));
+}
+
+function createLinkPreviewCard(url) {
+  const card = document.createElement("a");
+  card.className = "aton-link-preview-card aton-link-preview-card--loading";
+  card.href = url;
+  card.target = "_blank";
+  card.rel = "noopener noreferrer";
+  card.innerHTML = `
+    <div class="aton-link-preview-bar"></div>
+    <div class="aton-link-preview-body">
+      <div class="aton-link-preview-site"></div>
+      <div class="aton-link-preview-title">Link</div>
+      <div class="aton-link-preview-description">${escHtml(url)}</div>
+    </div>
+  `;
+  hydrateLinkPreviewCard(card, url);
+  return card;
+}
+
+async function hydrateLinkPreviewCard(card, url) {
+  try {
+    let preview = atonLinkPreviewCache.get(url);
+    if (!preview) {
+      preview = await api(`/api/link-preview?url=${encodeURIComponent(url)}`);
+      atonLinkPreviewCache.set(url, preview);
+    }
+    const site = card.querySelector(".aton-link-preview-site");
+    const title = card.querySelector(".aton-link-preview-title");
+    const desc = card.querySelector(".aton-link-preview-description");
+    if (site) site.textContent = preview.siteName || new URL(url).hostname.replace(/^www\./, "");
+    if (title) title.textContent = preview.title || url;
+    if (desc) desc.textContent = preview.description || preview.finalUrl || url;
+    if (preview.image && !card.querySelector(".aton-link-preview-image")) {
+      const img = document.createElement("img");
+      img.className = "aton-link-preview-image";
+      img.loading = "lazy";
+      img.referrerPolicy = "no-referrer";
+      img.src = preview.image;
+      card.appendChild(img);
+    }
+    card.classList.remove("aton-link-preview-card--loading");
+  } catch (_) {
+    try {
+      const site = card.querySelector(".aton-link-preview-site");
+      if (site) site.textContent = new URL(url).hostname.replace(/^www\./, "");
+    } catch (_) {}
+    card.classList.remove("aton-link-preview-card--loading");
+  }
+}
+
 function formatTimeLabel(iso) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -5623,8 +5710,12 @@ function createApp() {
       if (msg.text) {
         const textNode = document.createElement("div");
         textNode.className = "aton-message-text-body";
-        textNode.textContent = msg.text;
+        appendLinkifiedText(textNode, msg.text);
         text.appendChild(textNode);
+        const firstUrl = extractFirstUrl(msg.text);
+        if (firstUrl) {
+          text.appendChild(createLinkPreviewCard(firstUrl));
+        }
       }
       if (msg.replyTo) {
         const replied =
@@ -7226,15 +7317,79 @@ function createApp() {
     });
   }
 
+  function currentAdminChatTarget() {
+    if (!currentChatId || isPrivateDirectChat(currentChatId)) return null;
+    return (
+      allChats.find((chat) => String(chat.id || "") === String(currentChatId)) ||
+      adminChats.find((chat) => String(chat.id || "") === String(currentChatId)) ||
+      null
+    );
+  }
+
+  async function verifyCurrentAdminChat() {
+    const chat = currentAdminChatTarget();
+    if (!chat || chat.verified) return;
+    try {
+      const updated = await api(`/api/chats/${encodeURIComponent(chat.id)}/verify`, { method: "POST" });
+      const apply = (list) => {
+        const idx = list.findIndex((item) => String(item.id || "") === String(updated.id || chat.id));
+        if (idx >= 0) list[idx] = { ...list[idx], ...updated, verified: true };
+      };
+      apply(allChats);
+      apply(adminChats);
+      chat.verified = true;
+      renderChatList();
+      updateTopbarTitle();
+      showToast("Чат верифицирован");
+    } catch (err) {
+      showToast(err?.message || "Не удалось верифицировать чат");
+    }
+  }
+
+  function openAdminQuickMenu(anchor) {
+    if (!currentUser || currentUser.isSuperAdmin !== true) return;
+    document.querySelectorAll(".aton-admin-quick-menu").forEach((node) => node.remove());
+    const menu = document.createElement("div");
+    menu.className = "aton-admin-quick-menu";
+    const addItem = (label, handler, disabled = false) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = label;
+      btn.disabled = disabled;
+      btn.addEventListener("click", async () => {
+        menu.remove();
+        await handler();
+      });
+      menu.appendChild(btn);
+    };
+    addItem("Пользователи и верификация", () => openAdminUsersModal());
+    addItem("Жалобы и модерация", () => openModerationModal());
+    const chat = currentAdminChatTarget();
+    if (chat) {
+      addItem(chat.verified ? "Текущий чат уже верифицирован" : "Верифицировать текущий чат", verifyCurrentAdminChat, Boolean(chat.verified));
+    }
+    document.body.appendChild(menu);
+    const rect = anchor?.getBoundingClientRect?.() || { right: window.innerWidth - 24, bottom: 72 };
+    menu.style.top = `${Math.min(window.innerHeight - menu.offsetHeight - 12, rect.bottom + 8)}px`;
+    menu.style.left = `${Math.max(12, Math.min(window.innerWidth - menu.offsetWidth - 12, rect.right - menu.offsetWidth))}px`;
+    const close = (event) => {
+      if (!menu.contains(event.target) && event.target !== anchor) {
+        menu.remove();
+        document.removeEventListener("pointerdown", close, true);
+      }
+    };
+    setTimeout(() => document.addEventListener("pointerdown", close, true), 0);
+  }
+
   if (moderationButton) {
-    moderationButton.addEventListener("click", () => {
-      openModerationModal();
+    moderationButton.addEventListener("click", (event) => {
+      openAdminQuickMenu(event.currentTarget);
     });
   }
 
   if (sidebarModerationButton) {
-    sidebarModerationButton.addEventListener("click", () => {
-      openModerationModal();
+    sidebarModerationButton.addEventListener("click", (event) => {
+      openAdminQuickMenu(event.currentTarget);
     });
   }
 

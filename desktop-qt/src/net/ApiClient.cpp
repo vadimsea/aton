@@ -99,6 +99,11 @@ void ApiClient::getReports()
     getJson("/api/reports");
 }
 
+void ApiClient::getLinkPreview(const QString &url)
+{
+    getJson(QString("/api/link-preview?url=%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(url))));
+}
+
 void ApiClient::getMessagesAll()
 {
     getJson("/api/messages/all");

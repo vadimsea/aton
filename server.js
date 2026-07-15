@@ -8,6 +8,8 @@ const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const http = require("http");
 const http2 = require("http2");
+const dns = require("dns").promises;
+const net = require("net");
 const { Server } = require("socket.io");
 const rateLimit = require("express-rate-limit");
 const { prisma } = require("./lib/prisma");
@@ -302,7 +304,7 @@ const MESSAGES_BOOTSTRAP_SOFT_CAP = (() => {
   const freeTierSafeMax = 1000;
   const raw = process.env.MESSAGES_BOOTSTRAP_SOFT_CAP;
   if (raw === undefined || String(raw).trim() === "") return freeTierSafeDefault;
-  if (String(raw).trim() === "0") return freeTierSafeDefault;
+  if (String(raw).trim() === "0") return null;
   const n = parseInt(String(raw), 10);
   if (Number.isNaN(n) || n < 200) return freeTierSafeDefault;
   return Math.min(freeTierSafeMax, n);
@@ -1333,6 +1335,123 @@ function requireVerified(req, res, next) {
 }
 
 // Регистрация
+const LINK_PREVIEW_CACHE = new Map();
+const LINK_PREVIEW_TTL_MS = 6 * 60 * 60 * 1000;
+const LINK_PREVIEW_MAX_HTML = 700 * 1024;
+
+function decodeHtmlEntities(value) {
+  return String(value || "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function metaContent(html, names) {
+  for (const name of names) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const rx = new RegExp(`<meta\\b(?=[^>]*(?:property|name)=["']${escaped}["'])(?=[^>]*content=["']([^"']*)["'])[^>]*>`, "i");
+    const match = html.match(rx);
+    if (match && match[1]) return decodeHtmlEntities(match[1]);
+  }
+  return "";
+}
+
+function isPrivateAddress(address) {
+  const family = net.isIP(address);
+  if (family === 4) {
+    const [a, b] = address.split(".").map((n) => Number(n));
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      a >= 224
+    );
+  }
+  if (family === 6) {
+    const lower = address.toLowerCase();
+    return lower === "::1" || lower.startsWith("fc") || lower.startsWith("fd") || lower.startsWith("fe80:");
+  }
+  return true;
+}
+
+async function assertPublicPreviewUrl(url) {
+  const host = url.hostname.toLowerCase();
+  if (!host || host === "localhost" || host.endsWith(".local")) throw new Error("Private host");
+  const rows = await dns.lookup(host, { all: true });
+  if (!rows.length || rows.some((row) => isPrivateAddress(row.address))) throw new Error("Private address");
+}
+
+function normalizePreviewUrl(raw) {
+  const url = new URL(String(raw || "").trim());
+  if (!["http:", "https:"].includes(url.protocol)) throw new Error("Unsupported protocol");
+  url.hash = "";
+  if (url.toString().length > 2048) throw new Error("URL is too long");
+  return url;
+}
+
+async function buildLinkPreview(rawUrl) {
+  const inputUrl = normalizePreviewUrl(rawUrl);
+  await assertPublicPreviewUrl(inputUrl);
+  const cacheKey = inputUrl.toString();
+  const cached = LINK_PREVIEW_CACHE.get(cacheKey);
+  if (cached && Date.now() - cached.time < LINK_PREVIEW_TTL_MS) return cached.data;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const response = await fetch(cacheKey, {
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        "user-agent": "ATEN link preview bot/0.1",
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.5",
+      },
+    });
+    const contentType = response.headers.get("content-type") || "";
+    if (!response.ok || !contentType.toLowerCase().includes("text/html")) throw new Error("Not an HTML page");
+    const contentLength = Number(response.headers.get("content-length") || "0");
+    if (contentLength > LINK_PREVIEW_MAX_HTML) throw new Error("Page is too large");
+    const html = (await response.text()).slice(0, LINK_PREVIEW_MAX_HTML);
+    const finalUrl = new URL(response.url || cacheKey);
+    await assertPublicPreviewUrl(finalUrl);
+    const title =
+      metaContent(html, ["og:title", "twitter:title"]) ||
+      decodeHtmlEntities((html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || "");
+    const description = metaContent(html, ["og:description", "twitter:description", "description"]);
+    const imageRaw = metaContent(html, ["og:image:secure_url", "og:image", "twitter:image"]);
+    let image = "";
+    if (imageRaw) {
+      try {
+        const imageUrl = new URL(imageRaw, finalUrl);
+        if (["http:", "https:"].includes(imageUrl.protocol)) image = imageUrl.toString();
+      } catch (_) {}
+    }
+    const data = {
+      url: cacheKey,
+      finalUrl: finalUrl.toString(),
+      title: title || finalUrl.hostname,
+      description: description || "",
+      image,
+      siteName: metaContent(html, ["og:site_name"]) || finalUrl.hostname.replace(/^www\./, ""),
+    };
+    LINK_PREVIEW_CACHE.set(cacheKey, { time: Date.now(), data });
+    return data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 app.post("/api/register", registerLimiter, async (req, res) => {
   const { email, username, password } = req.body || {};
   if (!email || !username || !password) {
@@ -1660,6 +1779,15 @@ app.get("/api/push/status", authMiddleware, async (req, res) => {
   } catch (err) {
     console.error("GET /api/push/status:", err);
     res.status(500).json({ error: "Push status failed" });
+  }
+});
+
+app.get("/api/link-preview", authMiddleware, requireVerified, async (req, res) => {
+  try {
+    const preview = await buildLinkPreview(req.query.url);
+    res.json(preview);
+  } catch (err) {
+    res.status(400).json({ error: "Cannot build link preview" });
   }
 });
 

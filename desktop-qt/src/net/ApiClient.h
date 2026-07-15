@@ -30,6 +30,7 @@ public:
     void getAdminChats();
     void getDiscoverChats();
     void getReports();
+    void getLinkPreview(const QString &url);
     void getMessagesAll();
     void getMessages(const QString &chatId);
     void updateProfile(const QString &displayName, const QString &bio, const QString &publicId, const QString &avatarDataUrl);

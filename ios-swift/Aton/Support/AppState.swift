@@ -26,6 +26,7 @@ final class AppState: ObservableObject {
     private let api = APIClient.shared
     private let session = SessionStore()
     private var token: String?
+    private var refreshDataInFlight = false
 
     init() {
         let lang = UserDefaults.standard.string(forKey: "aton_lang").flatMap(AtonLanguage.init(rawValue:)) ?? .ru
@@ -129,8 +130,13 @@ final class AppState: ObservableObject {
 
     func refreshData(silent: Bool = false) async {
         guard let token else { return }
+        if refreshDataInFlight { return }
+        refreshDataInFlight = true
         if !silent { isLoading = true }
-        defer { if !silent { isLoading = false } }
+        defer {
+            refreshDataInFlight = false
+            if !silent { isLoading = false }
+        }
         async let chatsTask: [AtonChat] = api.request("/api/chats", token: token)
         async let messagesTask: [AtonMessage] = api.request("/api/messages/all", token: token)
         do {
@@ -342,6 +348,11 @@ final class AppState: ObservableObject {
     func rejectReport(_ id: String) async throws {
         guard let token else { return }
         let _: EmptyResponse = try await api.request("/api/reports/\(id)/reject", method: "POST", token: token)
+    }
+
+    func linkPreview(for url: URL) async -> AtonLinkPreview? {
+        guard let token else { return nil }
+        return try? await api.linkPreview(for: url, token: token)
     }
 }
 

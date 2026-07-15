@@ -63,6 +63,7 @@
 #include <QPropertyAnimation>
 #include <QProcessEnvironment>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QScrollBar>
 #include <QScrollArea>
 #include <QSettings>
@@ -127,6 +128,39 @@ bool chatRowLess(const ChatRow &a, const ChatRow &b)
     if (a.lastTime.isEmpty()) return false;
     if (b.lastTime.isEmpty()) return true;
     return a.lastTime > b.lastTime;
+}
+
+QString linkifiedMessageHtml(const QString &text)
+{
+    static const QRegularExpression urlRx(QStringLiteral("https?://[^\\s<>\"']+"));
+    QString html;
+    qsizetype last = 0;
+    const auto matches = urlRx.globalMatch(text);
+    QRegularExpressionMatchIterator it = matches;
+    while (it.hasNext()) {
+        const QRegularExpressionMatch match = it.next();
+        const qsizetype start = match.capturedStart();
+        const qsizetype end = match.capturedEnd();
+        if (start > last) html += text.mid(last, start - last).toHtmlEscaped();
+        QString url = match.captured(0);
+        while (!url.isEmpty() && QStringLiteral(").,;!?").contains(url.back())) url.chop(1);
+        const QString trailing = match.captured(0).mid(url.size()).toHtmlEscaped();
+        const QString safeUrl = url.toHtmlEscaped();
+        html += QStringLiteral("<a href=\"%1\">%1</a>%2").arg(safeUrl, trailing);
+        last = end;
+    }
+    if (last < text.size()) html += text.mid(last).toHtmlEscaped();
+    return html;
+}
+
+QString firstMessageUrl(const QString &text)
+{
+    static const QRegularExpression urlRx(QStringLiteral("https?://[^\\s<>\"']+"));
+    const auto match = urlRx.match(text);
+    if (!match.hasMatch()) return {};
+    QString url = match.captured(0);
+    while (!url.isEmpty() && QStringLiteral(").,;!?").contains(url.back())) url.chop(1);
+    return url;
 }
 
 enum class UiIcon {
@@ -1102,13 +1136,50 @@ QWidget *makeMessageRowWidget(
         auto *label = new QLabel(textValue, bubble);
         label->setObjectName("MessageText");
         label->setWordWrap(true);
-        label->setTextFormat(Qt::PlainText);
+        label->setText(linkifiedMessageHtml(textValue));
+        label->setTextFormat(Qt::RichText);
+        label->setOpenExternalLinks(true);
+        label->setTextInteractionFlags(Qt::TextBrowserInteraction);
         const auto textWidth = messageTextWidth(textValue, label->font());
         label->setFixedWidth(textWidth);
         const int actionWidth = isSelf ? 190 : 104;
         bubble->setFixedWidth(std::max(textWidth + 32, actionWidth));
         label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::MinimumExpanding);
         bubbleLayout->addWidget(label);
+        const QString previewUrl = firstMessageUrl(textValue);
+        if (apiClient && !previewUrl.isEmpty()) {
+            auto *previewCard = new QFrame(bubble);
+            previewCard->setObjectName("LinkPreviewCard");
+            auto *previewLayout = new QVBoxLayout(previewCard);
+            previewLayout->setContentsMargins(10, 8, 10, 8);
+            previewLayout->setSpacing(3);
+            const QString host = QUrl(previewUrl).host().remove(QRegularExpression(QStringLiteral("^www\\.")));
+            auto *siteLabel = new QLabel(host.isEmpty() ? QStringLiteral("Link") : host, previewCard);
+            siteLabel->setObjectName("LinkPreviewSite");
+            auto *titleLabel = new QLabel(previewUrl, previewCard);
+            titleLabel->setObjectName("LinkPreviewTitle");
+            titleLabel->setWordWrap(true);
+            auto *descLabel = new QLabel(QString(), previewCard);
+            descLabel->setObjectName("LinkPreviewDescription");
+            descLabel->setWordWrap(true);
+            previewLayout->addWidget(siteLabel);
+            previewLayout->addWidget(titleLabel);
+            previewLayout->addWidget(descLabel);
+            bubbleLayout->addWidget(previewCard);
+            const QString endpoint = QString("/api/link-preview?url=%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(previewUrl)));
+            QObject::connect(apiClient, &ApiClient::requestSucceeded, previewCard, [endpoint, siteLabel, titleLabel, descLabel](const QString &doneEndpoint, const QJsonDocument &body) {
+                if (doneEndpoint != endpoint || !body.isObject()) return;
+                const QJsonObject obj = body.object();
+                const QString site = obj.value("siteName").toString();
+                const QString title = obj.value("title").toString();
+                const QString description = obj.value("description").toString();
+                if (!site.isEmpty()) siteLabel->setText(site);
+                if (!title.isEmpty()) titleLabel->setText(title);
+                descLabel->setText(description);
+                descLabel->setVisible(!description.isEmpty());
+            });
+            apiClient->getLinkPreview(previewUrl);
+        }
     }
 
     const auto reactions = msg.value("reactions").toArray();
@@ -4737,6 +4808,27 @@ void MainWindow::applyDesktopTheme(bool dark)
             color: inherit;
             background: transparent;
         }
+        #LinkPreviewCard {
+            background: rgba(15, 23, 42, 0.16);
+            border: 1px solid rgba(96, 165, 250, 0.22);
+            border-radius: 12px;
+            margin-top: 6px;
+        }
+        #LinkPreviewSite {
+            color: #93c5fd;
+            font-size: 12px;
+            font-weight: 700;
+            background: transparent;
+        }
+        #LinkPreviewTitle {
+            color: inherit;
+            font-weight: 700;
+            background: transparent;
+        }
+        #LinkPreviewDescription {
+            color: rgba(226, 232, 240, 0.76);
+            background: transparent;
+        }
         QPushButton#HeaderIconButton,
         QPushButton#PeerIconButton,
         QPushButton#RoundComposerButton,
@@ -4849,6 +4941,27 @@ void MainWindow::applyDesktopTheme(bool dark)
         #MessageBubbleSelf #MessageText,
         #VoiceMessageLabel {
             color: #e6eaf0;
+        }
+        #LinkPreviewCard {
+            background: rgba(148, 163, 184, 0.10);
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            border-radius: 12px;
+            margin-top: 6px;
+        }
+        #LinkPreviewSite {
+            color: #93c5fd;
+            font-size: 12px;
+            font-weight: 700;
+            background: transparent;
+        }
+        #LinkPreviewTitle {
+            color: #f2f6fc;
+            font-weight: 700;
+            background: transparent;
+        }
+        #LinkPreviewDescription {
+            color: rgba(230, 234, 240, 0.72);
+            background: transparent;
         }
         QPushButton#MessageActionButton,
         QPushButton#MessageDeleteButton,

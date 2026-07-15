@@ -72,6 +72,15 @@ struct AtonReport: Identifiable, Codable, Hashable {
     var message: AtonMessage?
 }
 
+struct AtonLinkPreview: Codable, Hashable {
+    var url: String
+    var finalUrl: String?
+    var title: String?
+    var description: String?
+    var image: String?
+    var siteName: String?
+}
+
 struct LoginResponse: Codable {
     let token: String
     let user: AtonUser

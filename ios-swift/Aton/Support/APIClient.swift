@@ -45,6 +45,26 @@ actor APIClient {
         if T.self == EmptyResponse.self { return EmptyResponse() as! T }
         return try decoder.decode(T.self, from: data)
     }
+
+    func linkPreview(for url: URL, token: String?) async throws -> AtonLinkPreview {
+        var components = URLComponents(url: baseURL.appendingPathComponent("api/link-preview"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "url", value: url.absoluteString)]
+        guard let previewURL = components?.url else { throw APIError.invalidResponse }
+        var request = URLRequest(url: previewURL)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token, !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        guard (200..<300).contains(http.statusCode) else {
+            let message = (try? decoder.decode(APIErrorMessage.self, from: data).error) ?? "РћС€РёР±РєР° СЃРµСЂРІРµСЂР°"
+            throw APIError.server(message, http.statusCode)
+        }
+        return try decoder.decode(AtonLinkPreview.self, from: data)
+    }
 }
 
 struct EmptyResponse: Codable {}

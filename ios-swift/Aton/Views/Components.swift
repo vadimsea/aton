@@ -151,6 +151,65 @@ struct DateSeparator: View {
     }
 }
 
+extension String {
+    var atonFirstURL: URL? {
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return nil }
+        let range = NSRange(startIndex..<endIndex, in: self)
+        return detector.firstMatch(in: self, options: [], range: range)?.url
+    }
+}
+
+struct MessageLinkPreviewCard: View {
+    @EnvironmentObject private var app: AppState
+    let url: URL
+    @State private var preview: AtonLinkPreview?
+
+    var body: some View {
+        Link(destination: url) {
+            HStack(spacing: 10) {
+                Rectangle()
+                    .fill(Color.blue.opacity(0.58))
+                    .frame(width: 4)
+                    .clipShape(Capsule())
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(preview?.siteName ?? url.host ?? "Link")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.blue)
+                    Text(preview?.title ?? url.absoluteString)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                    if let description = preview?.description, !description.isEmpty {
+                        Text(description)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                    if let image = preview?.image, let imageURL = URL(string: image) {
+                        AsyncImage(url: imageURL) { phase in
+                            if let image = phase.image {
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                            }
+                        }
+                        .frame(height: 96)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                }
+            }
+            .padding(10)
+            .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .task(id: url) {
+            if preview == nil {
+                preview = await app.linkPreview(for: url)
+            }
+        }
+    }
+}
+
 struct MessageBubble: View {
     @EnvironmentObject private var app: AppState
     let message: AtonMessage
@@ -183,6 +242,9 @@ struct MessageBubble: View {
                         .font(.body)
                         .foregroundStyle(.primary)
                         .textSelection(.enabled)
+                    if let url = message.preview.atonFirstURL {
+                        MessageLinkPreviewCard(url: url)
+                    }
                 }
                 HStack(spacing: 8) {
                     Text(message.time.bubbleTime)
