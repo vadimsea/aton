@@ -6,6 +6,7 @@ import UIKit
 final class AppState: ObservableObject {
     @Published var currentUser: AtonUser?
     @Published var chats: [AtonChat] = []
+    @Published var dialogs: [AtonChat] = []
     @Published var adminChats: [AtonChat] = []
     @Published var discoverChats: [AtonChat] = []
     @Published var messages: [AtonMessage] = []
@@ -38,7 +39,7 @@ final class AppState: ObservableObject {
     }
 
     var selectedChat: AtonChat? {
-        chats.first { $0.id == selectedChatId }
+        chats.first { $0.id == selectedChatId } ?? dialogs.first { $0.id == selectedChatId }
     }
 
     var canRegisterPushToken: Bool {
@@ -46,10 +47,23 @@ final class AppState: ObservableObject {
     }
 
     var orderedChats: [AtonChat] {
-        chats.sorted { a, b in
+        let fullById = Dictionary(uniqueKeysWithValues: chats.map { ($0.id, $0) })
+        let source = dialogs.isEmpty ? chats : dialogs.map { dialog -> AtonChat in
+            guard let full = fullById[dialog.id] else { return dialog }
+            var merged = dialog
+            merged.owner = full.owner
+            merged.ownerId = full.ownerId
+            merged.visibility = full.visibility
+            merged.description = full.description ?? merged.description
+            merged.members = full.members
+            merged.admins = full.admins
+            merged.verified = full.verified ?? merged.verified
+            return merged
+        }
+        return source.sorted { a, b in
             if a.id == "Akhenaten|golos_aton" || a.id.contains("golos_aton") { return true }
             if b.id == "Akhenaten|golos_aton" || b.id.contains("golos_aton") { return false }
-            return lastMessageDate(a.id) > lastMessageDate(b.id)
+            return chatListDate(a) > chatListDate(b)
         }
     }
 
@@ -76,6 +90,12 @@ final class AppState: ObservableObject {
 
     func lastMessageDate(_ chatId: String) -> Date {
         messages.filter { $0.chatId == chatId }.map(\.time).max() ?? .distantPast
+    }
+
+    func chatListDate(_ chat: AtonChat) -> Date {
+        let local = lastMessageDate(chat.id)
+        let remote = chat.lastTimeDate ?? .distantPast
+        return max(local, remote)
     }
 
     func bootstrap() async {
@@ -120,6 +140,7 @@ final class AppState: ObservableObject {
         session.clear()
         currentUser = nil
         chats = []
+        dialogs = []
         messages = []
         messagePaging = [:]
         selectedChatId = nil
@@ -159,7 +180,11 @@ final class AppState: ObservableObject {
             if !silent { isLoading = false }
         }
         do {
-            chats = try await api.request("/api/chats", token: token)
+            async let chatsRequest: [AtonChat] = api.request("/api/chats", token: token)
+            async let dialogsRequest: [AtonChat] = api.request("/api/dialogs", token: token)
+            let (nextChats, nextDialogs) = try await (chatsRequest, dialogsRequest)
+            chats = nextChats
+            dialogs = nextDialogs
             if selectedChatId == nil { selectedChatId = orderedChats.first?.id ?? chats.first?.id }
             if let selectedChatId {
                 if messagePaging[selectedChatId]?.initialLoaded == true {
@@ -336,6 +361,7 @@ final class AppState: ObservableObject {
             let chat: AtonChat = try await api.request("/api/chats", method: "POST", token: token, body: body)
             chats.append(chat)
             selectedChatId = chat.id
+            await refreshData(silent: true)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -356,6 +382,7 @@ final class AppState: ObservableObject {
             let response: JoinChatResponse = try await api.request("/api/chats/\(chat.id)/join", method: "POST", token: token)
             chats.removeAll { $0.id == response.chat.id }
             chats.append(response.chat)
+            dialogs.removeAll { $0.id == response.chat.id }
             discoverChats.removeAll { $0.id == response.chat.id }
             selectedChatId = response.chat.id
             await refreshData(silent: true)
@@ -369,6 +396,7 @@ final class AppState: ObservableObject {
         do {
             let _: EmptyResponse = try await api.request("/api/chats/\(chat.id)", method: "DELETE", token: token)
             chats.removeAll { $0.id == chat.id }
+            dialogs.removeAll { $0.id == chat.id }
             messages.removeAll { $0.chatId == chat.id }
             if selectedChatId == chat.id { selectedChatId = orderedChats.first?.id }
         } catch {

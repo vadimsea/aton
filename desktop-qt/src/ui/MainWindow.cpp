@@ -2972,7 +2972,9 @@ void MainWindow::renderDialogs(const QJsonDocument &body)
                 || dialog.value("peerUsername").toString().compare("golos_aton", Qt::CaseInsensitive) == 0,
             dialog.value("isSystem").toBool()
                 || dialog.value("peerUsername").toString().compare("golos_aton", Qt::CaseInsensitive) == 0,
-            m_unreadByChat.value(dialog.value("id").toString(), 0),
+            dialog.contains("unread")
+                ? dialog.value("unread").toInt()
+                : m_unreadByChat.value(dialog.value("id").toString(), 0),
         };
         if (row.id.isEmpty()) continue;
         if (row.peerUsername.isEmpty() && isDirectChatId(row.id)) {

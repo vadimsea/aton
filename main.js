@@ -2250,6 +2250,7 @@ function createApp() {
   gPeerAliasState.getUser = () => currentUser;
   let allUsers = [];
   let allChats = [];
+  let allDialogs = [];
   let discoverChats = [];
   let adminChats = [];
   let allMessages = [];
@@ -3589,6 +3590,7 @@ function createApp() {
       currentUser = null;
       allUsers = [];
       allChats = [];
+      allDialogs = [];
       discoverChats = [];
       allMessages = [];
       contacts = { friends: [], blocked: [], requestsIn: [], requestsOut: [] };
@@ -3701,6 +3703,19 @@ function createApp() {
         paintBootstrapSidebar();
       }
 
+      async function loadDialogsForBootstrap() {
+        try {
+          const v = await api("/api/dialogs");
+          if (version !== bootstrapVersion) return;
+          allDialogs = Array.isArray(v) ? v : [];
+        } catch (e) {
+          if (version !== bootstrapVersion) return;
+          if (e && e.status === 401) throw e;
+          throw e;
+        }
+        paintBootstrapSidebar();
+      }
+
       async function loadMessagesForBootstrap() {
         if (!currentChatId) return;
         await pullChatReceipts(currentChatId, { markRead: false });
@@ -3739,18 +3754,20 @@ function createApp() {
 
       const settled = await Promise.allSettled([
         loadChatsForBootstrap(),
+        loadDialogsForBootstrap(),
         loadMessagesForBootstrap(),
         loadDiscoverForBootstrap(),
       ]);
       if (version !== bootstrapVersion) return;
 
       const chatsRes = settled[0];
-      const msgRes = settled[1];
+      const dialogsRes = settled[1];
+      const msgRes = settled[2];
 
-      if (chatsRes.status === "rejected" && msgRes.status === "rejected") {
+      if (chatsRes.status === "rejected" && dialogsRes.status === "rejected" && msgRes.status === "rejected") {
         throw chatsRes.reason;
       }
-      if (chatsRes.status === "rejected" || msgRes.status === "rejected") {
+      if (chatsRes.status === "rejected" || dialogsRes.status === "rejected" || msgRes.status === "rejected") {
         sessionBootstrapNeedsRetry = true;
       } else {
         sessionBootstrapNeedsRetry = false;
@@ -3778,6 +3795,7 @@ function createApp() {
           currentUser = null;
           allUsers = [];
           allChats = [];
+          allDialogs = [];
           discoverChats = [];
           allMessages = [];
           contacts = { friends: [], blocked: [], requestsIn: [], requestsOut: [] };
@@ -3804,6 +3822,7 @@ function createApp() {
           currentUser.isSuperAdmin = resolveIsSuperAdmin(currentUser);
           allUsers = [];
           allChats = [];
+          allDialogs = [];
           discoverChats = [];
           allMessages = [];
           contacts = { friends: [], blocked: [], requestsIn: [], requestsOut: [] };
@@ -4031,6 +4050,7 @@ function createApp() {
     currentUser = null;
     allUsers = [];
     allChats = [];
+    allDialogs = [];
     discoverChats = [];
     allMessages = [];
     contacts = { friends: [], blocked: [], requestsIn: [], requestsOut: [] };
@@ -4466,6 +4486,49 @@ function createApp() {
 
     const pins = getPinnedChats(current.username);
     const reads = getChatReads(current.username);
+    const dialogsById = new Map(
+      (Array.isArray(allDialogs) ? allDialogs : [])
+        .filter((d) => d && d.id)
+        .map((d) => [String(d.id), d])
+    );
+    const dialogForChatId = (chatId) => dialogsById.get(String(chatId || "")) || null;
+    const newestLocalMessageForChat = (chatId, messages) => {
+      const rows = (Array.isArray(messages) ? messages : [])
+        .filter((m) => messageBelongsToOpenChat(m, chatId))
+        .sort((a, b) => new Date(a.time) - new Date(b.time));
+      return { rows, last: rows[rows.length - 1] || null };
+    };
+    const localMessageIsNewer = (lastMsg, dialog) => {
+      if (!lastMsg || !lastMsg.time) return false;
+      if (!dialog || !dialog.lastTime) return true;
+      const localMs = new Date(lastMsg.time).getTime();
+      const dialogMs = new Date(dialog.lastTime).getTime();
+      if (Number.isNaN(localMs)) return false;
+      if (Number.isNaN(dialogMs)) return true;
+      return localMs >= dialogMs;
+    };
+    const chatListPreviewText = (dialog, lastMsg) => {
+      if (localMessageIsNewer(lastMsg, dialog)) return buildLastMessagePreviewForChatList(lastMsg);
+      const preview = dialog && typeof dialog.preview === "string" ? dialog.preview.trim() : "";
+      if (preview) return chatListPreviewWords(preview, 8);
+      return lastMsg ? buildLastMessagePreviewForChatList(lastMsg) : t("РќРµС‚ СЃРѕРѕР±С‰РµРЅРёР№");
+    };
+    const chatListTimeText = (dialog, lastMsg) => {
+      const iso = localMessageIsNewer(lastMsg, dialog) ? lastMsg?.time : dialog?.lastTime || lastMsg?.time;
+      return iso ? formatChatListMessageTime(iso) : "";
+    };
+    const chatListUnreadCount = (dialog, localRows, readIso, me) => {
+      const localUnread = countUnreadInbound(localRows || [], readIso, me);
+      const serverUnread = Number(dialog && dialog.unread) || 0;
+      if (readIso && dialog && dialog.lastTime) {
+        const readMs = new Date(readIso).getTime();
+        const lastMs = new Date(dialog.lastTime).getTime();
+        if (!Number.isNaN(readMs) && !Number.isNaN(lastMs) && readMs >= lastMs) {
+          return localUnread;
+        }
+      }
+      return Math.max(localUnread, serverUnread);
+    };
 
     // Показываем группы и каналы. Старые чаты без type тоже считаем группой.
     const chats = allChats.filter(
@@ -4495,6 +4558,11 @@ function createApp() {
       }
     });
     const privateChatIds = new Set(privateFromMessages);
+    for (const dialog of dialogsById.values()) {
+      if (dialog && dialog.type === "private" && isPrivateDirectChat(dialog.id)) {
+        privateChatIds.add(dialog.id);
+      }
+    }
     const golosDmId = chatIdForUsers(current.username, GOLOS_ATON_USERNAME);
     privateChatIds.add(golosDmId);
 
@@ -4524,8 +4592,16 @@ function createApp() {
       const bPinned = pins.has(b.id);
       if (aPinned && !bPinned) return -1;
       if (!aPinned && bPinned) return 1;
-      const ta = lastActivityAtForGroupChatId(a.id, allMessages);
-      const tb = lastActivityAtForGroupChatId(b.id, allMessages);
+      const da = dialogForChatId(a.id);
+      const db = dialogForChatId(b.id);
+      const ta = Math.max(
+        lastActivityAtForGroupChatId(a.id, allMessages),
+        da && da.lastTime ? new Date(da.lastTime).getTime() || 0 : 0
+      );
+      const tb = Math.max(
+        lastActivityAtForGroupChatId(b.id, allMessages),
+        db && db.lastTime ? new Date(db.lastTime).getTime() || 0 : 0
+      );
       if (tb !== ta) return tb - ta;
       return (a.title || "").localeCompare(b.title || "");
     });
@@ -4539,12 +4615,10 @@ function createApp() {
       const peer = a === current.username ? b : a;
       const isGolos = peer === GOLOS_ATON_USERNAME;
       const peerUser = userByUsername(peer);
-      const title = displayNameForPeer(current.username, peer, peerUser);
-      const chatMessages = allMessages
-        .filter((m) => messageBelongsToDmId(m, dmId))
-        .sort((a, b) => new Date(a.time) - new Date(b.time));
-      const lastMsg = chatMessages[chatMessages.length - 1];
-      const unread = countUnreadInbound(chatMessages, reads[dmId], current.username);
+      const dialog = dialogForChatId(dmId);
+      const title = dialog?.title || displayNameForPeer(current.username, peer, peerUser);
+      const { rows: chatMessages, last: lastMsg } = newestLocalMessageForChat(dmId, allMessages);
+      const unread = chatListUnreadCount(dialog, chatMessages, reads[dmId], current.username);
       privateUnreadTotal += unread;
       const pinned = pins.has(dmId);
       const pMuted = isChatNotifyMuted(current.username, dmId);
@@ -4566,9 +4640,9 @@ function createApp() {
         avatar.appendChild(img);
       } else if (isGolos) {
         avatar.textContent = "☀";
-      } else if (peerUser?.avatarDataUrl) {
+      } else if (peerUser?.avatarDataUrl || dialog?.avatarDataUrl || dialog?.peerAvatarDataUrl) {
         const img = document.createElement("img");
-        img.src = peerUser.avatarDataUrl;
+        img.src = peerUser?.avatarDataUrl || dialog?.avatarDataUrl || dialog?.peerAvatarDataUrl;
         avatar.appendChild(img);
       } else {
         avatar.textContent = (title || peer).slice(0, 1).toUpperCase();
@@ -4603,8 +4677,8 @@ function createApp() {
       }
       const previewEl = document.createElement("div");
       previewEl.className = "aton-chat-item-subtitle aton-chat-item-preview";
-      previewEl.textContent = lastMsg
-        ? buildLastMessagePreviewForChatList(lastMsg)
+      previewEl.textContent = chatListPreviewText(dialog, lastMsg)
+        ? chatListPreviewText(dialog, lastMsg)
         : t("Нет сообщений");
       main.appendChild(titleEl);
       if (isGolos) {
@@ -4619,7 +4693,7 @@ function createApp() {
       metaWrap.className = "aton-chat-meta";
       const timeEl = document.createElement("div");
       timeEl.className = "aton-chat-time";
-      timeEl.textContent = lastMsg ? formatChatListMessageTime(lastMsg.time) : "";
+      timeEl.textContent = chatListTimeText(dialog, lastMsg);
       metaWrap.appendChild(timeEl);
       if (unread) {
         const badge = document.createElement("div");
@@ -4650,15 +4724,9 @@ function createApp() {
 
     // Считаем непрочитанные для групп и приватных чатов для иконок в топбаре
     sortedChats.forEach((chatMeta) => {
-      const chatMessages = allMessages
-        .filter((m) => m.chatId === chatMeta.id)
-        .sort((a, b) => new Date(a.time) - new Date(b.time));
-      const lastMsg = chatMessages[chatMessages.length - 1];
-      const unread = countUnreadInbound(
-        chatMessages,
-        reads[chatMeta.id],
-        current.username
-      );
+      const dialog = dialogForChatId(chatMeta.id);
+      const { rows: chatMessages, last: lastMsg } = newestLocalMessageForChat(chatMeta.id, allMessages);
+      const unread = chatListUnreadCount(dialog, chatMessages, reads[chatMeta.id], current.username);
       const pinned = pins.has(chatMeta.id);
       groupUnreadTotal += unread;
       if (chatFilter === "private") {
@@ -4729,8 +4797,8 @@ function createApp() {
       subtitleEl.textContent = `${chatTypeLabel} • ${t("создал")} ${chatMeta.owner}`;
       const previewEl = document.createElement("div");
       previewEl.className = "aton-chat-item-subtitle aton-chat-item-preview";
-      previewEl.textContent = lastMsg
-        ? buildLastMessagePreviewForChatList(lastMsg)
+      previewEl.textContent = chatListPreviewText(dialog, lastMsg)
+        ? chatListPreviewText(dialog, lastMsg)
         : "Нет сообщений";
       main.appendChild(titleEl);
       main.appendChild(subtitleEl);
@@ -4740,7 +4808,7 @@ function createApp() {
       metaWrap.className = "aton-chat-meta";
       const timeEl = document.createElement("div");
       timeEl.className = "aton-chat-time";
-      timeEl.textContent = lastMsg ? formatChatListMessageTime(lastMsg.time) : "";
+      timeEl.textContent = chatListTimeText(dialog, lastMsg);
       metaWrap.appendChild(timeEl);
       if (unread) {
         const badge = document.createElement("div");

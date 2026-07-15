@@ -28,6 +28,9 @@ struct AtonChat: Identifiable, Codable, Hashable {
     var peerUsername: String?
     var peerDisplayName: String?
     var peerAvatarDataUrl: String?
+    var preview: String?
+    var lastTime: String?
+    var unread: Int?
     var createdAt: Date?
     var members: [String]?
     var admins: [String]?
@@ -122,5 +125,13 @@ enum AtonTheme: String, CaseIterable, Identifiable {
         case .light: return .light
         case .dark: return .dark
         }
+    }
+}
+
+extension AtonChat {
+    var lastTimeDate: Date? {
+        guard let lastTime, !lastTime.isEmpty else { return nil }
+        if let date = ISO8601DateFormatter.aton.date(from: lastTime) { return date }
+        return ISO8601DateFormatter().date(from: lastTime)
     }
 }

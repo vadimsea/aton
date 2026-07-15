@@ -231,16 +231,27 @@ struct ChatRow: View {
                             .font(.caption)
                     }
                     Spacer()
-                    if let date = lastMessage?.time {
+                    if let date = displayDate {
                         Text(date.chatListTime)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
-                Text(lastMessage?.preview ?? "Нет сообщений")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                HStack(spacing: 8) {
+                    Text(displayPreview)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 6)
+                    if let unread = chat.unread, unread > 0 {
+                        Text("\(min(unread, 99))")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(Color.red))
+                    }
+                }
             }
         }
         .padding(.vertical, 7)
@@ -249,5 +260,22 @@ struct ChatRow: View {
     private var title: String {
         if chat.id.contains("golos_aton") { return "Голос Атона" }
         return chat.peerDisplayName ?? chat.title ?? chat.description ?? chat.id
+    }
+}
+
+private extension ChatRow {
+    var displayDate: Date? {
+        let remote = chat.lastTimeDate
+        guard let lastMessage else { return remote }
+        guard let remote else { return lastMessage.time }
+        return lastMessage.time >= remote ? lastMessage.time : remote
+    }
+
+    var displayPreview: String {
+        if let lastMessage, lastMessage.time >= (chat.lastTimeDate ?? .distantPast) {
+            return lastMessage.preview
+        }
+        let text = chat.preview?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return text.isEmpty ? "Нет сообщений" : text
     }
 }

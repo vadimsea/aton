@@ -2700,6 +2700,28 @@ app.get("/api/dialogs", authMiddleware, requireVerified, async (req, res) => {
       take: 5000,
       select: MESSAGE_BOOTSTRAP_SELECT,
     });
+    const unreadByChatId = new Map();
+    const unreadRows = await prisma.message.findMany({
+      where: {
+        recipientUsername: username,
+        senderUsername: { not: username },
+        status: { not: "read" },
+      },
+      select: {
+        chatId: true,
+        senderUsername: true,
+        recipientUsername: true,
+      },
+    });
+    for (const raw of unreadRows) {
+      let chatId = raw.chatId;
+      if (!chatId && raw.senderUsername && raw.recipientUsername) {
+        chatId = dmChatIdForUsernames(raw.senderUsername, raw.recipientUsername);
+      }
+      if (chatId && isDirectMessageChatId(chatId)) {
+        unreadByChatId.set(chatId, (unreadByChatId.get(chatId) || 0) + 1);
+      }
+    }
 
     const peerNames = new Set();
     for (const raw of messageRows) {
@@ -2723,7 +2745,6 @@ app.get("/api/dialogs", authMiddleware, requireVerified, async (req, res) => {
       let chatId = msg.chatId;
       if (!chatId && msg.from && msg.to) chatId = dmChatIdForUsernames(msg.from, msg.to);
       if (!chatId || chatId === "global") continue;
-
       let row = rowsById.get(chatId);
       if (!row && isDirectMessageChatId(chatId)) {
         const peer = dmPeerFromChatId(chatId, username) || chatId.split("|").find((part) => part !== username) || chatId;
@@ -2760,6 +2781,10 @@ app.get("/api/dialogs", authMiddleware, requireVerified, async (req, res) => {
         row.lastTime = lastTime;
       }
       rowsById.set(chatId, row);
+    }
+
+    for (const row of rowsById.values()) {
+      row.unread = unreadByChatId.get(row.id) || 0;
     }
 
     const dialogs = [...rowsById.values()].sort((a, b) => {
