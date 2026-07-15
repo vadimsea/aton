@@ -163,18 +163,22 @@ struct MessageLinkPreviewCard: View {
     @EnvironmentObject private var app: AppState
     let url: URL
     @State private var preview: AtonLinkPreview?
+    
+    private var isVideoPreview: Bool {
+        preview?.type == "video" || preview?.provider == "youtube"
+    }
 
     var body: some View {
         Link(destination: url) {
             HStack(spacing: 10) {
                 Rectangle()
-                    .fill(Color.blue.opacity(0.58))
+                    .fill((preview?.provider == "youtube" ? Color.red : Color.blue).opacity(0.62))
                     .frame(width: 4)
                     .clipShape(Capsule())
                 VStack(alignment: .leading, spacing: 4) {
                     Text(preview?.siteName ?? url.host ?? "Link")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(preview?.provider == "youtube" ? .red : .blue)
                     Text(preview?.title ?? url.absoluteString)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
@@ -186,14 +190,28 @@ struct MessageLinkPreviewCard: View {
                             .lineLimit(2)
                     }
                     if let image = preview?.image, let imageURL = URL(string: image) {
-                        AsyncImage(url: imageURL) { phase in
-                            if let image = phase.image {
-                                image
-                                    .resizable()
-                                    .scaledToFill()
+                        ZStack {
+                            AsyncImage(url: imageURL) { phase in
+                                if let image = phase.image {
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                } else {
+                                    Color.primary.opacity(0.08)
+                                }
+                            }
+                            if isVideoPreview {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(Color.red.opacity(0.94))
+                                    .frame(width: 52, height: 36)
+                                    .shadow(color: .black.opacity(0.22), radius: 12, x: 0, y: 6)
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .offset(x: 1)
                             }
                         }
-                        .frame(height: 96)
+                        .frame(height: 118)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                 }

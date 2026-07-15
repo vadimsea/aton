@@ -1163,21 +1163,42 @@ QWidget *makeMessageRowWidget(
             auto *descLabel = new QLabel(QString(), previewCard);
             descLabel->setObjectName("LinkPreviewDescription");
             descLabel->setWordWrap(true);
+            auto *imageLabel = new QLabel(previewCard);
+            imageLabel->setObjectName("LinkPreviewImage");
+            imageLabel->setFixedHeight(128);
+            imageLabel->setMinimumWidth(260);
+            imageLabel->setScaledContents(true);
+            imageLabel->setVisible(false);
             previewLayout->addWidget(siteLabel);
             previewLayout->addWidget(titleLabel);
             previewLayout->addWidget(descLabel);
+            previewLayout->addWidget(imageLabel);
             bubbleLayout->addWidget(previewCard);
             const QString endpoint = QString("/api/link-preview?url=%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(previewUrl)));
-            QObject::connect(apiClient, &ApiClient::requestSucceeded, previewCard, [endpoint, siteLabel, titleLabel, descLabel](const QString &doneEndpoint, const QJsonDocument &body) {
+            QObject::connect(apiClient, &ApiClient::requestSucceeded, previewCard, [endpoint, siteLabel, titleLabel, descLabel, imageLabel, previewCard](const QString &doneEndpoint, const QJsonDocument &body) {
                 if (doneEndpoint != endpoint || !body.isObject()) return;
                 const QJsonObject obj = body.object();
                 const QString site = obj.value("siteName").toString();
                 const QString title = obj.value("title").toString();
                 const QString description = obj.value("description").toString();
+                const QString imageUrl = obj.value("image").toString();
                 if (!site.isEmpty()) siteLabel->setText(site);
                 if (!title.isEmpty()) titleLabel->setText(title);
                 descLabel->setText(description);
                 descLabel->setVisible(!description.isEmpty());
+                if (!imageUrl.isEmpty()) {
+                    auto *manager = new QNetworkAccessManager(previewCard);
+                    auto *reply = manager->get(QNetworkRequest(QUrl(imageUrl)));
+                    QObject::connect(reply, &QNetworkReply::finished, imageLabel, [reply, imageLabel, manager]() {
+                        const QByteArray bytes = reply->readAll();
+                        reply->deleteLater();
+                        manager->deleteLater();
+                        QPixmap pixmap;
+                        if (!pixmap.loadFromData(bytes) || pixmap.isNull()) return;
+                        imageLabel->setPixmap(pixmap.scaled(imageLabel->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+                        imageLabel->setVisible(true);
+                    });
+                }
             });
             apiClient->getLinkPreview(previewUrl);
         }
@@ -4923,6 +4944,11 @@ void MainWindow::applyDesktopTheme(bool dark)
             color: rgba(226, 232, 240, 0.76);
             background: transparent;
         }
+        #LinkPreviewImage {
+            border-radius: 10px;
+            background: rgba(15, 23, 42, 0.22);
+            border: 1px solid rgba(96, 165, 250, 0.18);
+        }
         QPushButton#HeaderIconButton,
         QPushButton#PeerIconButton,
         QPushButton#RoundComposerButton,
@@ -5056,6 +5082,11 @@ void MainWindow::applyDesktopTheme(bool dark)
         #LinkPreviewDescription {
             color: rgba(230, 234, 240, 0.72);
             background: transparent;
+        }
+        #LinkPreviewImage {
+            border-radius: 10px;
+            background: rgba(15, 23, 42, 0.28);
+            border: 1px solid rgba(148, 163, 184, 0.18);
         }
         QPushButton#MessageActionButton,
         QPushButton#MessageDeleteButton,

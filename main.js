@@ -1238,13 +1238,24 @@ async function hydrateLinkPreviewCard(card, url) {
     if (site) site.textContent = preview.siteName || new URL(url).hostname.replace(/^www\./, "");
     if (title) title.textContent = preview.title || url;
     if (desc) desc.textContent = preview.description || preview.finalUrl || url;
+    if (preview.provider) card.dataset.provider = preview.provider;
+    if (preview.type) card.dataset.previewType = preview.type;
     if (preview.image && !card.querySelector(".aton-link-preview-image")) {
+      const media = document.createElement("div");
+      media.className = "aton-link-preview-media";
       const img = document.createElement("img");
       img.className = "aton-link-preview-image";
       img.loading = "lazy";
       img.referrerPolicy = "no-referrer";
       img.src = preview.image;
-      card.appendChild(img);
+      media.appendChild(img);
+      if (preview.type === "video" || preview.provider === "youtube") {
+        const play = document.createElement("span");
+        play.className = "aton-link-preview-play";
+        play.setAttribute("aria-hidden", "true");
+        media.appendChild(play);
+      }
+      card.appendChild(media);
     }
     card.classList.remove("aton-link-preview-card--loading");
   } catch (_) {
@@ -2548,7 +2559,7 @@ function createApp() {
     const key = String(chatId || "");
     let state = chatOlderState.get(key);
     if (!state) {
-      state = { hasMore: true, loading: false };
+      state = { hasMore: true, loading: false, initialLoading: false, initialLoaded: false };
       chatOlderState.set(key, state);
     }
     return state;
@@ -2641,6 +2652,12 @@ function createApp() {
     const pullPromise = (async () => {
       const token = chatId;
       receiptsInFlight = token;
+      const paging = chatPagingState(chatId);
+      const hadLoadedMessages = messagesForChatId(chatId).length > 0;
+      if (!paging.initialLoaded && !hadLoadedMessages) {
+        paging.initialLoading = true;
+        if (currentChatId === chatId) renderMessages({ preserveTop: true });
+      }
       try {
         const beforeIds = messagesForChatId(chatId).map((m) => String(m.id || "")).filter(Boolean).join("|");
         let paintedOpenChatFromList = false;
@@ -2651,7 +2668,9 @@ function createApp() {
         if (receiptsInFlight !== token) return;
         if (!Array.isArray(list)) return;
         allMessages = applyMessagesForChatInAll(allMessages, chatId, list);
-        chatPagingState(chatId).hasMore = list.length >= CHAT_PAGE_LIMIT;
+        paging.hasMore = list.length >= CHAT_PAGE_LIMIT;
+        paging.initialLoaded = true;
+        paging.initialLoading = false;
         if (markRead && currentChatId === chatId) {
           renderChatList();
           renderMessages({ deferIfVoice: true });
@@ -2691,6 +2710,10 @@ function createApp() {
       } catch (e) {
         console.warn("pullChatReceipts", e);
       } finally {
+        paging.initialLoading = false;
+        if (currentChatId === chatId && !messagesForChatId(chatId).length) {
+          renderMessages({ preserveTop: true });
+        }
         if (receiptsInFlight === token) receiptsInFlight = null;
         receiptPullsInFlight.delete(inflightKey);
       }
@@ -5289,6 +5312,34 @@ function createApp() {
     `;
   }
 
+  function renderMessagesLoadingState(container) {
+    const rows = [
+      { mine: false, wide: 62 },
+      { mine: false, wide: 46 },
+      { mine: true, wide: 54 },
+      { mine: false, wide: 70 },
+    ];
+    container.innerHTML = `
+      <div class="aton-message-skeleton" role="status" aria-live="polite" aria-label="${escHtml(t("Загружаем переписку…"))}">
+        <div class="aton-message-skeleton__chip">
+          <span class="aton-load-older__spinner" aria-hidden="true"></span>
+          <span>${escHtml(t("Загружаем переписку…"))}</span>
+        </div>
+        ${rows
+          .map(
+            (row) => `
+              <div class="aton-message-skeleton__row${row.mine ? " is-mine" : ""}">
+                <div class="aton-message-skeleton__bubble" style="--skeleton-width:${row.wide}%">
+                  <span></span><span></span><span></span>
+                </div>
+              </div>
+            `
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
   function renderJoinChatState(container, chatPreview) {
     const title = chatPreview?.title || t("Чат");
     const isVerified = Boolean(chatPreview?.verified);
@@ -5605,6 +5656,14 @@ function createApp() {
       return msg.chatId === currentChatId;
     });
 
+    const pagingState = chatPagingState(currentChatId);
+    if (!filtered.length && pagingState.initialLoading) {
+      renderMessagesLoadingState(messagesEl);
+      setComposeEnabled(false);
+      compose.style.display = "flex";
+      return;
+    }
+
     if (!filtered.length) {
       renderEmptyChatState(messagesEl);
       setComposeEnabled(canPostCurrentChat());
@@ -5612,7 +5671,6 @@ function createApp() {
       return;
     }
 
-    const pagingState = chatPagingState(currentChatId);
     if (pagingState.hasMore !== false) {
       const olderIndicator = document.createElement("div");
       olderIndicator.className = `aton-load-older${pagingState.loading ? " is-loading" : ""}`;

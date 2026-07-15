@@ -79,6 +79,8 @@ struct AtonLinkPreview: Codable, Hashable {
     var description: String?
     var image: String?
     var siteName: String?
+    var type: String?
+    var provider: String?
 }
 
 struct LoginResponse: Codable {

@@ -1400,12 +1400,73 @@ function normalizePreviewUrl(raw) {
   return url;
 }
 
+function youtubeVideoIdFromUrl(url) {
+  const host = url.hostname.toLowerCase().replace(/^www\./, "");
+  if (host === "youtu.be") {
+    const id = url.pathname.split("/").filter(Boolean)[0] || "";
+    return /^[a-zA-Z0-9_-]{6,20}$/.test(id) ? id : "";
+  }
+  if (!["youtube.com", "m.youtube.com", "music.youtube.com", "youtube-nocookie.com"].includes(host)) return "";
+  const directId = url.searchParams.get("v") || "";
+  if (/^[a-zA-Z0-9_-]{6,20}$/.test(directId)) return directId;
+  const parts = url.pathname.split("/").filter(Boolean);
+  const marker = parts.findIndex((part) => ["embed", "shorts", "live"].includes(part));
+  const id = marker >= 0 ? parts[marker + 1] || "" : "";
+  return /^[a-zA-Z0-9_-]{6,20}$/.test(id) ? id : "";
+}
+
+async function buildYouTubePreview(inputUrl, cacheKey, videoId) {
+  const oembedUrl = new URL("https://www.youtube.com/oembed");
+  oembedUrl.searchParams.set("url", inputUrl.toString());
+  oembedUrl.searchParams.set("format", "json");
+
+  let title = "";
+  let author = "";
+  let thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
+  try {
+    const response = await fetch(oembedUrl, {
+      signal: controller.signal,
+      headers: {
+        "user-agent": "ATEN link preview bot/0.1",
+        accept: "application/json",
+      },
+    });
+    if (response.ok) {
+      const body = await response.json();
+      title = String(body.title || "").trim();
+      author = String(body.author_name || "").trim();
+      thumbnail = String(body.thumbnail_url || thumbnail).trim();
+    }
+  } catch (_) {
+    // YouTube oEmbed can rate-limit bots; the deterministic thumbnail still gives a useful preview.
+  } finally {
+    clearTimeout(timer);
+  }
+
+  const data = {
+    url: cacheKey,
+    finalUrl: inputUrl.toString(),
+    title: title || "YouTube video",
+    description: author ? `Видео на YouTube · ${author}` : "Видео на YouTube",
+    image: thumbnail,
+    siteName: "YouTube",
+    type: "video",
+    provider: "youtube",
+  };
+  LINK_PREVIEW_CACHE.set(cacheKey, { time: Date.now(), data });
+  return data;
+}
+
 async function buildLinkPreview(rawUrl) {
   const inputUrl = normalizePreviewUrl(rawUrl);
   await assertPublicPreviewUrl(inputUrl);
   const cacheKey = inputUrl.toString();
   const cached = LINK_PREVIEW_CACHE.get(cacheKey);
   if (cached && Date.now() - cached.time < LINK_PREVIEW_TTL_MS) return cached.data;
+  const youtubeVideoId = youtubeVideoIdFromUrl(inputUrl);
+  if (youtubeVideoId) return buildYouTubePreview(inputUrl, cacheKey, youtubeVideoId);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 6000);
