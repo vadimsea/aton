@@ -24,7 +24,7 @@ struct AdminView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        if user.isVerified == true || user.verified == true {
+                        if user.isVerified == true {
                             Image(systemName: "checkmark.seal.fill").foregroundStyle(.blue)
                         } else {
                             Button("Вериф.") {

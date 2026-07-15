@@ -7250,7 +7250,8 @@ function createApp() {
           td5.style.padding = "6px";
           const fl = [];
           if (u.isSuperAdmin) fl.push("super");
-          if (u.verified || u.isVerified) fl.push("ok");
+          if (u.verified) fl.push("email");
+          if (u.isVerified) fl.push("profile");
           td5.textContent = fl.length ? fl.join(", ") : "—";
           const td6 = document.createElement("td");
           td6.style.cssText = "padding:6px;word-break:break-all;font-size:10px;opacity:0.85;";
@@ -7259,13 +7260,12 @@ function createApp() {
           const verifyBtn = document.createElement("button");
           verifyBtn.type = "button";
           verifyBtn.className = "aton-search-action";
-          const userVerified = Boolean(u.verified || u.isVerified);
+          const userVerified = Boolean(u.isVerified);
           verifyBtn.textContent = userVerified ? "Верифицирован" : "Верифицировать";
           verifyBtn.disabled = userVerified || !u.id;
           verifyBtn.addEventListener("click", async () => {
             try {
               await api(`/api/users/${encodeURIComponent(u.id)}/verify`, { method: "POST" });
-              u.verified = true;
               u.isVerified = true;
               renderRows(filterInput.value);
               showToast("Профиль верифицирован");

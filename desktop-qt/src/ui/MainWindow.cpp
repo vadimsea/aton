@@ -3277,7 +3277,7 @@ void MainWindow::showProfileDialog()
     auto *bio = new QTextEdit(m_currentUser.value("bio").toString(), &dialog);
     bio->setFixedHeight(86);
 
-    const auto verified = m_currentUser.value("isVerified").toBool(m_currentUser.value("verified").toBool());
+    const auto verified = m_currentUser.value("isVerified").toBool();
     auto *verifiedLabel = new QLabel(verified ? "Профиль верифицирован ✓" : "Профиль не верифицирован", &dialog);
     verifiedLabel->setObjectName("MutedText");
 
@@ -3480,7 +3480,8 @@ void MainWindow::showAdminUsersDialog(const QJsonDocument &body)
             const auto publicId = user.value("publicId").toString(username);
             const auto name = user.value("displayName").toString(username);
             const auto email = user.value("email").toString();
-            const bool verified = user.value("isVerified").toBool(user.value("verified").toBool());
+            const bool emailVerified = user.value("verified").toBool();
+            const bool verified = user.value("isVerified").toBool();
             const bool superAdmin = user.value("isSuperAdmin").toBool();
             const auto haystack = QString("%1 %2 %3 %4").arg(name, username, publicId, email).toLower();
             if (!needle.isEmpty() && !haystack.contains(needle)) continue;
@@ -3491,6 +3492,11 @@ void MainWindow::showAdminUsersDialog(const QJsonDocument &body)
             table->setItem(row, 1, new QTableWidgetItem(QString("@%1").arg(publicId)));
             table->setItem(row, 2, new QTableWidgetItem(email));
             table->setItem(row, 3, new QTableWidgetItem(superAdmin ? "superadmin" : (verified ? "verified" : "нет галочки")));
+            QStringList flags;
+            if (superAdmin) flags << "superadmin";
+            if (emailVerified) flags << "email";
+            if (verified) flags << "profile";
+            table->setItem(row, 3, new QTableWidgetItem(flags.isEmpty() ? QStringLiteral("нет галочки") : flags.join(", ")));
             table->setItem(row, 4, new QTableWidgetItem(formatDate(user.value("createdAt").toString())));
             table->setItem(row, 5, new QTableWidgetItem(formatDate(user.value("lastSeen").toString())));
 
@@ -3659,7 +3665,7 @@ void MainWindow::populateProfilePage()
     const auto publicId = m_currentUser.value("publicId").toString(m_currentUsername);
     const auto email = m_currentUser.value("email").toString();
     const auto bio = m_currentUser.value("bio").toString();
-    const auto verified = m_currentUser.value("isVerified").toBool(m_currentUser.value("verified").toBool());
+    const auto verified = m_currentUser.value("isVerified").toBool();
     m_profileAvatarDataUrl = m_currentUser.value("avatarDataUrl").toString();
 
     if (m_profileNameLabel) m_profileNameLabel->setText(name);

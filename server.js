@@ -2678,8 +2678,8 @@ app.get("/api/dialogs", authMiddleware, requireVerified, async (req, res) => {
           peerPublicId: peerUser.publicId || peer,
           peerAvatarDataUrl: peerUser.avatarDataUrl || "",
           avatarDataUrl: peerUser.avatarDataUrl || "",
-          peerVerified: Boolean(peerUser.isVerified || peerUser.verified),
-          verified: Boolean(peerUser.isVerified || peerUser.verified),
+          peerVerified: Boolean(peerUser.isVerified),
+          verified: Boolean(peerUser.isVerified),
           peerLastSeen: peerUser.lastSeen || null,
           isSystem: peer === GOLOS_ATON_USERNAME,
         };
@@ -2949,7 +2949,7 @@ function publicUserForReport(user) {
     publicId: user.publicId,
     displayName: user.displayName || user.username,
     avatarDataUrl: user.avatarDataUrl || null,
-    isVerified: Boolean(user.isVerified || user.verified),
+    isVerified: Boolean(user.isVerified),
     isSuperAdmin: Boolean(user.isSuperAdmin),
   };
 }

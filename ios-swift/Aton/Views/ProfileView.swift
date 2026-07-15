@@ -46,7 +46,7 @@ struct ProfileView: View {
                         .font(.system(size: 30, weight: .black, design: .rounded))
                     Text("@\(publicId.isEmpty ? app.currentUser?.username ?? "" : publicId)")
                         .foregroundStyle(.secondary)
-                    if app.currentUser?.isVerified == true || app.currentUser?.verified == true {
+                    if app.currentUser?.isVerified == true {
                         Label("Профиль верифицирован", systemImage: "checkmark.seal.fill")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(AtonPalette.blue)
