@@ -8,12 +8,22 @@ struct ChatView: View {
     @StateObject private var voiceRecorder = VoiceRecorder()
     @State private var draft = ""
     @State private var selectedPhoto: PhotosPickerItem?
+    @State private var lastBottomMessageId: String?
 
     var body: some View {
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 10) {
+                        if app.canLoadOlderMessages(chatId) {
+                            OlderMessagesIndicator(
+                                title: app.olderMessagesText(forLoading: app.isLoadingOlderMessages(chatId)),
+                                isLoading: app.isLoadingOlderMessages(chatId)
+                            )
+                            .onAppear {
+                                Task { await app.loadOlderMessages(chatId) }
+                            }
+                        }
                         ForEach(groupedMessages, id: \.id) { item in
                             switch item {
                             case .date(let date):
@@ -27,7 +37,9 @@ struct ChatView: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 14)
                 }
-                .onChange(of: app.messages.count) { _ in
+                .onChange(of: app.messages(for: chatId).last?.id) { id in
+                    guard let id, id != lastBottomMessageId else { return }
+                    lastBottomMessageId = id
                     if let last = app.messages(for: chatId).last {
                         withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                     }
@@ -72,7 +84,10 @@ struct ChatView: View {
                 Image(systemName: "ellipsis.circle")
             }
         }
-        .task { await app.refreshData() }
+        .task {
+            app.selectedChatId = chatId
+            await app.loadInitialMessagesIfNeeded(chatId)
+        }
         .onAppear {
             app.selectedChatId = chatId
         }
@@ -218,5 +233,37 @@ enum MessageListItem: Identifiable {
         case .date(let date): return "date-\(date.timeIntervalSince1970)"
         case .message(let message): return message.id
         }
+    }
+}
+
+private struct OlderMessagesIndicator: View {
+    let title: String
+    let isLoading: Bool
+
+    var body: some View {
+        HStack(spacing: 9) {
+            if isLoading {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(AtonPalette.blue)
+            } else {
+                Image(systemName: "arrow.up")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AtonPalette.blue)
+            }
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 8)
+        .background(.thinMaterial, in: Capsule())
+        .overlay(
+            Capsule().stroke(AtonPalette.blue.opacity(0.18), lineWidth: 1)
+        )
+        .padding(.top, 2)
+        .accessibilityLabel(title)
     }
 }

@@ -2479,24 +2479,54 @@ body {
 
 .aton-load-older {
   align-self: center;
-  margin: 8px 0 10px;
-  padding: 8px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin: 8px auto 12px;
+  padding: 8px 13px;
   border-radius: 999px;
-  border: 1px solid rgba(37, 99, 235, 0.22);
-  background: #eef4ff;
-  color: #2563eb;
-  font-weight: 700;
+  border: 1px solid color-mix(in srgb, var(--aton-accent, #2563eb) 22%, transparent);
+  background: color-mix(in srgb, var(--aton-panel, #ffffff) 86%, var(--aton-accent, #2563eb) 14%);
+  color: var(--aton-text-muted, #64748b);
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0;
+  line-height: 1.2;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--aton-shadow, rgba(15, 23, 42, 0.16)) 60%, transparent);
   cursor: pointer;
+  user-select: none;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
 }
 
 .aton-load-older:hover {
-  background: #dbeafe;
-  border-color: rgba(37, 99, 235, 0.36);
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--aton-accent, #2563eb) 34%, transparent);
+  color: var(--aton-text-main, #0f172a);
 }
 
-.aton-load-older:disabled {
+.aton-load-older__spinner {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--aton-accent, #2563eb) 20%, transparent);
+  border-top-color: var(--aton-accent, #2563eb);
+  opacity: 0.62;
+}
+
+.aton-load-older.is-loading {
+  color: var(--aton-text-main, #0f172a);
   cursor: default;
-  opacity: 0.65;
+}
+
+.aton-load-older.is-loading .aton-load-older__spinner {
+  opacity: 1;
+  animation: aton-spin 0.8s linear infinite;
+}
+
+@keyframes aton-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .aton-message-row {

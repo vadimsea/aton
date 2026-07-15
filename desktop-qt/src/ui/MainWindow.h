@@ -91,6 +91,7 @@ private:
     void setReplyToMessage(const QJsonObject &message);
     void clearReplyToMessage();
     void syncActiveChat();
+    void loadOlderMessagesForCurrentChat();
     void requestMessagesBootstrap();
     void markCurrentChatRead();
     void processMessageSnapshot(const QJsonArray &messages, bool allowAlerts);
@@ -188,6 +189,9 @@ private:
     QJsonArray m_users;
     QJsonArray m_discoverChats;
     QJsonArray m_allMessages;
+    QSet<QString> m_messagesHistoryComplete;
+    QSet<QString> m_messagesHistoryLoading;
+    QSet<QString> m_pendingOlderMessageRequests;
     QByteArray m_renderedDialogsFingerprint;
     QByteArray m_renderedMessagesFingerprint;
     QString m_renderedMessagesChatId;

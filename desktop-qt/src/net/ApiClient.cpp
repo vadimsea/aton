@@ -4,6 +4,7 @@
 #include <QJsonParseError>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <algorithm>
 #include <utility>
 
 #include "session/SessionStore.h"
@@ -109,10 +110,14 @@ void ApiClient::getMessagesAll()
     getJson("/api/messages/all");
 }
 
-void ApiClient::getMessages(const QString &chatId)
+void ApiClient::getMessages(const QString &chatId, int limit, const QString &before)
 {
     const auto encoded = QString::fromUtf8(QUrl::toPercentEncoding(chatId));
-    getJson(QString("/api/messages?chatId=%1").arg(encoded));
+    QString endpoint = QString("/api/messages?chatId=%1&limit=%2").arg(encoded).arg(std::max(1, limit));
+    if (!before.trimmed().isEmpty()) {
+        endpoint += QString("&before=%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(before.trimmed())));
+    }
+    getJson(endpoint);
 }
 
 void ApiClient::sendTextMessage(const QString &chatId, const QString &text, const QString &replyTo)

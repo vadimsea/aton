@@ -141,6 +141,11 @@ const I18N = {
   "Нет сообщений": { en: "No messages", de: "Keine Nachrichten" },
   "Загрузить старые сообщения": { en: "Load older messages", de: "Aeltere Nachrichten laden" },
   "Загрузка…": { en: "Loading...", de: "Wird geladen..." },
+  "Загружаем ранние сообщения…": { en: "Loading earlier messages...", de: "Fruehere Nachrichten werden geladen..." },
+  "Прокрутите выше, чтобы открыть ранние сообщения": {
+    en: "Scroll up to reveal earlier messages",
+    de: "Nach oben scrollen, um fruehere Nachrichten zu laden",
+  },
   "📷 Фото": { en: "📷 Photo", de: "📷 Foto" },
   "давно не был(а) в сети": { en: "last seen long ago", de: "lange nicht online" },
   "Статус скрыт": { en: "Status hidden", de: "Status verborgen" },
@@ -2258,7 +2263,7 @@ function createApp() {
   let pttDocEndHandler = null;
   let replyToMessage = null;
   const chatOlderState = new Map();
-  const CHAT_PAGE_LIMIT = 80;
+  const CHAT_PAGE_LIMIT = 20;
   let typingTimeoutId = null;
   /** Ожидаем столько ответов от @golos_aton (после наших исходящих) — для строки «думает…». */
   let golosPendingReplies = 0;
@@ -2568,6 +2573,9 @@ function createApp() {
     state.loading = true;
     const before = encodeURIComponent(oldest.time || oldest.createdAt || "");
     const previousHeight = messagesEl ? messagesEl.scrollHeight : 0;
+    if (currentChatId === chatId) {
+      renderMessages({ preserveTop: true });
+    }
     try {
       const older = await api(`/api/messages?chatId=${encodeURIComponent(chatId)}&before=${before}&limit=${CHAT_PAGE_LIMIT}`);
       if (!Array.isArray(older) || currentChatId !== chatId) return;
@@ -2585,8 +2593,14 @@ function createApp() {
       }
     } catch (e) {
       console.warn("loadOlderMessages", e);
+      if (currentChatId === chatId) {
+        renderMessages({ preserveTop: true });
+      }
     } finally {
       state.loading = false;
+      if (currentChatId === chatId) {
+        renderMessages({ preserveTop: true });
+      }
     }
   }
 
@@ -3665,31 +3679,9 @@ function createApp() {
       }
 
       async function loadMessagesForBootstrap() {
-        try {
-          const v = await api("/api/messages/all");
-          if (version !== bootstrapVersion) return;
-          const incoming = Array.isArray(v) ? v : [];
-          const prev = Array.isArray(allMessages) ? allMessages : [];
-          const byId = new Map();
-          for (const m of prev) {
-            if (m && m.id) byId.set(String(m.id), m);
-          }
-          for (const m of incoming) {
-            if (m && m.id) {
-              const id = String(m.id);
-              const prev = byId.get(id);
-              byId.set(id, prev ? mergeMessagePreserveMedia(m, prev) : m);
-            }
-          }
-          allMessages = [...byId.values()].sort(
-            (a, b) => new Date(a.time) - new Date(b.time)
-          );
-        } catch (e) {
-          if (version !== bootstrapVersion) return;
-          if (e && e.status === 401) throw e;
-          // Иначе при сбое API список диалогов «исчезал» — пользователь видел пустой сайдбар
-          throw e;
-        }
+        if (!currentChatId) return;
+        await pullChatReceipts(currentChatId, { markRead: false });
+        if (version !== bootstrapVersion) return;
         paintBootstrapAfterMessages();
       }
 
@@ -5622,15 +5614,18 @@ function createApp() {
 
     const pagingState = chatPagingState(currentChatId);
     if (pagingState.hasMore !== false) {
-      const olderButton = document.createElement("button");
-      olderButton.type = "button";
-      olderButton.className = "aton-load-older";
-      olderButton.textContent = pagingState.loading ? t("Загрузка…") : t("Загрузить старые сообщения");
-      olderButton.disabled = Boolean(pagingState.loading);
-      olderButton.addEventListener("click", () => {
+      const olderIndicator = document.createElement("div");
+      olderIndicator.className = `aton-load-older${pagingState.loading ? " is-loading" : ""}`;
+      olderIndicator.setAttribute("role", "status");
+      olderIndicator.setAttribute("aria-live", "polite");
+      olderIndicator.innerHTML = `
+        <span class="aton-load-older__spinner" aria-hidden="true"></span>
+        <span>${escHtml(pagingState.loading ? t("Загружаем ранние сообщения…") : t("Прокрутите выше, чтобы открыть ранние сообщения"))}</span>
+      `;
+      olderIndicator.addEventListener("click", () => {
         void loadOlderMessages(currentChatId);
       });
-      messagesEl.appendChild(olderButton);
+      messagesEl.appendChild(olderIndicator);
     }
 
     // Обновляем признак «прочитано до» для активного чата

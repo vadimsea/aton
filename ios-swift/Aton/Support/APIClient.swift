@@ -25,7 +25,7 @@ actor APIClient {
         token: String? = nil,
         body: Encodable? = nil
     ) async throws -> T {
-        var request = URLRequest(url: baseURL.appendingPathComponent(path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))))
+        var request = URLRequest(url: makeURL(path))
         request.httpMethod = method
         request.timeoutInterval = 45
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -44,6 +44,14 @@ actor APIClient {
         }
         if T.self == EmptyResponse.self { return EmptyResponse() as! T }
         return try decoder.decode(T.self, from: data)
+    }
+
+    private func makeURL(_ path: String) -> URL {
+        let normalized = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if normalized.contains("?"), let url = URL(string: normalized, relativeTo: baseURL)?.absoluteURL {
+            return url
+        }
+        return baseURL.appendingPathComponent(normalized)
     }
 
     func linkPreview(for url: URL, token: String?) async throws -> AtonLinkPreview {

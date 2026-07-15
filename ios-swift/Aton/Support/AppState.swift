@@ -22,11 +22,13 @@ final class AppState: ObservableObject {
             UserDefaults.standard.set(theme.rawValue, forKey: "aton_theme")
         }
     }
+    @Published private var messagePaging: [String: MessagePagingState] = [:]
 
     private let api = APIClient.shared
     private let session = SessionStore()
     private var token: String?
     private var refreshDataInFlight = false
+    private let messagePageLimit = 20
 
     init() {
         let lang = UserDefaults.standard.string(forKey: "aton_lang").flatMap(AtonLanguage.init(rawValue:)) ?? .ru
@@ -53,6 +55,23 @@ final class AppState: ObservableObject {
 
     func messages(for chatId: String) -> [AtonMessage] {
         messages.filter { $0.chatId == chatId }.sorted { $0.time < $1.time }
+    }
+
+    func isLoadingOlderMessages(_ chatId: String) -> Bool {
+        messagePaging[chatId]?.loadingOlder == true
+    }
+
+    func canLoadOlderMessages(_ chatId: String) -> Bool {
+        guard let state = messagePaging[chatId], state.initialLoaded else { return false }
+        return state.hasMore
+    }
+
+    func olderMessagesText(forLoading loading: Bool) -> String {
+        switch language {
+        case .ru: return loading ? "Загружаем ранние сообщения..." : "Прокрутите выше, чтобы открыть ранние сообщения"
+        case .de: return loading ? "Fruehere Nachrichten werden geladen..." : "Nach oben scrollen, um fruehere Nachrichten zu laden"
+        case .en: return loading ? "Loading earlier messages..." : "Scroll up to reveal earlier messages"
+        }
     }
 
     func lastMessageDate(_ chatId: String) -> Date {
@@ -84,6 +103,7 @@ final class AppState: ObservableObject {
             token = response.token
             session.saveToken(response.token)
             currentUser = response.user
+            messagePaging = [:]
             await refreshData()
             await PushManager.shared.requestPermissionIfUseful()
         } catch {
@@ -101,6 +121,7 @@ final class AppState: ObservableObject {
         currentUser = nil
         chats = []
         messages = []
+        messagePaging = [:]
         selectedChatId = nil
     }
 
@@ -137,15 +158,96 @@ final class AppState: ObservableObject {
             refreshDataInFlight = false
             if !silent { isLoading = false }
         }
-        async let chatsTask: [AtonChat] = api.request("/api/chats", token: token)
-        async let messagesTask: [AtonMessage] = api.request("/api/messages/all", token: token)
         do {
-            chats = try await chatsTask
-            messages = try await messagesTask
-            if selectedChatId == nil { selectedChatId = orderedChats.first?.id }
+            chats = try await api.request("/api/chats", token: token)
+            if selectedChatId == nil { selectedChatId = orderedChats.first?.id ?? chats.first?.id }
+            if let selectedChatId {
+                if messagePaging[selectedChatId]?.initialLoaded == true {
+                    await refreshLatestMessages(selectedChatId)
+                } else {
+                    await loadInitialMessagesIfNeeded(selectedChatId)
+                }
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    func loadInitialMessagesIfNeeded(_ chatId: String) async {
+        guard let token else { return }
+        if messagePaging[chatId]?.initialLoaded == true { return }
+        do {
+            let page: [AtonMessage] = try await api.request(messagesPath(chatId: chatId), token: token)
+            mergeMessages(page, replacingChat: chatId)
+            var state = messagePaging[chatId] ?? MessagePagingState()
+            state.initialLoaded = true
+            state.hasMore = page.count >= messagePageLimit
+            messagePaging[chatId] = state
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func refreshLatestMessages(_ chatId: String) async {
+        guard let token else { return }
+        do {
+            let page: [AtonMessage] = try await api.request(messagesPath(chatId: chatId), token: token)
+            mergeMessages(page)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func loadOlderMessages(_ chatId: String) async {
+        guard let token else { return }
+        var state = messagePaging[chatId] ?? MessagePagingState()
+        guard state.hasMore, !state.loadingOlder else { return }
+        guard let oldest = messages(for: chatId).first else {
+            state.hasMore = false
+            messagePaging[chatId] = state
+            return
+        }
+        state.loadingOlder = true
+        messagePaging[chatId] = state
+        do {
+            let page: [AtonMessage] = try await api.request(messagesPath(chatId: chatId, before: oldest.time), token: token)
+            mergeMessages(page)
+            state.loadingOlder = false
+            state.initialLoaded = true
+            state.hasMore = page.count >= messagePageLimit
+            messagePaging[chatId] = state
+        } catch {
+            state.loadingOlder = false
+            messagePaging[chatId] = state
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func messagesPath(chatId: String, before: Date? = nil) -> String {
+        var items = [
+            URLQueryItem(name: "chatId", value: chatId),
+            URLQueryItem(name: "limit", value: "\(messagePageLimit)")
+        ]
+        if let before {
+            items.append(URLQueryItem(name: "before", value: ISO8601DateFormatter.aton.string(from: before)))
+        }
+        var components = URLComponents()
+        components.path = "/api/messages"
+        components.queryItems = items
+        return components.string ?? "/api/messages"
+    }
+
+    private func mergeMessages(_ incoming: [AtonMessage], replacingChat chatId: String? = nil) {
+        var byId = Dictionary(uniqueKeysWithValues: messages.map { ($0.id, $0) })
+        if let chatId {
+            for message in messages where message.chatId == chatId {
+                byId.removeValue(forKey: message.id)
+            }
+        }
+        for message in incoming {
+            byId[message.id] = message
+        }
+        messages = byId.values.sorted { $0.time < $1.time }
     }
 
     func refreshLoop() async {
@@ -354,6 +456,12 @@ final class AppState: ObservableObject {
         guard let token else { return nil }
         return try? await api.linkPreview(for: url, token: token)
     }
+}
+
+private struct MessagePagingState {
+    var initialLoaded = false
+    var hasMore = true
+    var loadingOlder = false
 }
 
 struct MessageCreateBody: Encodable {

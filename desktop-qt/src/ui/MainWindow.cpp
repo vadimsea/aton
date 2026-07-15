@@ -82,6 +82,7 @@
 #include <QTextEdit>
 #include <QTimer>
 #include <QUrl>
+#include <QUrlQuery>
 #include <QUuid>
 #include <QVariantAnimation>
 #include <QVersionNumber>
@@ -2244,6 +2245,11 @@ QWidget *MainWindow::buildMessengerPage()
     m_messageList->setSpacing(0);
     m_messageList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_messageList->addItem("Выберите чат");
+    connect(m_messageList->verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int value) {
+        if (value <= 24) {
+            loadOlderMessagesForCurrentChat();
+        }
+    });
     contentLayout->addWidget(m_messageList, 1);
 
     auto *composer = new QWidget(content);
@@ -2591,9 +2597,54 @@ void MainWindow::wireApi()
         if (endpoint == "/api/messages/read") {
             return;
         }
-        if (endpoint.startsWith("/api/messages?chatId=")) {
-            const auto encodedChatId = endpoint.mid(QStringLiteral("/api/messages?chatId=").size());
-            renderMessages(body, QUrl::fromPercentEncoding(encodedChatId.toUtf8()));
+        if (endpoint.startsWith("/api/messages?")) {
+            const QUrl endpointUrl(QString("https://aton.local%1").arg(endpoint));
+            const QUrlQuery query(endpointUrl);
+            const auto chatId = query.queryItemValue("chatId", QUrl::FullyDecoded);
+            const bool olderPage = query.hasQueryItem("before") || m_pendingOlderMessageRequests.contains(chatId);
+            if (chatId.isEmpty()) return;
+
+            QMap<QString, QJsonObject> mergedById;
+            for (const auto &value : m_allMessages) {
+                const auto msg = value.toObject();
+                const auto id = msg.value("id").toString();
+                if (id.isEmpty()) continue;
+                if (messageChatId(msg) == chatId || olderPage) {
+                    mergedById.insert(id, msg);
+                }
+            }
+            const auto page = body.array();
+            for (const auto &value : page) {
+                const auto msg = value.toObject();
+                const auto id = msg.value("id").toString();
+                if (!id.isEmpty()) mergedById.insert(id, msg);
+            }
+            if (page.size() < 20) {
+                m_messagesHistoryComplete.insert(chatId);
+            }
+            if (olderPage) {
+                m_messagesHistoryLoading.remove(chatId);
+            }
+            QJsonArray nextAll;
+            for (const auto &value : m_allMessages) {
+                const auto msg = value.toObject();
+                if (messageChatId(msg) != chatId) nextAll.append(msg);
+            }
+            QVector<QJsonObject> chatMessageObjects;
+            for (const auto &msg : std::as_const(mergedById)) {
+                if (messageChatId(msg) == chatId) chatMessageObjects.append(msg);
+            }
+            std::sort(chatMessageObjects.begin(), chatMessageObjects.end(), [this](const QJsonObject &a, const QJsonObject &b) {
+                return messageTimeIso(a) < messageTimeIso(b);
+            });
+            QJsonArray chatMessages;
+            for (const auto &msg : std::as_const(chatMessageObjects)) chatMessages.append(msg);
+            for (const auto &value : chatMessages) nextAll.append(value);
+            m_allMessages = nextAll;
+            renderMessages(QJsonDocument(chatMessages), chatId);
+            if (olderPage) {
+                m_pendingOlderMessageRequests.remove(chatId);
+            }
             return;
         }
         if (endpoint == "/api/messages") {
@@ -2837,7 +2888,6 @@ void MainWindow::loadAuthenticatedData()
         m_apiClient->getUsers();
         if (isSuperAdmin()) m_apiClient->getAdminChats();
     });
-    QTimer::singleShot(12000, this, &MainWindow::requestMessagesBootstrap);
 }
 
 void MainWindow::renderChats(const QJsonDocument &body)
@@ -3115,8 +3165,9 @@ void MainWindow::renderMessages(const QJsonDocument &body, const QString &reques
     auto *scrollBar = m_messageList->verticalScrollBar();
     const int oldScrollValue = scrollBar ? scrollBar->value() : 0;
     const int oldScrollMaximum = scrollBar ? scrollBar->maximum() : 0;
+    const bool olderResponse = m_pendingOlderMessageRequests.contains(requestedChatId);
     const bool wasNearBottom = oldScrollMaximum - oldScrollValue <= 48;
-    const bool scrollToBottom = !sameChat || m_scrollToBottomOnNextMessages || wasNearBottom;
+    const bool scrollToBottom = !olderResponse && (!sameChat || m_scrollToBottomOnNextMessages || wasNearBottom);
 
     m_renderedMessagesChatId = requestedChatId;
     m_renderedMessagesFingerprint = fingerprint;
@@ -3129,8 +3180,17 @@ void MainWindow::renderMessages(const QJsonDocument &body, const QString &reques
         m_messageList->addItem(item);
         m_messageList->setUpdatesEnabled(true);
         refreshChatStatusText();
-        QTimer::singleShot(250, this, &MainWindow::requestMessagesBootstrap);
         return;
+    }
+    if (!m_messagesHistoryComplete.contains(requestedChatId)) {
+        auto *loaderItem = new QListWidgetItem(
+            m_messagesHistoryLoading.contains(requestedChatId)
+                ? "Загружаем ранние сообщения..."
+                : "Прокрутите выше, чтобы открыть ранние сообщения");
+        loaderItem->setFlags(Qt::NoItemFlags);
+        loaderItem->setTextAlignment(Qt::AlignCenter);
+        loaderItem->setSizeHint(QSize(900, 34));
+        m_messageList->addItem(loaderItem);
     }
     QString previousMessageDateKey;
     for (const auto &value : messages) {
@@ -3166,16 +3226,20 @@ void MainWindow::renderMessages(const QJsonDocument &body, const QString &reques
         m_messageList->setItemWidget(item, row);
     }
     m_messageList->setUpdatesEnabled(true);
-    QTimer::singleShot(0, this, [this, scrollToBottom, oldScrollValue]() {
+    QTimer::singleShot(0, this, [this, scrollToBottom, olderResponse, oldScrollValue, oldScrollMaximum]() {
         if (!m_messageList) return;
         if (scrollToBottom) {
             m_messageList->scrollToBottom();
+        } else if (olderResponse) {
+            if (auto *bar = m_messageList->verticalScrollBar()) {
+                const int delta = bar->maximum() - oldScrollMaximum;
+                bar->setValue(std::clamp(oldScrollValue + delta, 0, bar->maximum()));
+            }
         } else if (auto *bar = m_messageList->verticalScrollBar()) {
             bar->setValue(std::min(oldScrollValue, bar->maximum()));
         }
     });
     refreshChatStatusText();
-    QTimer::singleShot(250, this, &MainWindow::requestMessagesBootstrap);
     if (isActiveWindow() && !isMinimized()) {
         markCurrentChatRead();
     }
@@ -4625,6 +4689,30 @@ void MainWindow::syncActiveChat()
     if (!m_currentChatId.isEmpty() && (!m_profilePage || !m_profilePage->isVisible())) {
         m_apiClient->getMessages(m_currentChatId);
     }
+}
+
+void MainWindow::loadOlderMessagesForCurrentChat()
+{
+    if (!m_apiClient || m_currentChatId.isEmpty()) return;
+    if (m_messagesHistoryComplete.contains(m_currentChatId) || m_messagesHistoryLoading.contains(m_currentChatId)) return;
+
+    QString oldestIso;
+    for (const auto &value : m_allMessages) {
+        const auto msg = value.toObject();
+        if (messageChatId(msg) != m_currentChatId) continue;
+        const auto iso = messageTimeIso(msg);
+        if (iso.isEmpty()) continue;
+        if (oldestIso.isEmpty() || iso < oldestIso) oldestIso = iso;
+    }
+    if (oldestIso.isEmpty()) {
+        m_messagesHistoryComplete.insert(m_currentChatId);
+        return;
+    }
+
+    m_messagesHistoryLoading.insert(m_currentChatId);
+    m_pendingOlderMessageRequests.insert(m_currentChatId);
+    setStatusText("Загружаем ранние сообщения...");
+    m_apiClient->getMessages(m_currentChatId, 20, oldestIso);
 }
 
 void MainWindow::requestMessagesBootstrap()

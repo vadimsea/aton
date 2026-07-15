@@ -32,7 +32,7 @@ public:
     void getReports();
     void getLinkPreview(const QString &url);
     void getMessagesAll();
-    void getMessages(const QString &chatId);
+    void getMessages(const QString &chatId, int limit = 20, const QString &before = {});
     void updateProfile(const QString &displayName, const QString &bio, const QString &publicId, const QString &avatarDataUrl);
     void updatePeerAlias(const QString &peerUsername, const QString &alias);
     void contactAction(const QString &endpoint, const QString &username);
