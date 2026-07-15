@@ -47,7 +47,7 @@ final class AppState: ObservableObject {
     }
 
     var orderedChats: [AtonChat] {
-        let fullById = Dictionary(uniqueKeysWithValues: chats.map { ($0.id, $0) })
+        let fullById = Dictionary(chats.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let source = dialogs.isEmpty ? chats : dialogs.map { dialog -> AtonChat in
             guard let full = fullById[dialog.id] else { return dialog }
             var merged = dialog
