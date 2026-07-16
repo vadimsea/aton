@@ -759,6 +759,9 @@ int messageRowHeight(const QJsonObject &msg)
         const int explicitLines = std::max(1, static_cast<int>(text.count('\n') + 1));
         const int wrappedLines = std::max(1, static_cast<int>(text.simplified().size() / 34 + 1));
         height = 74 + std::max(explicitLines, wrappedLines) * 28;
+        if (!firstMessageUrl(text).isEmpty()) {
+            height += 220;
+        }
     }
     if (!msg.value("replyTo").toString().isEmpty()) height += 54;
     if (!msg.value("reactions").toArray().isEmpty()) height += 36;
