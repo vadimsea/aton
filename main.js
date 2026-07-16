@@ -1248,6 +1248,21 @@ async function hydrateLinkPreviewCard(card, url) {
       img.loading = "lazy";
       img.referrerPolicy = "no-referrer";
       img.src = preview.image;
+      if (preview.provider === "youtube") {
+        const videoId = preview.videoId || "";
+        let fallbackIndex = 0;
+        const fallbacks = videoId
+          ? [
+              `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+              `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+            ]
+          : [];
+        img.addEventListener("error", () => {
+          if (fallbackIndex >= fallbacks.length) return;
+          const nextSrc = fallbacks[fallbackIndex++];
+          if (img.src !== nextSrc) img.src = nextSrc;
+        });
+      }
       media.appendChild(img);
       if (preview.type === "video" || preview.provider === "youtube") {
         const play = document.createElement("span");

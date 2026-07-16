@@ -1454,6 +1454,7 @@ async function buildYouTubePreview(inputUrl, cacheKey, videoId) {
     siteName: "YouTube",
     type: "video",
     provider: "youtube",
+    videoId,
   };
   LINK_PREVIEW_CACHE.set(cacheKey, { time: Date.now(), data });
   return data;
