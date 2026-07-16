@@ -12,7 +12,7 @@ export async function groqVision({
   userText,
   imagePaths,
   imageLabels,
-  model = process.env.GROQ_VISION_MODEL || "meta-llama/llama-4-scout-17b-16e-instruct",
+  model = process.env.GROQ_VISION_MODEL || "qwen/qwen3.6-27b",
   maxTokens = 4000,
 }) {
   const paths = Array.isArray(imagePaths) ? imagePaths.filter(Boolean) : [];
@@ -48,7 +48,7 @@ async function groqVisionOnce({
   system,
   userText,
   imagePaths,
-  model = process.env.GROQ_VISION_MODEL || "meta-llama/llama-4-scout-17b-16e-instruct",
+  model = process.env.GROQ_VISION_MODEL || "qwen/qwen3.6-27b",
   maxTokens = 4000,
 }) {
   const fs = await import("fs");

@@ -10,7 +10,7 @@
  * Env:
  *   QA_API_BASE / QA_BASE     — API (по умолчанию https://aton-api.onrender.com)
  *   QA_FRONTEND_URL           — фронт (по умолчанию https://aten.vadzim.by)
- *   GROQ_VISION_MODEL         — модель Groq (по умолчанию meta-llama/llama-4-scout-17b-16e-instruct)
+ *   GROQ_VISION_MODEL         — модель Groq (по умолчанию qwen/qwen3.6-27b)
  */
 
 import { spawnSync } from "child_process";
@@ -31,7 +31,7 @@ const TOKEN = process.env.QA_BOT_TOKEN;
 const ADMIN = process.env.QA_ADMIN_USERNAME;
 const GROQ = process.env.GROQ_API_KEY;
 const GROQ_MODEL =
-  process.env.GROQ_VISION_MODEL || "meta-llama/llama-4-scout-17b-16e-instruct";
+  process.env.GROQ_VISION_MODEL || "qwen/qwen3.6-27b";
 
 function dmChatId(a, b) {
   return [a, b].sort().join("|");
