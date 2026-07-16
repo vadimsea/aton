@@ -73,7 +73,7 @@ try {
     }));
     if (errors.length) throw new Error(`${testCase.name}: page errors: ${errors.join("; ")}`);
     if (result.platformCards !== 3) throw new Error(`${testCase.name}: expected 3 platform cards`);
-    if (!result.windowsDownload?.includes("ATEN-Setup-0.1.3.exe")) {
+    if (!result.windowsDownload?.includes("ATEN-Setup-0.1.4.exe")) {
       throw new Error(`${testCase.name}: release manifest did not update download URL`);
     }
     if (result.horizontalOverflow) throw new Error(`${testCase.name}: horizontal overflow detected`);

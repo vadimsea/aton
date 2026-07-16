@@ -521,6 +521,6 @@ struct ProfileUpdateBody: Encodable {
 
 extension Bundle {
     var releaseVersion: String {
-        object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.3"
+        object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.4"
     }
 }
