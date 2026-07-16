@@ -23,12 +23,14 @@ final class AppState: ObservableObject {
             UserDefaults.standard.set(theme.rawValue, forKey: "aton_theme")
         }
     }
+    @Published var availableUpdate: AppUpdateInfo?
     @Published private var messagePaging: [String: MessagePagingState] = [:]
 
     private let api = APIClient.shared
     private let session = SessionStore()
     private var token: String?
     private var refreshDataInFlight = false
+    private var updateCheckInFlight = false
     private let messagePageLimit = 20
 
     init() {
@@ -100,10 +102,74 @@ final class AppState: ObservableObject {
 
     func bootstrap() async {
         token = session.readToken()
+        await checkForAppUpdate()
         guard token != nil else { return }
         await refreshMe()
         await refreshData()
         await PushManager.shared.requestPermissionIfUseful()
+    }
+
+    func checkForAppUpdate(force: Bool = false) async {
+        if updateCheckInFlight { return }
+        updateCheckInFlight = true
+        defer { updateCheckInFlight = false }
+
+        guard let url = URL(string: "https://vadzim.by/wp-content/uploads/aten/latest.json") else { return }
+        do {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            request.timeoutInterval = 20
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return }
+            let manifest = try JSONDecoder().decode(AppReleaseManifest.self, from: data)
+            let latest = manifest.version.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard isVersion(latest, newerThan: Bundle.main.releaseVersion) else { return }
+
+            let promptKey = "aton_update_prompt_\(latest)"
+            let lastPrompt = UserDefaults.standard.object(forKey: promptKey) as? Date
+            if !force, manifest.mandatory != true, let lastPrompt, Date().timeIntervalSince(lastPrompt) < 24 * 60 * 60 {
+                return
+            }
+            UserDefaults.standard.set(Date(), forKey: promptKey)
+
+            availableUpdate = AppUpdateInfo(
+                version: latest,
+                title: manifest.title.isEmpty ? "ATEN \(latest)" : manifest.title,
+                message: manifest.message.isEmpty ? localizedUpdateMessage() : manifest.message,
+                pageURL: URL(string: manifest.pageUrl) ?? URL(string: "https://vadzim.by/aten/")!,
+                mandatory: manifest.mandatory == true
+            )
+        } catch {
+            // Update checks must never block messenger startup.
+        }
+    }
+
+    func dismissUpdatePrompt() {
+        availableUpdate = nil
+    }
+
+    private func isVersion(_ candidate: String, newerThan current: String) -> Bool {
+        let next = candidate.split(separator: ".").map { Int($0) ?? 0 }
+        let installed = current.split(separator: ".").map { Int($0) ?? 0 }
+        let count = max(next.count, installed.count)
+        for index in 0..<count {
+            let a = index < next.count ? next[index] : 0
+            let b = index < installed.count ? installed[index] : 0
+            if a != b { return a > b }
+        }
+        return false
+    }
+
+    private func localizedUpdateMessage() -> String {
+        switch language {
+        case .ru:
+            return "Доступна новая версия ATEN. Обновитесь, чтобы получить последние исправления и улучшения стабильности."
+        case .de:
+            return "Eine neue ATEN-Version ist verfuegbar. Aktualisieren Sie die App, um die neuesten Verbesserungen zu erhalten."
+        case .en:
+            return "A new ATEN version is available. Update the app to get the latest fixes and stability improvements."
+        }
     }
 
     func login(email: String, password: String) async {
@@ -517,6 +583,31 @@ struct ProfileUpdateBody: Encodable {
     let bio: String
     let publicId: String
     let avatarDataUrl: String?
+}
+
+struct AppUpdateInfo: Identifiable {
+    var id: String { version }
+    let version: String
+    let title: String
+    let message: String
+    let pageURL: URL
+    let mandatory: Bool
+}
+
+private struct AppReleaseManifest: Decodable {
+    let version: String
+    let title: String
+    let message: String
+    let pageUrl: String
+    let mandatory: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case version
+        case title
+        case message
+        case pageUrl
+        case mandatory
+    }
 }
 
 extension Bundle {
