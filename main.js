@@ -3749,12 +3749,10 @@ function createApp() {
         paintBootstrapSidebar();
       }
 
-      await loadContactsForBootstrap();
-      if (version !== bootstrapVersion) return;
-
       const settled = await Promise.allSettled([
         loadChatsForBootstrap(),
         loadDialogsForBootstrap(),
+        loadContactsForBootstrap(),
         loadMessagesForBootstrap(),
         loadDiscoverForBootstrap(),
       ]);
@@ -3762,7 +3760,7 @@ function createApp() {
 
       const chatsRes = settled[0];
       const dialogsRes = settled[1];
-      const msgRes = settled[2];
+      const msgRes = settled[3];
 
       if (chatsRes.status === "rejected" && dialogsRes.status === "rejected" && msgRes.status === "rejected") {
         throw chatsRes.reason;

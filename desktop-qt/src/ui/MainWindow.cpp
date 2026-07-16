@@ -1185,10 +1185,10 @@ QWidget *makeMessageRowWidget(
             previewLayout->addWidget(descLabel);
             previewLayout->addWidget(imageLabel);
             bubbleLayout->addWidget(previewCard);
+            static QMap<QString, QJsonObject> linkPreviewCache;
+            static QSet<QString> linkPreviewPending;
             const QString endpoint = QString("/api/link-preview?url=%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(previewUrl)));
-            QObject::connect(apiClient, &ApiClient::requestSucceeded, previewCard, [endpoint, siteLabel, titleLabel, descLabel, imageLabel, previewCard](const QString &doneEndpoint, const QJsonDocument &body) {
-                if (doneEndpoint != endpoint || !body.isObject()) return;
-                const QJsonObject obj = body.object();
+            auto applyPreview = [siteLabel, titleLabel, descLabel, imageLabel, previewCard](const QJsonObject &obj) {
                 const QString site = obj.value("siteName").toString();
                 const QString title = obj.value("title").toString();
                 const QString description = obj.value("description").toString();
@@ -1210,8 +1210,25 @@ QWidget *makeMessageRowWidget(
                         imageLabel->setVisible(true);
                     });
                 }
-            });
-            apiClient->getLinkPreview(previewUrl);
+            };
+            if (linkPreviewCache.contains(previewUrl)) {
+                applyPreview(linkPreviewCache.value(previewUrl));
+            } else {
+                QObject::connect(apiClient, &ApiClient::requestSucceeded, previewCard, [endpoint, previewUrl, applyPreview](const QString &doneEndpoint, const QJsonDocument &body) {
+                    if (doneEndpoint != endpoint || !body.isObject()) return;
+                    const QJsonObject obj = body.object();
+                    linkPreviewCache.insert(previewUrl, obj);
+                    linkPreviewPending.remove(previewUrl);
+                    applyPreview(obj);
+                });
+                QObject::connect(apiClient, &ApiClient::requestFailed, previewCard, [endpoint, previewUrl](const QString &doneEndpoint, const QString &) {
+                    if (doneEndpoint == endpoint) linkPreviewPending.remove(previewUrl);
+                });
+                if (!linkPreviewPending.contains(previewUrl)) {
+                    linkPreviewPending.insert(previewUrl);
+                    apiClient->getLinkPreview(previewUrl);
+                }
+            }
         }
     }
 
@@ -2712,7 +2729,8 @@ void MainWindow::wireApi()
             m_apiClient->getDialogs();
             return;
         }
-        setStatusText(QString("Loaded %1").arg(endpoint));
+        if (endpoint.startsWith("/api/link-preview")) return;
+        refreshChatStatusText();
     });
 
     connect(m_apiClient, &ApiClient::requestFailed, this, [this](const QString &endpoint, const QString &message) {
