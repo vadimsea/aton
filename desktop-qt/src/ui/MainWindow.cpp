@@ -2737,6 +2737,15 @@ void MainWindow::wireApi()
     });
 
     connect(m_apiClient, &ApiClient::requestFailed, this, [this](const QString &endpoint, const QString &message) {
+        const auto readableMessage = [&message]() {
+            if (message.contains(QStringLiteral("Service Unavailable"), Qt::CaseInsensitive) ||
+                message.contains(QStringLiteral("server replied"), Qt::CaseInsensitive) ||
+                message.contains(QStringLiteral("Host not found"), Qt::CaseInsensitive) ||
+                message.contains(QStringLiteral("Connection closed"), Qt::CaseInsensitive)) {
+                return QStringLiteral("Сервер ATEN временно недоступен. Попробуйте позже.");
+            }
+            return message;
+        }();
         if (endpoint == "/api/messages/read") {
             refreshChatStatusText();
             return;
@@ -2753,7 +2762,7 @@ void MainWindow::wireApi()
         if (endpoint == "/api/messages/all") {
             m_messagesAllRequested = false;
             if (m_currentChatId.isEmpty()) {
-                setStatusText(QString("Не удалось загрузить сообщения: %1").arg(message));
+                setStatusText(QString("Не удалось загрузить сообщения: %1").arg(readableMessage));
             } else {
                 refreshChatStatusText();
             }
@@ -2772,10 +2781,10 @@ void MainWindow::wireApi()
             if (m_chatList && m_chatList->count() == 0) {
                 m_chatList->addItem("Не удалось загрузить диалоги");
             }
-            setStatusText(QString("Не удалось загрузить диалоги: %1").arg(message));
+            setStatusText(QString("Не удалось загрузить диалоги: %1").arg(readableMessage));
             return;
         }
-        setStatusText(QString("Ошибка %1: %2").arg(endpoint, message));
+        setStatusText(QString("Ошибка %1: %2").arg(endpoint, readableMessage));
     });
 
     connect(m_apiClient, &ApiClient::sessionExpired, this, [this]() {
