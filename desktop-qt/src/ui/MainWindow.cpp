@@ -1488,7 +1488,7 @@ MainWindow::MainWindow(ApiClient *apiClient, SessionStore *sessionStore, QWidget
             m_notifications->enqueueNotification(
                 QStringLiteral("Голос Атона"),
                 QStringLiteral("Тестовое уведомление с аватаркой отправителя"),
-                QStringLiteral("dm|Akhenaten|golos_aton"),
+                QStringLiteral("dm|user|golos_aton"),
                 avatar.isNull() ? QIcon() : QIcon(avatar));
         });
     }
@@ -1892,7 +1892,7 @@ QWidget *MainWindow::buildMessengerPage()
     auto *footerLayout = new QVBoxLayout(sidebarFooter);
     footerLayout->setContentsMargins(12, 10, 12, 0);
     footerLayout->setSpacing(8);
-    m_accountLabel = new QLabel("Akhenaten", sidebarFooter);
+    m_accountLabel = new QLabel("Пользователь", sidebarFooter);
     m_accountLabel->setObjectName("MutedText");
     auto *logoutButton = new QPushButton("Выйти", sidebarFooter);
     logoutButton->setObjectName("SidebarLogoutButton");
@@ -2082,7 +2082,7 @@ QWidget *MainWindow::buildMessengerPage()
     headerLayout->addWidget(m_reportsButton);
     headerLayout->addWidget(themeButton);
     headerLayout->addWidget(menuButton);
-    m_userPillButton = new QPushButton("Akhenaten", header);
+    m_userPillButton = new QPushButton("Профиль", header);
     m_userPillButton->setObjectName("UserPillButton");
     m_userPillButton->setCursor(Qt::PointingHandCursor);
     connect(m_userPillButton, &QPushButton::clicked, this, &MainWindow::showProfileDialog);
@@ -2174,15 +2174,16 @@ QWidget *MainWindow::buildMessengerPage()
     auto *heroCopyLayout = new QVBoxLayout(heroCopy);
     heroCopyLayout->setContentsMargins(0, 0, 0, 0);
     heroCopyLayout->setSpacing(6);
-    m_profileNameLabel = new QLabel("Akhenaten", heroCopy);
+    m_profileNameLabel = new QLabel("Пользователь", heroCopy);
     m_profileNameLabel->setObjectName("ProfileHeroName");
-    m_profilePublicIdLabel = new QLabel("@akhenaten", heroCopy);
+    m_profilePublicIdLabel = new QLabel("@username", heroCopy);
     m_profilePublicIdLabel->setObjectName("MutedText");
     m_profileBioLabel = new QLabel(heroCopy);
     m_profileBioLabel->setObjectName("ProfileHeroStatus");
     m_profileBioLabel->setWordWrap(true);
     m_profileVerifiedLabel = new QLabel("Профиль верифицирован ✓", heroCopy);
     m_profileVerifiedLabel->setObjectName("ProfileVerifiedPill");
+    m_profileVerifiedLabel->hide();
     m_profileAvatarButton = new QPushButton("Изменить фото", heroCopy);
     m_profileAvatarButton->setObjectName("SecondaryButton");
     connect(m_profileAvatarButton, &QPushButton::clicked, this, &MainWindow::selectProfileAvatar);
@@ -3805,6 +3806,7 @@ void MainWindow::populateProfilePage()
     }
     if (m_profileVerifiedLabel) {
         m_profileVerifiedLabel->setText(verified ? "Профиль верифицирован ✓" : "Профиль не верифицирован");
+        m_profileVerifiedLabel->show();
     }
     if (m_profileEmailInput) m_profileEmailInput->setText(email);
     if (m_profileNameInput) m_profileNameInput->setText(name);
