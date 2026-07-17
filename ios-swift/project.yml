@@ -3,6 +3,10 @@ options:
   bundleIdPrefix: by.vadzim
   deploymentTarget:
     iOS: "16.0"
+configs:
+  Debug: debug
+  Sideload: debug
+  Release: release
 settings:
   base:
     SWIFT_VERSION: "5.9"
