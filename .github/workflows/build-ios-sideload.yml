@@ -1,0 +1,81 @@
+name: Build iOS Sideload IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build unsigned IPA for Sideloadly
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: ios-swift
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show tool versions
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        run: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+
+      - name: Generate Xcode project
+        run: |
+          set -euo pipefail
+          xcodegen generate
+          test -d Aton.xcodeproj || {
+            echo "::error::Aton.xcodeproj was not generated"
+            exit 1
+          }
+
+      - name: Build unsigned app
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project Aton.xcodeproj \
+            -scheme Aton \
+            -configuration Sideload \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build
+
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          APP_PATH="$(find build/DerivedData/Build/Products -path '*/Sideload-iphoneos/*.app' -type d -maxdepth 4 -print -quit)"
+          if [[ -z "${APP_PATH}" ]]; then
+            echo "::error::Built .app was not found under build/DerivedData/Build/Products"
+            find build/DerivedData/Build/Products -maxdepth 4 -print || true
+            exit 1
+          fi
+
+          rm -rf build/sideload
+          mkdir -p build/sideload/Payload
+          cp -R "${APP_PATH}" build/sideload/Payload/Aton.app
+          (cd build/sideload && /usr/bin/zip -qry ../Aten-unsigned.ipa Payload)
+
+          test -s build/Aten-unsigned.ipa || {
+            echo "::error::Aten-unsigned.ipa was not created"
+            exit 1
+          }
+          ls -lh build/Aten-unsigned.ipa
+
+      - name: Upload unsigned IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aten-unsigned-ipa
+          path: ios-swift/build/Aten-unsigned.ipa
+          if-no-files-found: error

@@ -30,5 +30,12 @@ targets:
           APS_ENVIRONMENT: development
         Release:
           APS_ENVIRONMENT: production
+        Sideload:
+          INFOPLIST_FILE: Aton/Info-Sideload.plist
+          CODE_SIGN_ENTITLEMENTS: ""
+          CODE_SIGNING_ALLOWED: NO
+          CODE_SIGNING_REQUIRED: NO
+          CODE_SIGN_IDENTITY: ""
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: SIDELOAD
     scheme:
       testTargets: []

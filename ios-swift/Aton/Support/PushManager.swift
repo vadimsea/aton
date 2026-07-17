@@ -13,10 +13,14 @@ final class PushManager {
             if settings.authorizationStatus == .notDetermined {
                 let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
                 if granted {
+#if !SIDELOAD
                     UIApplication.shared.registerForRemoteNotifications()
+#endif
                 }
             } else if settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional {
+#if !SIDELOAD
                 UIApplication.shared.registerForRemoteNotifications()
+#endif
             }
         } catch {
             print("Push permission failed:", error.localizedDescription)
