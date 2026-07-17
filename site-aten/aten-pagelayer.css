@@ -80,6 +80,115 @@ body.page-id-1563 .p-aten002 {
   z-index: 2;
 }
 
+.aten-status {
+  position: relative;
+  padding: 18px 0;
+  background:
+    linear-gradient(90deg, rgba(7, 11, 20, 0.98), rgba(12, 22, 38, 0.98)),
+    repeating-linear-gradient(90deg, transparent 0 32px, rgba(246, 179, 56, 0.08) 33px 34px);
+  border-top: 1px solid rgba(246, 179, 56, 0.22);
+  border-bottom: 1px solid rgba(246, 179, 56, 0.32);
+}
+
+.aten-status::before {
+  content: "𓂀 𓇳 𓋹 𓆣 𓂀 𓇳 𓋹 𓆣";
+  position: absolute;
+  inset: auto 0 8px;
+  color: rgba(255, 224, 139, 0.18);
+  font-size: 18px;
+  text-align: center;
+  letter-spacing: 18px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.aten-status-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 18px;
+  align-items: center;
+  padding: 18px 22px;
+  border: 1px solid rgba(246, 179, 56, 0.42);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 7% 50%, rgba(255, 224, 139, 0.22), transparent 22%),
+    linear-gradient(135deg, rgba(19, 28, 45, 0.96), rgba(9, 15, 28, 0.96));
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.34), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.aten-status-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.28;
+  background:
+    linear-gradient(90deg, transparent 0 48%, rgba(246, 179, 56, 0.36) 49% 50%, transparent 51% 100%),
+    repeating-linear-gradient(135deg, transparent 0 16px, rgba(255, 224, 139, 0.12) 17px 18px);
+}
+
+.aten-status-sun {
+  position: relative;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff5bf 0 18%, #ffd15c 19% 52%, #a95c13 53% 100%);
+  box-shadow: 0 0 0 8px rgba(246, 179, 56, 0.12), 0 0 34px rgba(255, 208, 86, 0.42);
+  z-index: 2;
+}
+
+.aten-status-sun::before {
+  content: "";
+  position: absolute;
+  width: 92px;
+  height: 92px;
+  left: 50%;
+  top: 50%;
+  margin: -46px 0 0 -46px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, rgba(255, 224, 139, 0.0), rgba(255, 224, 139, 0.34), rgba(255, 224, 139, 0.0) 18%);
+  animation: atenStatusSun 14s linear infinite;
+}
+
+.aten-status-copy {
+  position: relative;
+  z-index: 2;
+}
+
+.aten-status-label {
+  display: inline-flex;
+  margin-bottom: 7px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(246, 179, 56, 0.13);
+  color: var(--gold-2) !important;
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.aten-status-copy strong {
+  display: block;
+  color: #fff !important;
+  font-size: clamp(22px, 2.7vw, 34px) !important;
+  line-height: 1.08 !important;
+  font-weight: 950;
+}
+
+.aten-status-copy p {
+  max-width: 860px;
+  margin: 8px 0 0 !important;
+  color: #dbe7f7 !important;
+  font-size: 16px !important;
+  line-height: 1.5 !important;
+}
+
+@keyframes atenStatusSun {
+  to { rotate: 360deg; }
+}
+
 .aten-hero {
   position: relative;
   min-height: 760px;
@@ -448,6 +557,28 @@ body.page-id-1563 .p-aten002 {
     width: min(100% - 28px, 1160px);
   }
 
+  .aten-status {
+    padding: 14px 0;
+  }
+
+  .aten-status-card {
+    grid-template-columns: 56px 1fr;
+    gap: 14px;
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .aten-status-sun {
+    width: 50px;
+    height: 50px;
+  }
+
+  .aten-status-sun::before {
+    width: 76px;
+    height: 76px;
+    margin: -38px 0 0 -38px;
+  }
+
   .aten-hero {
     min-height: 720px;
     align-items: end;
@@ -495,6 +626,24 @@ body.page-id-1563 .p-aten002 {
 }
 
 @media (max-width: 520px) {
+  .aten-status-card {
+    grid-template-columns: 1fr;
+    text-align: left;
+  }
+
+  .aten-status-sun {
+    width: 44px;
+    height: 44px;
+  }
+
+  .aten-status-copy strong {
+    font-size: 22px !important;
+  }
+
+  .aten-status-copy p {
+    font-size: 15px !important;
+  }
+
   .aten-hero {
     min-height: 690px;
     padding-bottom: 30px;
