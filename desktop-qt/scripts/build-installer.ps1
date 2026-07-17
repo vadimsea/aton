@@ -166,8 +166,9 @@ if (Test-Path -LiteralPath $LandingDir) {
         downloadUrl = "https://vadzim.by/wp-content/uploads/aten/ATEN-Setup-$Version.exe"
         pageUrl = "https://vadzim.by/aten/"
         publishedAt = $PublishedAt
-        mandatory = $false
+        mandatory = $true
     }
-    $Manifest | ConvertTo-Json | Set-Content -LiteralPath $ManifestPath -Encoding UTF8
+    $ManifestJson = $Manifest | ConvertTo-Json
+    [System.IO.File]::WriteAllText($ManifestPath, $ManifestJson, [System.Text.UTF8Encoding]::new($false))
     Write-Host "Landing release manifest updated: $LandingDir\latest.json"
 }

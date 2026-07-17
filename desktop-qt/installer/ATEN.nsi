@@ -5,7 +5,7 @@ Unicode True
 !include "LogicLib.nsh"
 
 !ifndef PRODUCT_VERSION
-  !define PRODUCT_VERSION "0.1.4"
+  !define PRODUCT_VERSION "0.1.5"
 !endif
 !ifndef SOURCE_DIR
   !error "SOURCE_DIR must point to the staged application directory"

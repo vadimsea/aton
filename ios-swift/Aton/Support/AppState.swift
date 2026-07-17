@@ -612,6 +612,6 @@ private struct AppReleaseManifest: Decodable {
 
 extension Bundle {
     var releaseVersion: String {
-        object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.4"
+        object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.5"
     }
 }

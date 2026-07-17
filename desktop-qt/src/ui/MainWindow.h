@@ -205,6 +205,8 @@ private:
     bool m_contactsDialogRequested = false;
     bool m_adminUsersDialogRequested = false;
     bool m_reportsDialogRequested = false;
+    bool m_sessionVerificationInProgress = false;
+    bool m_authenticatedDataLoaded = false;
     NotificationHub *m_notifications = nullptr;
     QSet<QString> m_knownMessageIds;
     bool m_messageBaselineReady = false;

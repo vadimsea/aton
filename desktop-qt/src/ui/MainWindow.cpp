@@ -2422,6 +2422,8 @@ void MainWindow::wireApi()
                 m_apiClient->resetSessionAuthState();
             }
             setStatusText(trAuth(m_authLanguage, "signedIn"));
+            m_sessionVerificationInProgress = false;
+            m_authenticatedDataLoaded = false;
             m_messageBaselineReady = false;
             m_messagesAllRequested = false;
             m_knownMessageIds.clear();
@@ -2439,6 +2441,9 @@ void MainWindow::wireApi()
         if (endpoint == "/api/logout") {
             if (m_syncTimer) m_syncTimer->stop();
             m_currentUser = {};
+            m_currentUsername.clear();
+            m_sessionVerificationInProgress = false;
+            m_authenticatedDataLoaded = false;
             m_messageBaselineReady = false;
             m_messagesAllRequested = false;
             m_knownMessageIds.clear();
@@ -2459,6 +2464,7 @@ void MainWindow::wireApi()
         if (endpoint == "/api/me") {
             const auto obj = body.object();
             const auto userObj = obj.value("user").toObject(obj);
+            m_sessionVerificationInProgress = false;
             m_currentUser = userObj;
             m_currentUsername = userObj.value("username").toString();
             const auto name = userObj.value("displayName").toString(m_currentUsername.isEmpty() ? "ATEN user" : m_currentUsername);
@@ -2471,6 +2477,13 @@ void MainWindow::wireApi()
             updateAdminControls();
             setStatusText(QString(trAuth(m_authLanguage, "signedInAs")).arg(name));
             populateProfilePage();
+            if (m_stack) {
+                m_stack->setCurrentWidget(m_messengerPage);
+            }
+            if (!m_authenticatedDataLoaded) {
+                m_authenticatedDataLoaded = true;
+                loadAuthenticatedData();
+            }
             return;
         }
         if (endpoint == "/api/profile") {
@@ -2751,6 +2764,19 @@ void MainWindow::wireApi()
             refreshChatStatusText();
             return;
         }
+        if (endpoint == "/api/me") {
+            m_sessionVerificationInProgress = false;
+            if (m_stack) {
+                m_stack->setCurrentWidget(m_authPage);
+            }
+            if (m_syncTimer) {
+                m_syncTimer->stop();
+            }
+            if (m_authStatusLabel) {
+                m_authStatusLabel->setText(readableMessage);
+            }
+            return;
+        }
         if (!m_pendingChatDeleteEndpoint.isEmpty() && endpoint == m_pendingChatDeleteEndpoint) {
             m_pendingChatDeleteEndpoint.clear();
         }
@@ -2795,6 +2821,10 @@ void MainWindow::wireApi()
         if (m_syncTimer) {
             m_syncTimer->stop();
         }
+        m_currentUser = {};
+        m_currentUsername.clear();
+        m_sessionVerificationInProgress = false;
+        m_authenticatedDataLoaded = false;
         m_currentChatId.clear();
         m_currentPeerUsername.clear();
         m_groupChats = {};
@@ -2815,13 +2845,40 @@ void MainWindow::wireApi()
 void MainWindow::refreshSessionUi()
 {
     const auto hasSession = m_sessionStore && m_sessionStore->hasToken();
-    if (m_stack) {
-        m_stack->setCurrentWidget(hasSession ? m_messengerPage : m_authPage);
+    if (!hasSession) {
+        m_sessionVerificationInProgress = false;
+        m_authenticatedDataLoaded = false;
+        m_currentUser = {};
+        m_currentUsername.clear();
+        if (m_stack) {
+            m_stack->setCurrentWidget(m_authPage);
+        }
+        if (m_syncTimer) {
+            m_syncTimer->stop();
+        }
+        return;
     }
-    if (hasSession) {
+
+    if (m_currentUser.isEmpty()) {
+        if (m_stack) {
+            m_stack->setCurrentWidget(m_authPage);
+        }
+        if (m_syncTimer) {
+            m_syncTimer->stop();
+        }
+        if (!m_sessionVerificationInProgress && m_apiClient) {
+            m_sessionVerificationInProgress = true;
+            m_apiClient->getMe();
+        }
+        return;
+    }
+
+    if (m_stack) {
+        m_stack->setCurrentWidget(m_messengerPage);
+    }
+    if (!m_authenticatedDataLoaded) {
+        m_authenticatedDataLoaded = true;
         loadAuthenticatedData();
-    } else if (m_syncTimer) {
-        m_syncTimer->stop();
     }
 }
 
