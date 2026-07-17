@@ -1,9 +1,9 @@
-{
-  "version": "0.1.4",
-  "title": "ATEN 0.1.4",
-  "message": "Доступна новая версия ATEN. Обновитесь, чтобы получить последние исправления и улучшения стабильности.",
-  "downloadUrl": "https://vadzim.by/wp-content/uploads/aten/ATEN-Setup-0.1.4.exe",
-  "pageUrl": "https://vadzim.by/aten/",
-  "publishedAt": "2026-07-16",
-  "mandatory": false
+﻿{
+    "version":  "0.1.4",
+    "title":  "ATEN 0.1.4",
+    "message":  "Доступна новая версия ATEN. Обновитесь, чтобы получить последние исправления и улучшения стабильности.",
+    "downloadUrl":  "https://vadzim.by/wp-content/uploads/aten/ATEN-Setup-0.1.4.exe",
+    "pageUrl":  "https://vadzim.by/aten/",
+    "publishedAt":  "2026-07-17",
+    "mandatory":  true
 }
