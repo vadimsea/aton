@@ -43,6 +43,7 @@ async function findCanonicalUsernameForPeerAlias(peerUsername) {
 }
 
 const app = express();
+app.set("trust proxy", 1);
 /** Системный ассистент: один DM с каждым пользователем, без входа в аккаунт. */
 const GOLOS_ATON_USERNAME = "golos_aton";
 const GOLOS_ATON_EMAIL = "golos_aton@system.internal";
