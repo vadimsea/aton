@@ -15,8 +15,7 @@ RUN npm ci --include=dev \
 
 COPY server.js ./
 COPY index.html forgot.html reset.html admin-users.html ./
-COPY main.js style.css notification.mp3 aten-logo.png golos-aton-avatar.png manifest.webmanifest ./
-COPY icons ./icons
+COPY main.js style.css notification.mp3 aten-logo.png golos-aton-avatar.png ./
 
 ENV NODE_ENV=production
 
