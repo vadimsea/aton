@@ -164,6 +164,27 @@ QString firstMessageUrl(const QString &text)
     return url;
 }
 
+QString youtubeVideoIdFromUrl(const QString &value)
+{
+    const QUrl url(value);
+    if (!url.isValid()) return {};
+    const QString host = url.host().remove(QRegularExpression(QStringLiteral("^www\\."))).toLower();
+    if (host == "youtu.be") {
+        const auto parts = url.path().split("/", Qt::SkipEmptyParts);
+        return parts.isEmpty() ? QString() : parts.first();
+    }
+    if (host == "youtube.com" || host == "m.youtube.com" || host == "music.youtube.com" || host == "youtube-nocookie.com") {
+        if (url.path() == "/watch") {
+            return QUrlQuery(url).queryItemValue("v");
+        }
+        const auto parts = url.path().split("/", Qt::SkipEmptyParts);
+        if (parts.size() >= 2 && (parts.first() == "shorts" || parts.first() == "embed" || parts.first() == "live")) {
+            return parts.at(1);
+        }
+    }
+    return {};
+}
+
 enum class UiIcon {
     Search,
     Plus,
@@ -317,11 +338,26 @@ QIcon makeUiIcon(UiIcon icon, const QColor &color = QColor("#6d91c7"), int size 
 QString messagePreview(const QJsonObject &msg)
 {
     const auto type = msg.value("type").toString("text");
-    if (type == "image") return "Фото";
-    if (type == "audio") return "Голосовое сообщение";
     const auto text = msg.value("text").toString().simplified();
+    if (type == "image") return "Фото";
+    if (type == "audio") {
+        static const QRegularExpression durationOnly(R"(^\d{1,2}:\d{2}(?:\s*/\s*\d{1,2}:\d{2})?$)");
+        if (!text.isEmpty() && !durationOnly.match(text).hasMatch()) {
+            return text.size() > 52 ? text.left(49) + "..." : text;
+        }
+        return "Голосовое сообщение";
+    }
     if (text.isEmpty()) return "Сообщение";
     return text.size() > 52 ? text.left(49) + "..." : text;
+}
+
+QString audioCaptionText(const QJsonObject &msg)
+{
+    if (msg.value("type").toString("text") != "audio") return {};
+    const auto text = msg.value("text").toString().trimmed();
+    if (text.isEmpty()) return {};
+    static const QRegularExpression durationOnly(R"(^\d{1,2}:\d{2}(?:\s*/\s*\d{1,2}:\d{2})?$)");
+    return durationOnly.match(text.simplified()).hasMatch() ? QString() : text;
 }
 
 QString compactTime(const QString &value)
@@ -754,6 +790,14 @@ int messageRowHeight(const QJsonObject &msg)
 {
     const auto type = msg.value("type").toString("text");
     int height = type == "image" ? 320 : type == "audio" ? 108 : 82;
+    if (type == "audio") {
+        const auto caption = audioCaptionText(msg);
+        if (!caption.isEmpty()) {
+            const int explicitLines = std::max(1, static_cast<int>(caption.count('\n') + 1));
+            const int wrappedLines = std::max(1, static_cast<int>(caption.simplified().size() / 38 + 1));
+            height += std::max(explicitLines, wrappedLines) * 24 + 10;
+        }
+    }
     if (type == "text") {
         const auto text = msg.value("text").toString();
         const int explicitLines = std::max(1, static_cast<int>(text.count('\n') + 1));
@@ -785,7 +829,7 @@ int richMessageTextHeight(const QString &html, const QFont &font, int width)
     doc.setDocumentMargin(0);
     doc.setTextWidth(width);
     doc.setHtml(html);
-    return static_cast<int>(std::ceil(doc.size().height())) + 6;
+    return static_cast<int>(std::ceil(doc.size().height())) + 10;
 }
 
 QWidget *makeChatRowWidget(const ChatRow &row, QWidget *parent)
@@ -1103,6 +1147,43 @@ QWidget *makeMessageRowWidget(
         voiceLayout->addWidget(voiceProgress, 1);
         bubbleLayout->addWidget(voiceRow);
 
+        const auto caption = audioCaptionText(msg);
+        if (!caption.isEmpty()) {
+            auto *captionLabel = new QLabel(bubble);
+            captionLabel->setObjectName("MessageText");
+            captionLabel->setWordWrap(true);
+            captionLabel->setText(linkifiedMessageHtml(caption));
+            captionLabel->setTextFormat(Qt::RichText);
+            captionLabel->setOpenExternalLinks(true);
+            captionLabel->setTextInteractionFlags(Qt::TextBrowserInteraction);
+            captionLabel->setFixedWidth(300);
+            captionLabel->setMinimumHeight(richMessageTextHeight(captionLabel->text(), captionLabel->font(), 300));
+            captionLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Minimum);
+            bubbleLayout->addWidget(captionLabel);
+            const QString previewUrl = firstMessageUrl(caption);
+            if (apiClient && !previewUrl.isEmpty()) {
+                auto *previewCard = new QFrame(bubble);
+                previewCard->setObjectName("LinkPreviewCard");
+                auto *previewLayout = new QVBoxLayout(previewCard);
+                previewLayout->setContentsMargins(10, 8, 10, 8);
+                previewLayout->setSpacing(3);
+                const QString host = QUrl(previewUrl).host().remove(QRegularExpression(QStringLiteral("^www\\.")));
+                const QString youtubeId = youtubeVideoIdFromUrl(previewUrl);
+                auto *siteLabel = new QLabel(youtubeId.isEmpty() ? (host.isEmpty() ? QStringLiteral("Link") : host) : QStringLiteral("YouTube"), previewCard);
+                siteLabel->setObjectName("LinkPreviewSite");
+                auto *titleLabel = new QLabel(youtubeId.isEmpty() ? previewUrl : QStringLiteral("Видео на YouTube"), previewCard);
+                titleLabel->setObjectName("LinkPreviewTitle");
+                titleLabel->setWordWrap(true);
+                auto *descLabel = new QLabel(youtubeId.isEmpty() ? QString() : previewUrl, previewCard);
+                descLabel->setObjectName("LinkPreviewDescription");
+                descLabel->setWordWrap(true);
+                previewLayout->addWidget(siteLabel);
+                previewLayout->addWidget(titleLabel);
+                previewLayout->addWidget(descLabel);
+                bubbleLayout->addWidget(previewCard);
+            }
+        }
+
         if (!audioPath.isEmpty()) {
             auto *player = new QMediaPlayer(playButton);
             auto *audioOutput = new QAudioOutput(playButton);
@@ -1159,7 +1240,7 @@ QWidget *makeMessageRowWidget(
         label->setMinimumHeight(richMessageTextHeight(label->text(), label->font(), textWidth));
         const int actionWidth = isSelf ? 190 : 104;
         bubble->setFixedWidth(std::max(textWidth + 32, actionWidth));
-        label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+        label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Minimum);
         bubbleLayout->addWidget(label);
         const QString previewUrl = firstMessageUrl(textValue);
         if (apiClient && !previewUrl.isEmpty()) {
@@ -1169,12 +1250,13 @@ QWidget *makeMessageRowWidget(
             previewLayout->setContentsMargins(10, 8, 10, 8);
             previewLayout->setSpacing(3);
             const QString host = QUrl(previewUrl).host().remove(QRegularExpression(QStringLiteral("^www\\.")));
-            auto *siteLabel = new QLabel(host.isEmpty() ? QStringLiteral("Link") : host, previewCard);
+            const QString youtubeId = youtubeVideoIdFromUrl(previewUrl);
+            auto *siteLabel = new QLabel(youtubeId.isEmpty() ? (host.isEmpty() ? QStringLiteral("Link") : host) : QStringLiteral("YouTube"), previewCard);
             siteLabel->setObjectName("LinkPreviewSite");
-            auto *titleLabel = new QLabel(previewUrl, previewCard);
+            auto *titleLabel = new QLabel(youtubeId.isEmpty() ? previewUrl : QStringLiteral("Видео на YouTube"), previewCard);
             titleLabel->setObjectName("LinkPreviewTitle");
             titleLabel->setWordWrap(true);
-            auto *descLabel = new QLabel(QString(), previewCard);
+            auto *descLabel = new QLabel(youtubeId.isEmpty() ? QString() : previewUrl, previewCard);
             descLabel->setObjectName("LinkPreviewDescription");
             descLabel->setWordWrap(true);
             auto *imageLabel = new QLabel(previewCard);
@@ -1188,10 +1270,27 @@ QWidget *makeMessageRowWidget(
             previewLayout->addWidget(descLabel);
             previewLayout->addWidget(imageLabel);
             bubbleLayout->addWidget(previewCard);
+            auto loadPreviewImage = [imageLabel, previewCard](const QString &imageUrl) {
+                if (imageUrl.isEmpty()) return;
+                auto *manager = new QNetworkAccessManager(previewCard);
+                auto *reply = manager->get(QNetworkRequest(QUrl(imageUrl)));
+                QObject::connect(reply, &QNetworkReply::finished, imageLabel, [reply, imageLabel, manager]() {
+                    const QByteArray bytes = reply->readAll();
+                    reply->deleteLater();
+                    manager->deleteLater();
+                    QPixmap pixmap;
+                    if (!pixmap.loadFromData(bytes) || pixmap.isNull()) return;
+                    imageLabel->setPixmap(pixmap.scaled(imageLabel->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+                    imageLabel->setVisible(true);
+                });
+            };
+            if (!youtubeId.isEmpty()) {
+                loadPreviewImage(QString("https://i.ytimg.com/vi/%1/hqdefault.jpg").arg(youtubeId));
+            }
             static QMap<QString, QJsonObject> linkPreviewCache;
             static QSet<QString> linkPreviewPending;
             const QString endpoint = QString("/api/link-preview?url=%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(previewUrl)));
-            auto applyPreview = [siteLabel, titleLabel, descLabel, imageLabel, previewCard](const QJsonObject &obj) {
+            auto applyPreview = [siteLabel, titleLabel, descLabel, imageLabel, previewCard, loadPreviewImage](const QJsonObject &obj) {
                 const QString site = obj.value("siteName").toString();
                 const QString title = obj.value("title").toString();
                 const QString description = obj.value("description").toString();
@@ -1201,17 +1300,7 @@ QWidget *makeMessageRowWidget(
                 descLabel->setText(description);
                 descLabel->setVisible(!description.isEmpty());
                 if (!imageUrl.isEmpty()) {
-                    auto *manager = new QNetworkAccessManager(previewCard);
-                    auto *reply = manager->get(QNetworkRequest(QUrl(imageUrl)));
-                    QObject::connect(reply, &QNetworkReply::finished, imageLabel, [reply, imageLabel, manager]() {
-                        const QByteArray bytes = reply->readAll();
-                        reply->deleteLater();
-                        manager->deleteLater();
-                        QPixmap pixmap;
-                        if (!pixmap.loadFromData(bytes) || pixmap.isNull()) return;
-                        imageLabel->setPixmap(pixmap.scaled(imageLabel->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
-                        imageLabel->setVisible(true);
-                    });
+                    loadPreviewImage(imageUrl);
                 }
             };
             if (linkPreviewCache.contains(previewUrl)) {

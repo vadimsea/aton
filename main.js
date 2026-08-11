@@ -711,7 +711,7 @@ function getApiBase() {
   const meta = document.querySelector('meta[name="aton-api-base"]')?.getAttribute("content")?.trim();
   if (meta) return meta.replace(/\/$/, "");
   if (host === "aten.vadzim.by" || host === "www.aten.vadzim.by") {
-    return "https://aton-api-2.onrender.com";
+    return "https://atonapi-tr6vkx09.b4a.run";
   }
   const origin = window.location.origin;
   if (!origin) return "";
@@ -900,6 +900,19 @@ function chatIdForUsers(a, b) {
   return arr.join("|");
 }
 
+function canonicalDmChatKey(chatId) {
+  if (!isPrivateDirectChat(chatId)) return String(chatId || "");
+  return String(chatId)
+    .split("|")
+    .map((part) => String(part || "").trim().toLowerCase())
+    .sort()
+    .join("|");
+}
+
+function sameDmChatId(a, b) {
+  return canonicalDmChatKey(a) === canonicalDmChatKey(b);
+}
+
 /** Личный диалог 1:1 (`userA|userB`), не группа/канал/global — в треде как в Telegram: без имён и аватаров в пузырях. */
 function isPrivateDirectChat(chatId) {
   if (!chatId || typeof chatId !== "string") return false;
@@ -911,8 +924,8 @@ function isPrivateDirectChat(chatId) {
 /** Сообщение относится к личному чату user|user (учёт рассинхрона chatId в БД). */
 function messageBelongsToDmId(msg, dmId) {
   if (!dmId || typeof dmId !== "string" || !dmId.includes("|")) return false;
-  if (msg.chatId === dmId) return true;
-  if (msg.to && chatIdForUsers(msg.from, msg.to) === dmId) return true;
+  if (msg.chatId && sameDmChatId(msg.chatId, dmId)) return true;
+  if (msg.to && sameDmChatId(chatIdForUsers(msg.from, msg.to), dmId)) return true;
   return false;
 }
 
@@ -1182,6 +1195,20 @@ function extractFirstUrl(text) {
   return match ? cleanMessageUrl(match[0]) : "";
 }
 
+function youtubeVideoIdFromUrl(url) {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./, "").toLowerCase();
+    if (host === "youtu.be") return parsed.pathname.split("/").filter(Boolean)[0] || "";
+    if (["youtube.com", "m.youtube.com", "music.youtube.com", "youtube-nocookie.com"].includes(host)) {
+      if (parsed.pathname === "/watch") return parsed.searchParams.get("v") || "";
+      const parts = parsed.pathname.split("/").filter(Boolean);
+      if (["shorts", "embed", "live"].includes(parts[0])) return parts[1] || "";
+    }
+  } catch (_) {}
+  return "";
+}
+
 function appendLinkifiedText(target, value) {
   const source = String(value || "");
   ATON_URL_RE.lastIndex = 0;
@@ -1208,19 +1235,45 @@ function appendLinkifiedText(target, value) {
 }
 
 function createLinkPreviewCard(url) {
+  let host = "";
+  try {
+    host = new URL(url).hostname.replace(/^www\./, "");
+  } catch (_) {
+    host = "Link";
+  }
+  const youtubeId = youtubeVideoIdFromUrl(url);
   const card = document.createElement("a");
   card.className = "aton-link-preview-card aton-link-preview-card--loading";
   card.href = url;
   card.target = "_blank";
   card.rel = "noopener noreferrer";
+  if (youtubeId) {
+    card.dataset.provider = "youtube";
+    card.dataset.previewType = "video";
+  }
   card.innerHTML = `
     <div class="aton-link-preview-bar"></div>
     <div class="aton-link-preview-body">
-      <div class="aton-link-preview-site"></div>
-      <div class="aton-link-preview-title">Link</div>
+      <div class="aton-link-preview-site">${escHtml(youtubeId ? "YouTube" : host)}</div>
+      <div class="aton-link-preview-title">${escHtml(youtubeId ? "Видео на YouTube" : host)}</div>
       <div class="aton-link-preview-description">${escHtml(url)}</div>
     </div>
   `;
+  if (youtubeId) {
+    const media = document.createElement("div");
+    media.className = "aton-link-preview-media";
+    const img = document.createElement("img");
+    img.className = "aton-link-preview-image";
+    img.loading = "lazy";
+    img.referrerPolicy = "no-referrer";
+    img.src = `https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg`;
+    media.appendChild(img);
+    const play = document.createElement("span");
+    play.className = "aton-link-preview-play";
+    play.setAttribute("aria-hidden", "true");
+    media.appendChild(play);
+    card.appendChild(media);
+  }
   hydrateLinkPreviewCard(card, url);
   return card;
 }
@@ -1377,7 +1430,7 @@ function buildLastMessagePreviewForChatList(lastMsg) {
   let tag = "";
   if (lastMsg.type === "image") tag = "📷";
   else if (lastMsg.type === "audio") tag = "🎙";
-  const raw = (lastMsg.text && String(lastMsg.text).trim()) || "";
+  const raw = audioCaptionText(lastMsg) || (lastMsg.type === "audio" ? "" : (lastMsg.text && String(lastMsg.text).trim()) || "");
   if (raw) {
     const short = chatListPreviewWords(raw, 5);
     return tag ? `${tag} ${short}` : short;
@@ -1385,6 +1438,16 @@ function buildLastMessagePreviewForChatList(lastMsg) {
   if (lastMsg.type === "image") return t("📷 Фото");
   if (lastMsg.type === "audio") return t("🎙 Голосовое");
   return t("Сообщение без текста");
+}
+
+function isAudioDurationLabel(text) {
+  return /^\d{1,2}:\d{2}(?:\s*\/\s*\d{1,2}:\d{2})?$/.test(String(text || "").trim());
+}
+
+function audioCaptionText(msg) {
+  if (!msg || msg.type !== "audio") return "";
+  const raw = (msg.text && String(msg.text).trim()) || "";
+  return raw && !isAudioDurationLabel(raw) ? raw : "";
 }
 
 /** Статус «был в сети» для шапки и списка личных чатов. При blockedMe не показываем реальный lastSeen. */
@@ -2581,6 +2644,22 @@ function createApp() {
     return state;
   }
 
+  function prepareChatHistoryLoading(chatId) {
+    if (!chatId || !currentUser || !currentUser.verified) return;
+    const state = chatPagingState(chatId);
+    if (state.initialLoaded || messagesForChatId(chatId).length) return;
+    state.initialLoading = true;
+  }
+
+  function dialogSummarySuggestsMessages(chatId) {
+    const dialog = (Array.isArray(allDialogs) ? allDialogs : []).find(
+      (d) => d && String(d.id || "") === String(chatId || "")
+    );
+    if (!dialog) return false;
+    const preview = typeof dialog.preview === "string" ? dialog.preview.trim() : "";
+    return Boolean(preview || dialog.lastTime);
+  }
+
   function oldestLoadedMessageForChat(chatId) {
     const list = messagesForChatId(chatId)
       .filter((m) => m && m.id && !String(m.id).startsWith("_temp_"))
@@ -2759,7 +2838,7 @@ function createApp() {
 
   function formatNotifyBody(msg) {
     if (!msg) return "";
-    if (msg.type === "audio") return t("Голосовое сообщение");
+    if (msg.type === "audio") return audioCaptionText(msg) || t("Голосовое сообщение");
     if (msg.type === "image") return t("Фото");
     const text = (msg.text || "").trim();
     if (text.length > 120) return `${text.slice(0, 117)}…`;
@@ -2774,6 +2853,7 @@ function createApp() {
     setLastChatId(currentUser.username, currentChatId);
     const reads = getChatReads(currentUser.username);
     setChatReads(currentUser.username, { ...reads, [chatId]: new Date().toISOString() });
+    prepareChatHistoryLoading(chatId);
     renderChatList();
     renderMessages();
     updateTopbarTitle();
@@ -3140,7 +3220,7 @@ function createApp() {
 
   function messageReplyExcerpt(msg) {
     if (!msg) return t("Сообщение без текста");
-    const raw = msg.text ? String(msg.text).trim() : "";
+    const raw = msg.type === "audio" ? audioCaptionText(msg) : (msg.text ? String(msg.text).trim() : "");
     if (raw) return `${raw.slice(0, 120)}${raw.length > 120 ? "…" : ""}`;
     if (msg.type === "image") return t("📷 Фото");
     if (msg.type === "audio") return t("Голосовое сообщение");
@@ -4504,7 +4584,13 @@ function createApp() {
         .filter((d) => d && d.id)
         .map((d) => [String(d.id), d])
     );
-    const dialogForChatId = (chatId) => dialogsById.get(String(chatId || "")) || null;
+    const dialogForChatId = (chatId) =>
+      dialogsById.get(String(chatId || "")) ||
+      (isPrivateDirectChat(chatId)
+        ? [...dialogsById.values()].find(
+            (d) => d && d.id && isPrivateDirectChat(d.id) && sameDmChatId(d.id, chatId)
+          ) || null
+        : null);
     const newestLocalMessageForChat = (chatId, messages) => {
       const rows = (Array.isArray(messages) ? messages : [])
         .filter((m) => messageBelongsToOpenChat(m, chatId))
@@ -4524,7 +4610,7 @@ function createApp() {
       if (localMessageIsNewer(lastMsg, dialog)) return buildLastMessagePreviewForChatList(lastMsg);
       const preview = dialog && typeof dialog.preview === "string" ? dialog.preview.trim() : "";
       if (preview) return chatListPreviewWords(preview, 8);
-      return lastMsg ? buildLastMessagePreviewForChatList(lastMsg) : t("РќРµС‚ СЃРѕРѕР±С‰РµРЅРёР№");
+      return lastMsg ? buildLastMessagePreviewForChatList(lastMsg) : t("Нет сообщений");
     };
     const chatListTimeText = (dialog, lastMsg) => {
       const iso = localMessageIsNewer(lastMsg, dialog) ? lastMsg?.time : dialog?.lastTime || lastMsg?.time;
@@ -4600,6 +4686,27 @@ function createApp() {
     }
 
     // Учитываем пин и непрочитанные для групп
+    const dedupedPrivateChatIds = new Map();
+    for (const id of privateChatIds) {
+      const key = canonicalDmChatKey(id);
+      const existing = dedupedPrivateChatIds.get(key);
+      if (!existing) {
+        dedupedPrivateChatIds.set(key, id);
+        continue;
+      }
+      const existingDialog = dialogForChatId(existing);
+      const nextDialog = dialogForChatId(id);
+      const existingLast = existingDialog?.lastTime ? new Date(existingDialog.lastTime).getTime() || 0 : 0;
+      const nextLast = nextDialog?.lastTime ? new Date(nextDialog.lastTime).getTime() || 0 : 0;
+      if (pins.has(id) && !pins.has(existing)) {
+        dedupedPrivateChatIds.set(key, id);
+      } else if (nextLast > existingLast) {
+        dedupedPrivateChatIds.set(key, id);
+      }
+    }
+    privateChatIds.clear();
+    for (const id of dedupedPrivateChatIds.values()) privateChatIds.add(id);
+
     const sortedChats = [...chats].sort((a, b) => {
       const aPinned = pins.has(a.id);
       const bPinned = pins.has(b.id);
@@ -4725,6 +4832,7 @@ function createApp() {
         if (current.username) setLastChatId(current.username, currentChatId);
         const newReads = { ...reads, [dmId]: new Date().toISOString() };
         setChatReads(current.username, newReads);
+        prepareChatHistoryLoading(dmId);
         renderChatList();
         renderMessages();
         updateTopbarTitle();
@@ -4754,6 +4862,7 @@ function createApp() {
         if (current.username) setLastChatId(current.username, currentChatId);
         const newReads = { ...reads, [chatMeta.id]: new Date().toISOString() };
         setChatReads(current.username, newReads);
+        prepareChatHistoryLoading(chatMeta.id);
         renderChatList();
         renderMessages();
         updateTopbarTitle();
@@ -5738,7 +5847,11 @@ function createApp() {
     });
 
     const pagingState = chatPagingState(currentChatId);
-    if (!filtered.length && pagingState.initialLoading) {
+    if (
+      !filtered.length &&
+      (pagingState.initialLoading || (!pagingState.initialLoaded && dialogSummarySuggestsMessages(currentChatId)))
+    ) {
+      pagingState.initialLoading = true;
       renderMessagesLoadingState(messagesEl);
       setComposeEnabled(false);
       compose.style.display = "flex";
@@ -5841,12 +5954,13 @@ function createApp() {
         text.classList.add("aton-message-text--media-pending");
         text.textContent = t("Загрузка фото…");
       }
-      if (msg.text) {
+      const messageBodyText = msg.type === "audio" ? audioCaptionText(msg) : (msg.text || "");
+      if (messageBodyText) {
         const textNode = document.createElement("div");
         textNode.className = "aton-message-text-body";
-        appendLinkifiedText(textNode, msg.text);
+        appendLinkifiedText(textNode, messageBodyText);
         text.appendChild(textNode);
-        const firstUrl = extractFirstUrl(msg.text);
+        const firstUrl = extractFirstUrl(messageBodyText);
         if (firstUrl) {
           text.appendChild(createLinkPreviewCard(firstUrl));
         }
@@ -6383,6 +6497,7 @@ function createApp() {
       if (current.username) setLastChatId(current.username, currentChatId);
       searchInput.value = "";
       searchResultsEl.innerHTML = "";
+      prepareChatHistoryLoading(currentChatId);
       renderChatList();
       renderMessages();
       updateTopbarTitle();

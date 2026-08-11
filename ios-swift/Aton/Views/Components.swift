@@ -159,27 +159,70 @@ extension String {
     }
 }
 
+extension URL {
+    var atonYouTubeVideoId: String? {
+        guard let host = host?.replacingOccurrences(of: "^www\\.", with: "", options: .regularExpression).lowercased() else {
+            return nil
+        }
+        if host == "youtu.be" {
+            return pathComponents.dropFirst().first
+        }
+        guard ["youtube.com", "m.youtube.com", "music.youtube.com", "youtube-nocookie.com"].contains(host) else {
+            return nil
+        }
+        if path == "/watch" {
+            return URLComponents(url: self, resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "v" })?
+                .value
+        }
+        let parts = pathComponents.dropFirst()
+        guard let first = parts.first, ["shorts", "embed", "live"].contains(first) else {
+            return nil
+        }
+        return parts.dropFirst().first
+    }
+}
+
 struct MessageLinkPreviewCard: View {
     @EnvironmentObject private var app: AppState
     let url: URL
     @State private var preview: AtonLinkPreview?
     
+    private var fallbackYouTubeId: String? {
+        url.atonYouTubeVideoId
+    }
+
     private var isVideoPreview: Bool {
-        preview?.type == "video" || preview?.provider == "youtube"
+        preview?.type == "video" || preview?.provider == "youtube" || fallbackYouTubeId != nil
+    }
+
+    private var previewProvider: String? {
+        preview?.provider ?? (fallbackYouTubeId == nil ? nil : "youtube")
+    }
+
+    private var previewImageURL: URL? {
+        if let image = preview?.image, let imageURL = URL(string: image) {
+            return imageURL
+        }
+        if let fallbackYouTubeId {
+            return URL(string: "https://i.ytimg.com/vi/\(fallbackYouTubeId)/hqdefault.jpg")
+        }
+        return nil
     }
 
     var body: some View {
         Link(destination: url) {
             HStack(spacing: 10) {
                 Rectangle()
-                    .fill((preview?.provider == "youtube" ? Color.red : Color.blue).opacity(0.62))
+                    .fill((previewProvider == "youtube" ? Color.red : Color.blue).opacity(0.62))
                     .frame(width: 4)
                     .clipShape(Capsule())
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(preview?.siteName ?? url.host ?? "Link")
+                    Text(preview?.siteName ?? (previewProvider == "youtube" ? "YouTube" : (url.host ?? "Link")))
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(preview?.provider == "youtube" ? .red : .blue)
-                    Text(preview?.title ?? url.absoluteString)
+                        .foregroundStyle(previewProvider == "youtube" ? .red : .blue)
+                    Text(preview?.title ?? (previewProvider == "youtube" ? "Видео на YouTube" : url.absoluteString))
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
                         .lineLimit(2)
@@ -189,7 +232,7 @@ struct MessageLinkPreviewCard: View {
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
                     }
-                    if let image = preview?.image, let imageURL = URL(string: image) {
+                    if let imageURL = previewImageURL {
                         ZStack {
                             AsyncImage(url: imageURL) { phase in
                                 if let image = phase.image {
@@ -252,7 +295,15 @@ struct MessageBubble: View {
                         .foregroundStyle(.secondary)
                 }
                 if message.type == "audio" {
-                    VoiceMessageBubble(message: message, isMine: isMine)
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let caption = message.audioCaptionText {
+                            Text(caption)
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                                .textSelection(.enabled)
+                        }
+                        VoiceMessageBubble(message: message, isMine: isMine)
+                    }
                 } else if message.type == "image" {
                     ImageMessageContent(message: message)
                 } else {
@@ -472,16 +523,36 @@ struct AtonCircleButtonStyle: ButtonStyle {
 
 extension AtonMessage {
     var preview: String {
-        if type == "audio" { return "Голосовое сообщение" }
+        if type == "audio" { return audioCaptionText ?? "Голосовое сообщение" }
         if type == "image" { return "Изображение" }
         return text?.isEmpty == false ? text! : "Сообщение"
     }
 
     var voiceDurationLabel: String {
-        guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard let text else {
             return "0:02"
         }
-        return text
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard clean.isAtonAudioDurationLabel else {
+            return "0:02"
+        }
+        return clean
+    }
+
+    var audioCaptionText: String? {
+        guard type == "audio", let text else { return nil }
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty, !clean.isAtonAudioDurationLabel else { return nil }
+        return clean
+    }
+}
+
+private extension String {
+    var isAtonAudioDurationLabel: Bool {
+        range(
+            of: #"^\d{1,2}:\d{2}(?:\s*/\s*\d{1,2}:\d{2})?$"#,
+            options: .regularExpression
+        ) != nil
     }
 }
 
