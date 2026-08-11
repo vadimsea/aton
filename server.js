@@ -81,6 +81,18 @@ const STATIC_FILE_ALLOWLIST = new Set([
   "/admin-users.html",
   "/golos-aton-avatar.png",
   "/aten-logo.png",
+  "/manifest.webmanifest",
+  "/icons/favicon.ico",
+  "/icons/icon-16.png",
+  "/icons/icon-32.png",
+  "/icons/icon-48.png",
+  "/icons/icon-64.png",
+  "/icons/icon-128.png",
+  "/icons/icon-192.png",
+  "/icons/icon-256.png",
+  "/icons/icon-512.png",
+  "/icons/icon-maskable-512.png",
+  "/icons/apple-touch-icon.png",
   "/notification.mp3",
 ]);
 const IMAGE_MEDIA_MAX_BYTES = Math.max(
@@ -3991,16 +4003,10 @@ app.get("/api/test-db-user", async (req, res) => {
   }
 });
 
-ensureGolosAtonUser()
-  .then(() => {
-    server.listen(PORT, () => {
-      console.log(`Атон backend запущен: http://localhost:${PORT}`);
-    });
-  })
-  .catch((e) => {
+server.listen(PORT, () => {
+  console.log(`Атон backend запущен: http://localhost:${PORT}`);
+  ensureGolosAtonUser().catch((e) => {
     console.error("ensureGolosAtonUser:", e);
-    server.listen(PORT, () => {
-      console.log(`Атон backend запущен: http://localhost:${PORT}`);
-    });
   });
+});
 
