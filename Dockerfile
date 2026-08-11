@@ -14,6 +14,7 @@ RUN npm ci --include=dev \
   && npm prune --omit=dev
 
 COPY server.js ./
+COPY lib ./lib
 COPY index.html forgot.html reset.html admin-users.html ./
 COPY main.js style.css notification.mp3 aten-logo.png golos-aton-avatar.png ./
 
