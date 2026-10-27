@@ -6750,3 +6750,228 @@ body {
 .aton-message-failed-btn--secondary {
   color: var(--text-muted, #94a3b8);
 }
+
+
+/* =====================================================================
+   Telegram-lite: компактные пузыри, серии сообщений, плавающие действия
+   (подключено последним, чтобы перекрывать прежние правила)
+   ===================================================================== */
+
+.aton-message-inner {
+  position: relative;
+}
+
+/* Пузырь: слева текст, справа время/галочки на одной строке; широкие вложения занимают всю ширину */
+.aton-message-bubble {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 10px;
+  align-items: end;
+  padding: 6px 10px 5px 12px;
+  line-height: 1.42;
+  border-radius: 16px 16px 16px 4px;
+}
+
+.aton-message-bubble.self {
+  border-radius: 16px 16px 4px 16px;
+}
+
+.aton-message-bubble > * {
+  grid-column: 1 / -1;
+}
+
+.aton-message-bubble:not(:has(.aton-message-text--media, .aton-link-preview-card)) > .aton-message-text {
+  grid-column: 1;
+}
+
+.aton-message-bubble:not(:has(.aton-message-text--media, .aton-link-preview-card)) > .aton-message-meta {
+  grid-column: 2;
+}
+
+.aton-message-bubble.self .aton-message-text {
+  text-align: left;
+}
+
+.aton-message-meta {
+  margin: 0;
+  padding: 0 0 1px;
+  line-height: 1.2;
+  font-size: 11px;
+  white-space: nowrap;
+  align-self: end;
+}
+
+.aton-message-bubble.self .aton-message-time {
+  color: rgba(28, 25, 23, 0.62);
+}
+
+/* Серии: подряд идущие сообщения одного автора ближе друг к другу, углы «склеены» */
+.aton-message-row {
+  padding: 0 0 1px;
+}
+
+.aton-message-row:not(.aton-message-row--joins-next) {
+  padding-bottom: 7px;
+}
+
+.aton-message-row:not(.self).aton-message-row--joins-prev .aton-message-bubble {
+  border-top-left-radius: 6px;
+}
+
+.aton-message-row:not(.self).aton-message-row--joins-next .aton-message-bubble {
+  border-bottom-left-radius: 6px;
+}
+
+.aton-message-row.self.aton-message-row--joins-prev .aton-message-bubble {
+  border-top-right-radius: 6px;
+}
+
+.aton-message-row.self.aton-message-row--joins-next .aton-message-bubble {
+  border-bottom-right-radius: 6px;
+}
+
+.aton-message-row--joins-prev .aton-message-sender {
+  display: none;
+}
+
+.aton-message-row--joins-next:not(.aton-message-row--private-dm) .aton-message-avatar {
+  visibility: hidden;
+}
+
+/* Действия: плавающая «пилюля» над пузырём, не занимает место в ленте */
+.aton-message-actions {
+  position: absolute;
+  top: -34px;
+  margin: 0;
+  padding: 2px 3px;
+  gap: 1px;
+  flex-wrap: nowrap;
+  z-index: 4;
+  display: flex !important;
+  background: var(--aton-bg-elevated);
+  border: 1px solid var(--aton-border-soft);
+  border-radius: 999px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.aton-message-row.self .aton-message-actions {
+  right: 10px;
+}
+
+.aton-message-row:not(.self) .aton-message-actions {
+  left: 10px;
+}
+
+.aton-message-row:not(.self):not(.aton-message-row--private-dm) .aton-message-actions {
+  left: 52px;
+}
+
+.aton-message-actions .aton-message-action-button {
+  color: var(--aton-text-muted);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .aton-message-inner:hover .aton-message-actions,
+  .aton-message-actions:focus-within {
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+  }
+}
+
+/* Телефон: открывается тапом по сообщению (класс ставит main.js) */
+.aton-message-inner:has(.aton-message-bubble.is-actions-open) .aton-message-actions {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+
+/* Превью ссылки не должно съедать пол-экрана */
+.aton-link-preview-media {
+  min-height: 0;
+  max-height: 170px;
+}
+
+/* «Печатает…» в списке чатов */
+.aton-chat-item-preview--typing {
+  color: var(--aton-accent-blue);
+  font-weight: 600;
+}
+
+/* Читаемая ширина строки, как в Telegram: длинный текст не растягивает пузырь на весь экран */
+.aton-message-row--private-dm .aton-message-bubble,
+.aton-message-bubble {
+  max-width: min(86%, 540px);
+}
+
+.aton-message-bubble:has(.aton-link-preview-card) {
+  max-width: min(540px, 96%);
+}
+
+/* Кнопка «вниз» со счётчиком */
+.aton-scroll-down {
+  position: absolute;
+  right: 18px;
+  bottom: 90px;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--aton-border-soft);
+  background: var(--aton-bg-elevated);
+  color: var(--aton-text-main);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.32);
+  cursor: pointer;
+  z-index: 6;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px) scale(0.92);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.aton-scroll-down.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+
+.aton-scroll-down:hover {
+  border-color: var(--aton-accent-blue);
+}
+
+.aton-scroll-down__badge {
+  position: absolute;
+  top: -7px;
+  right: -4px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--aton-accent-blue-deep);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  display: none;
+  box-sizing: border-box;
+}
+
+.aton-scroll-down__badge.has-count {
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aton-message-actions,
+  .aton-scroll-down,
+  .aton-chat-item-preview--typing::after {
+    transition: none;
+    animation: none;
+  }
+}

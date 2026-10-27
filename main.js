@@ -2729,6 +2729,9 @@ function createApp() {
       socket.emit("join_chat", currentSocketChat);
       scheduleWatchPresence();
     }
+    // Черновик нового чата (у предыдущего он уже сохранён по событию input)
+    inputMessage.value = loadDraft(currentSocketChat);
+    adjustComposeInputHeight();
   }
 
   function messagesForChatId(chatId) {
@@ -3150,6 +3153,10 @@ function createApp() {
       }
     }
     const isOpenThread = Boolean(currentChatId && messageBelongsToOpenChat(msg, currentChatId));
+    if (isOpenThread && currentUser && msg.from !== currentUser.username) {
+      const distanceFromBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight;
+      if (distanceFromBottom > 260) unreadBelowCount += 1; // читаем выше — покажем счётчик на кнопке «вниз»
+    }
     allMessages.push(msg);
     // Держим сообщения в хронологическом порядке
     allMessages.sort((a, b) => new Date(a.time) - new Date(b.time));
@@ -3221,12 +3228,22 @@ function createApp() {
     return `${names.join(", ")} ${t("печатает…")}`;
   }
 
+  /** Безопасная обёртка: renderChatList может вызываться раньше, чем объявлен typingNow. */
+  function chatTypingLabel(chatId) {
+    try {
+      return typingLabelForChat(chatId);
+    } catch (_) {
+      return "";
+    }
+  }
+
   function clearTypingFor(chatId, username) {
     const byUser = typingNow.get(chatId);
     if (!byUser || !byUser.has(username)) return;
     clearTimeout(byUser.get(username));
     byUser.delete(username);
     if (!byUser.size) typingNow.delete(chatId);
+    renderChatList();
     if (currentChatId === chatId) updateTopbarTitle();
   }
 
@@ -3242,6 +3259,7 @@ function createApp() {
       p.from,
       setTimeout(() => clearTypingFor(p.chatId, p.from), TYPING_SHOW_MS)
     );
+    renderChatList();
     if (currentChatId === p.chatId) updateTopbarTitle();
   });
 
@@ -3325,6 +3343,74 @@ function createApp() {
   const userNameLabel = document.getElementById("aton-user-name");
   const inputMessage = document.getElementById("aton-input");
   inputMessage.maxLength = 4096; // как в Telegram; сервер тоже отклоняет длиннее
+
+  // ===== Кнопка «вниз» со счётчиком новых сообщений =====
+  const scrollDownBtn = document.createElement("button");
+  scrollDownBtn.type = "button";
+  scrollDownBtn.className = "aton-scroll-down";
+  scrollDownBtn.setAttribute("aria-label", t("Вниз, к новым сообщениям"));
+  scrollDownBtn.innerHTML =
+    '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="aton-scroll-down__badge"></span>';
+  chat.appendChild(scrollDownBtn);
+  let unreadBelowCount = 0;
+
+  function updateScrollDownButton() {
+    const distance = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight;
+    const show = distance > 260 && Boolean(currentChatId);
+    if (!show) unreadBelowCount = 0;
+    scrollDownBtn.classList.toggle("is-visible", show);
+    const badge = scrollDownBtn.querySelector(".aton-scroll-down__badge");
+    badge.textContent = unreadBelowCount > 99 ? "99+" : String(unreadBelowCount);
+    badge.classList.toggle("has-count", unreadBelowCount > 0);
+    if (show) {
+      const chatRect = chat.getBoundingClientRect();
+      const listRect = messagesEl.getBoundingClientRect();
+      scrollDownBtn.style.bottom = `${Math.max(12, Math.round(chatRect.bottom - listRect.bottom) + 14)}px`;
+    }
+  }
+  messagesEl.addEventListener("scroll", updateScrollDownButton, { passive: true });
+  // Контент ленты перерисовывается целиком — следим за изменением, а не только за скроллом
+  new MutationObserver(() => requestAnimationFrame(updateScrollDownButton)).observe(messagesEl, { childList: true });
+  scrollDownBtn.addEventListener("click", () => {
+    unreadBelowCount = 0;
+    messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: "smooth" });
+  });
+
+  // ===== Черновики: текст в поле ввода запоминается отдельно для каждого чата =====
+  function draftKey(chatId) {
+    return currentUser && chatId ? `aton_draft_${currentUser.username}_${chatId}` : "";
+  }
+  function saveDraft(chatId, text) {
+    const key = draftKey(chatId);
+    if (!key) return;
+    try {
+      if (text && text.trim()) localStorage.setItem(key, text);
+      else localStorage.removeItem(key);
+    } catch (_) {}
+  }
+  function loadDraft(chatId) {
+    const key = draftKey(chatId);
+    if (!key) return "";
+    try {
+      return localStorage.getItem(key) || "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  // ===== Вставка фото из буфера обмена (Ctrl+V) =====
+  inputMessage.addEventListener("paste", (event) => {
+    const files = event.clipboardData && event.clipboardData.files;
+    const image = files && [...files].find((f) => f.type.startsWith("image/"));
+    if (!image || !currentChatId) return;
+    event.preventDefault();
+    try {
+      const transfer = new DataTransfer();
+      transfer.items.add(image);
+      attachInput.files = transfer.files;
+      attachInput.dispatchEvent(new Event("change", { bubbles: true }));
+    } catch (_) {}
+  });
   const sendButton = document.getElementById("aton-send");
   const replyComposeEl = document.getElementById("aton-reply-compose");
   const replyComposeLabelEl = document.getElementById("aton-reply-compose-label");
@@ -4991,6 +5077,11 @@ function createApp() {
       previewEl.textContent = chatListPreviewText(dialog, lastMsg)
         ? chatListPreviewText(dialog, lastMsg)
         : t("Нет сообщений");
+      const dmTypingLabel = chatTypingLabel(dmId);
+      if (dmTypingLabel) {
+        previewEl.textContent = dmTypingLabel;
+        previewEl.classList.add("aton-chat-item-preview--typing");
+      }
       main.appendChild(titleEl);
       if (isGolos) {
         const subtitleEl = document.createElement("div");
@@ -5113,6 +5204,11 @@ function createApp() {
       previewEl.textContent = chatListPreviewText(dialog, lastMsg)
         ? chatListPreviewText(dialog, lastMsg)
         : "Нет сообщений";
+      const groupTypingLabel = chatTypingLabel(chatMeta.id);
+      if (groupTypingLabel) {
+        previewEl.textContent = groupTypingLabel;
+        previewEl.classList.add("aton-chat-item-preview--typing");
+      }
       main.appendChild(titleEl);
       main.appendChild(subtitleEl);
       main.appendChild(previewEl);
@@ -6079,7 +6175,16 @@ function createApp() {
     }
 
     let previousMessageDateKey = "";
-    filtered.forEach((msg) => {
+    /** Подряд идущие сообщения одного автора (до 5 минут между ними, один день) визуально склеиваются в серию. */
+    const sameRun = (a, b) => {
+      if (!a || !b || a.from !== b.from) return false;
+      const ta = new Date(a.time || a.createdAt).getTime();
+      const tb = new Date(b.time || b.createdAt).getTime();
+      if (!Number.isFinite(ta) || !Number.isFinite(tb) || Math.abs(tb - ta) > 5 * 60 * 1000) return false;
+      return messageDateKey(a.time || a.createdAt) === messageDateKey(b.time || b.createdAt);
+    };
+
+    filtered.forEach((msg, msgIndex) => {
       const messageIso = msg.time || msg.createdAt;
       const currentMessageDateKey = messageDateKey(messageIso);
       if (currentMessageDateKey && currentMessageDateKey !== previousMessageDateKey) {
@@ -6094,7 +6199,9 @@ function createApp() {
       row.className =
         "aton-message-row" +
         (isSelf ? " self" : "") +
-        (privateDmUi ? " aton-message-row--private-dm" : "");
+        (privateDmUi ? " aton-message-row--private-dm" : "") +
+        (sameRun(filtered[msgIndex - 1], msg) ? " aton-message-row--joins-prev" : "") +
+        (sameRun(msg, filtered[msgIndex + 1]) ? " aton-message-row--joins-next" : "");
       if (msg.id) row.setAttribute("data-message-id", String(msg.id));
 
       const inner = document.createElement("div");
@@ -6507,10 +6614,10 @@ function createApp() {
         bubble.appendChild(reactionsBar);
       }
 
-      bubble.appendChild(actions);
-
       if (avatarWrap) inner.appendChild(avatarWrap);
       inner.appendChild(bubble);
+      // Панель действий — плавающая над пузырём (не занимает место в потоке); для неотправленных не нужна
+      if (!msg.sendState) inner.appendChild(actions);
       row.appendChild(inner);
       messagesEl.appendChild(row);
     });
@@ -6577,6 +6684,7 @@ function createApp() {
     pendingOutgoing.set(tempId, { clientId, chatId, text, to, replyToId, toGolos, attempts: 0 });
     allMessages.push(tempMsg);
     inputMessage.value = "";
+    saveDraft(chatId, "");
     adjustComposeInputHeight();
     clearReplyToMessage();
     renderMessages();
@@ -6672,6 +6780,7 @@ function createApp() {
   let lastTypingEmitAt = 0;
   inputMessage.addEventListener("input", () => {
     adjustComposeInputHeight();
+    saveDraft(currentChatId, inputMessage.value);
     // Сообщаем собеседнику «печатает…» (не чаще раза в 3 с)
     if (currentChatId && inputMessage.value && socket.connected) {
       const now = Date.now();
