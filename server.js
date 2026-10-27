@@ -182,6 +182,28 @@ function golosRateAllow(username) {
 /** Как в Telegram: до 4096 символов в сообщении. */
 const MESSAGE_TEXT_MAX_CHARS = 4096;
 
+/** Валидация входных данных: типы и длины (иначе объект вместо строки даёт 500, а гигантские строки раздувают БД). */
+const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]+\.[^\s@]{2,}$/;
+const USERNAME_RE = /^[\p{L}\p{N}_.\-]{3,32}$/u;
+const PASSWORD_MIN = 6;
+const PASSWORD_MAX = 128;
+
+/** Строка нужной длины или null, если это не строка / пустая / слишком длинная. */
+function cleanString(value, max, { allowEmpty = false } = {}) {
+  if (typeof value !== "string") return null;
+  const v = value.trim();
+  if (!v && !allowEmpty) return null;
+  return v.length > max ? null : v;
+}
+
+function validatePassword(password) {
+  if (typeof password !== "string" || password.length < PASSWORD_MIN) {
+    return `Пароль — не короче ${PASSWORD_MIN} символов`;
+  }
+  if (password.length > PASSWORD_MAX) return `Пароль — не длиннее ${PASSWORD_MAX} символов`;
+  return null;
+}
+
 /** Антиспам: не больше 30 сообщений за 10 секунд на пользователя (в памяти процесса). */
 const messageSendLog = new Map();
 function messageSendAllow(userId) {
@@ -1711,10 +1733,25 @@ async function buildLinkPreview(rawUrl) {
 }
 
 app.post("/api/register", registerLimiter, async (req, res) => {
-  const { email, username, password } = req.body || {};
+  let { email, username, password } = req.body || {};
   if (!email || !username || !password) {
     return res.status(400).json({ error: "email, username и password обязательны" });
   }
+  if (typeof email !== "string" || typeof username !== "string" || typeof password !== "string") {
+    return res.status(400).json({ error: "email, username и password должны быть строками" });
+  }
+  if (email.trim().length > 254 || !EMAIL_RE.test(email.trim())) {
+    return res.status(400).json({ error: "Введите корректный email" });
+  }
+  if (!USERNAME_RE.test(username.trim())) {
+    return res.status(400).json({
+      error: "Имя пользователя — 3–32 символа: буквы, цифры, точка, дефис и подчёркивание",
+    });
+  }
+  const passwordError = validatePassword(password);
+  if (passwordError) return res.status(400).json({ error: passwordError });
+  email = email.trim();
+  username = username.trim();
   if (String(username).toLowerCase() === GOLOS_ATON_USERNAME) {
     return res.status(400).json({ error: "Это имя зарезервировано" });
   }
@@ -2224,9 +2261,27 @@ app.post("/api/profile", authMiddleware, requireVerified, async (req, res) => {
     if (!row) return res.status(404).json({ error: "Пользователь не найден" });
 
     const data = {};
-    if (displayName) data.displayName = displayName;
-    data.bio = bio || "";
-    if (avatarDataUrl !== undefined) data.avatarDataUrl = avatarDataUrl;
+    if (displayName !== undefined && displayName !== null && displayName !== "") {
+      const name = cleanString(displayName, 64);
+      if (!name) return res.status(400).json({ error: "Имя — от 1 до 64 символов" });
+      data.displayName = name;
+    }
+    const cleanBio = bio == null ? "" : cleanString(bio, 300, { allowEmpty: true });
+    if (cleanBio === null) return res.status(400).json({ error: "О себе — не длиннее 300 символов" });
+    data.bio = cleanBio;
+    if (avatarDataUrl !== undefined) {
+      if (avatarDataUrl === null || avatarDataUrl === "") {
+        data.avatarDataUrl = null;
+      } else {
+        // Аватары уходят всем клиентам в списках — ограничиваем тип и размер
+        const checkedAvatar = validateDataUrlMedia(avatarDataUrl, {
+          allowedMime: ALLOWED_IMAGE_MIME,
+          maxBytes: 400 * 1024,
+        });
+        if (!checkedAvatar.ok) return res.status(400).json({ error: "Аватар: " + checkedAvatar.error });
+        data.avatarDataUrl = checkedAvatar.value;
+      }
+    }
 
     if (publicId !== undefined) {
       const trimmed = String(publicId).trim();
@@ -2700,6 +2755,9 @@ app.post("/api/password/reset-request", resetLimiter, async (req, res) => {
 app.post("/api/password/reset", async (req, res) => {
   const { token, password } = req.body || {};
   if (!token || !password) return res.status(400).json({ error: "token и password обязательны" });
+  if (typeof token !== "string") return res.status(400).json({ error: "Некорректный токен" });
+  const resetPasswordError = validatePassword(password);
+  if (resetPasswordError) return res.status(400).json({ error: resetPasswordError });
   try {
     const row = await prisma.user.findFirst({
       where: {
@@ -3092,8 +3150,13 @@ app.get("/api/chats/discover", authMiddleware, requireVerified, async (req, res)
 });
 
 app.post("/api/chats", authMiddleware, requireVerified, async (req, res) => {
-  const { title, type = "group", visibility: visIn = "public", description = null } = req.body || {};
-  if (!title) return res.status(400).json({ error: "title обязателен" });
+  const { title: rawTitle, type = "group", visibility: visIn = "public", description: rawDescription = null } = req.body || {};
+  const title = cleanString(rawTitle, 80);
+  if (!title) return res.status(400).json({ error: "Название — от 1 до 80 символов" });
+  const description = rawDescription == null ? null : cleanString(rawDescription, 500, { allowEmpty: true });
+  if (rawDescription != null && description === null) {
+    return res.status(400).json({ error: "Описание — не длиннее 500 символов" });
+  }
   if (type !== "group" && type !== "channel") {
     return res.status(400).json({ error: "type должен быть group или channel" });
   }
@@ -4298,7 +4361,16 @@ app.delete("/api/messages/:id", authMiddleware, requireVerified, async (req, res
   try {
     const row = await prisma.message.findUnique({ where: { id } });
     if (!row) return res.status(404).json({ error: "Сообщение не найдено" });
-    if (row.senderUsername !== req.user.username) {
+    let canDelete = row.senderUsername === req.user.username;
+    if (!canDelete && typeof row.chatId === "string" && (row.chatId.startsWith("group:") || row.chatId.startsWith("channel:"))) {
+      // Модерация: владелец и админы группы/канала могут удалять любые сообщения в своём чате
+      const chatRow = await prisma.chat.findUnique({ where: { id: row.chatId }, select: { ownerId: true, admins: true } });
+      canDelete = Boolean(
+        chatRow &&
+          (chatRow.ownerId === req.user.id || (Array.isArray(chatRow.admins) && chatRow.admins.includes(req.user.id)))
+      );
+    }
+    if (!canDelete) {
       return res.status(403).json({ error: "Можно удалять только свои сообщения" });
     }
     const msg = messageFromPrismaRow(row);

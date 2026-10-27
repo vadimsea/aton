@@ -248,6 +248,10 @@ const I18N = {
     de: "Antwort auf eine Nachricht von {name}…",
   },
   "Ответ на сообщение": { en: "Replying to message", de: "Antwort auf Nachricht" },
+  "Редактирование сообщения": { en: "Editing message", de: "Nachricht bearbeiten" },
+  "Не удалось сохранить": { en: "Could not save", de: "Speichern fehlgeschlagen" },
+  "Не удалось удалить": { en: "Could not delete", de: "Löschen fehlgeschlagen" },
+  "Вниз, к новым сообщениям": { en: "Down to new messages", de: "Zu neuen Nachrichten" },
   "Отменить ответ": { en: "Cancel reply", de: "Antwort abbrechen" },
   "Вы": { en: "You", de: "Sie" },
   "Редактировать": { en: "Edit", de: "Bearbeiten" },
@@ -1050,6 +1054,14 @@ function isMessageFromSelf(msg, me, activeChatId) {
  * Галочки исходящих в личке, ближе к Telegram:
  * одна серая ✓ — отправлено/доставлено; две синие ✓✓ — прочитано.
  */
+/** Постоянный цвет аватара по имени: один и тот же человек/чат всегда одного цвета (как в Telegram). */
+function avatarBackgroundFor(name) {
+  let h = 0;
+  for (const ch of String(name || "?")) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  const hue = h % 360;
+  return `linear-gradient(145deg, hsl(${hue} 68% 56%), hsl(${(hue + 38) % 360} 62% 40%))`;
+}
+
 /** Случайный id сообщения (hex): сервер принимает его как id, поэтому повторная отправка не создаёт дубликат. */
 function newClientMsgId() {
   const bytes = new Uint8Array(16);
@@ -2721,6 +2733,7 @@ function createApp() {
 
   function switchSocketChat(newChatId) {
     if (currentSocketChat === newChatId) return;
+    clearReplyToMessage(); // ответ/правка относятся к прежнему чату
     if (currentSocketChat) {
       socket.emit("leave_chat", currentSocketChat);
     }
@@ -3509,7 +3522,87 @@ function createApp() {
     return displayNameForPeer(currentUser.username, msg.from, userByUsername(msg.from));
   }
 
+  /** Редактируемое сообщение: правка идёт прямо в поле ввода, баннер над ним — как в Telegram. */
+  let editingMessage = null;
+
+  function startEditMessage(msg) {
+    if (!msg || msg.type !== "text" || !currentUser || msg.from !== currentUser.username) return;
+    clearReplyToMessage();
+    editingMessage = msg;
+    if (replyComposeLabelEl) replyComposeLabelEl.textContent = t("Редактирование сообщения");
+    if (replyComposeTextEl) replyComposeTextEl.textContent = messageReplyExcerpt(msg);
+    if (replyComposeEl) replyComposeEl.hidden = false;
+    inputMessage.value = msg.text || "";
+    adjustComposeInputHeight();
+    inputMessage.focus();
+    inputMessage.setSelectionRange(inputMessage.value.length, inputMessage.value.length);
+  }
+
+  function cancelEditMessage() {
+    if (!editingMessage) return;
+    editingMessage = null;
+    inputMessage.value = loadDraft(currentChatId);
+    adjustComposeInputHeight();
+  }
+
+  /** Сохраняет правку; true — обработано (поле ввода занято редактированием). */
+  async function submitEditMessage() {
+    const msg = editingMessage;
+    const nextText = inputMessage.value.trim();
+    if (!msg) return false;
+    if (!nextText) return true;
+    if (nextText === (msg.text || "")) {
+      clearReplyToMessage();
+      return true;
+    }
+    try {
+      const updated = await api(`/api/messages/${msg.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ text: nextText }),
+      });
+      allMessages = allMessages.map((m) => (m.id === updated.id ? { ...m, ...updated } : m));
+      clearReplyToMessage();
+      renderMessages();
+      renderChatList();
+    } catch (err) {
+      showToast(err.message || t("Не удалось сохранить"));
+    }
+    return true;
+  }
+
+  /** Владелец и админы группы/канала могут удалять чужие сообщения. */
+  function canModerateCurrentChat() {
+    if (!currentUser || !currentChatId) return false;
+    if (!currentChatId.startsWith("group:") && !currentChatId.startsWith("channel:")) return false;
+    const chat = allChats.find((c) => c.id === currentChatId);
+    if (!chat) return false;
+    if (chat.owner === currentUser.username) return true;
+    if (chat.ownerId && currentUser.id && String(chat.ownerId) === String(currentUser.id)) return true;
+    return Array.isArray(chat.admins) && chat.admins.some((id) => String(id) === String(currentUser.id));
+  }
+
+  function makeDeleteButton(msg) {
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "aton-message-action-button aton-message-delete";
+    delBtn.textContent = "×";
+    delBtn.title = t("Удалить сообщение");
+    delBtn.setAttribute("aria-label", delBtn.title);
+    delBtn.addEventListener("click", async () => {
+      try {
+        await api(`/api/messages/${msg.id}`, { method: "DELETE" });
+        allMessages = allMessages.filter((m) => m.id !== msg.id);
+        renderMessages();
+        renderChatList();
+      } catch (err) {
+        showToast(err.message || t("Не удалось удалить"));
+      }
+    });
+    return delBtn;
+  }
+
   function clearReplyToMessage() {
+    if (editingMessage) cancelEditMessage();
     replyToMessage = null;
     if (replyComposeEl) replyComposeEl.hidden = true;
     if (replyComposeLabelEl) replyComposeLabelEl.textContent = "";
@@ -5043,6 +5136,8 @@ function createApp() {
         avatar.appendChild(img);
       } else {
         avatar.textContent = (title || peer).slice(0, 1).toUpperCase();
+        avatar.style.background = avatarBackgroundFor(peer || title);
+        avatar.style.color = "#fff";
       }
       avatarWrap.appendChild(avatar);
       if (presence.online) {
@@ -5160,7 +5255,16 @@ function createApp() {
 
       const avatar = document.createElement("div");
       avatar.className = "aton-chat-avatar";
-      avatar.textContent = "☀";
+      if (chatMeta.avatarDataUrl) {
+        const groupImg = document.createElement("img");
+        groupImg.src = chatMeta.avatarDataUrl;
+        groupImg.alt = "";
+        avatar.appendChild(groupImg);
+      } else {
+        avatar.textContent = String(chatMeta.title || "?").trim().slice(0, 1).toUpperCase() || "?";
+        avatar.style.background = avatarBackgroundFor(chatMeta.id);
+        avatar.style.color = "#fff";
+      }
 
       const main = document.createElement("div");
       main.className = "aton-chat-item-main";
@@ -5210,7 +5314,8 @@ function createApp() {
         previewEl.classList.add("aton-chat-item-preview--typing");
       }
       main.appendChild(titleEl);
-      main.appendChild(subtitleEl);
+      // Как в Telegram: если есть последнее сообщение — показываем его, а не «группа • создал …»
+      if (!chatListPreviewText(dialog, lastMsg)) main.appendChild(subtitleEl);
       main.appendChild(previewEl);
 
       const metaWrap = document.createElement("div");
@@ -6220,6 +6325,7 @@ function createApp() {
           avatarWrap.appendChild(img);
         } else {
           avatarWrap.textContent = senderTitle.slice(0, 1).toUpperCase();
+          avatarWrap.style.background = avatarBackgroundFor(msg.from || senderTitle);
         }
       }
 
@@ -6517,21 +6623,8 @@ function createApp() {
         editBtn.className = "aton-message-action-button";
         editBtn.textContent = "✎";
         editBtn.title = t("Редактировать");
-        editBtn.addEventListener("click", async () => {
-          const nextText = prompt(t("Измените текст сообщения:"), msg.text || "");
-          if (!nextText || nextText === msg.text) return;
-          try {
-            const updated = await api(`/api/messages/${msg.id}`, {
-              method: "PATCH",
-              body: JSON.stringify({ text: nextText }),
-            });
-            allMessages = allMessages.map((m) => (m.id === updated.id ? updated : m));
-            renderMessages();
-          } catch (err) {
-            alert(err.message);
-          }
-        });
-        actions.appendChild(editBtn);
+        editBtn.addEventListener("click", () => startEditMessage(msg));
+        if (msg.type === "text") actions.appendChild(editBtn);
 
         const pinBtn = document.createElement("button");
         pinBtn.className = "aton-message-action-button";
@@ -6551,21 +6644,10 @@ function createApp() {
         });
         actions.appendChild(pinBtn);
 
-        const delBtn = document.createElement("button");
-        delBtn.className = "aton-message-action-button aton-message-delete";
-        delBtn.textContent = "×";
-        delBtn.title = t("Удалить сообщение");
-        delBtn.addEventListener("click", async () => {
-          try {
-            await api(`/api/messages/${msg.id}`, { method: "DELETE" });
-            allMessages = allMessages.filter((m) => m.id !== msg.id);
-            renderMessages();
-            renderChatList();
-          } catch (err) {
-            alert(err.message);
-          }
-        });
-        actions.appendChild(delBtn);
+        actions.appendChild(makeDeleteButton(msg));
+      } else if (current && msg.id && canModerateCurrentChat()) {
+        // Владелец/админ группы или канала может удалять чужие сообщения (модерация)
+        actions.appendChild(makeDeleteButton(msg));
       }
 
       bubble.addEventListener("dblclick", async (event) => {
@@ -6654,6 +6736,11 @@ function createApp() {
     }
     const text = inputMessage.value.trim();
     if (!text) return;
+    if (editingMessage) {
+      void submitEditMessage();
+      return;
+    }
+
     const peer = currentChatPeer();
     if (peer && contacts.blocked.some((u) => u.username === peer)) {
       alert(t("Вы заблокировали этого пользователя. Разблокируйте его в контактах, чтобы писать."));
@@ -6780,7 +6867,7 @@ function createApp() {
   let lastTypingEmitAt = 0;
   inputMessage.addEventListener("input", () => {
     adjustComposeInputHeight();
-    saveDraft(currentChatId, inputMessage.value);
+    if (!editingMessage) saveDraft(currentChatId, inputMessage.value); // текст правки — не черновик
     // Сообщаем собеседнику «печатает…» (не чаще раза в 3 с)
     if (currentChatId && inputMessage.value && socket.connected) {
       const now = Date.now();
@@ -6793,6 +6880,24 @@ function createApp() {
 
   inputMessage.addEventListener("keydown", (event) => {
     if (!currentChatId) return;
+    // Esc: отменить правку или ответ
+    if (event.key === "Escape" && (editingMessage || replyToMessage)) {
+      event.preventDefault();
+      clearReplyToMessage();
+      return;
+    }
+    // ↑ в пустом поле: править своё последнее текстовое сообщение (как в Telegram)
+    if (event.key === "ArrowUp" && !inputMessage.value && !editingMessage && currentUser) {
+      const mine = messagesForChatId(currentChatId).filter(
+        (m) => m && m.type === "text" && m.from === currentUser.username && !String(m.id).startsWith("_temp_")
+      );
+      const last = mine[mine.length - 1];
+      if (last) {
+        event.preventDefault();
+        startEditMessage(last);
+        return;
+      }
+    }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       sendButton.click();
