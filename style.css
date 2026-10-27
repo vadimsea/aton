@@ -2809,6 +2809,7 @@ body {
   border-radius: 12px;
   color: inherit;
   text-decoration: none;
+  text-align: left;
   background: rgba(15, 23, 42, 0.09);
   border: 1px solid rgba(15, 23, 42, 0.1);
   overflow: hidden;
@@ -3315,7 +3316,7 @@ body {
 .aton-message-action-button {
   border: 1px solid transparent;
   background: transparent;
-  color: rgba(203, 213, 225, 0.62);
+  color: rgba(203, 213, 225, 0.48);
   cursor: pointer;
   font-size: 13px;
   line-height: 1;
@@ -3335,8 +3336,8 @@ body {
 }
 
 .aton-message-action-button:hover {
-  background: rgba(148, 163, 184, 0.12);
-  border-color: rgba(148, 163, 184, 0.18);
+  background: rgba(148, 163, 184, 0.10);
+  border-color: rgba(148, 163, 184, 0.16);
   color: rgba(241, 245, 249, 0.86);
   transform: translateY(-1px);
 }
@@ -3426,7 +3427,7 @@ body {
 [data-theme="light"] .aton-message-action-button {
   background: transparent;
   border-color: transparent;
-  color: rgba(71, 85, 105, 0.62);
+  color: rgba(71, 85, 105, 0.48);
   box-shadow: none;
 }
 
@@ -6472,8 +6473,15 @@ body {
     font-size: 11px;
   }
 
+  /* Телефон: как в Telegram — кнопки действий скрыты, показываются тапом по сообщению */
   .aton-message-actions {
+    display: none;
+  }
+
+  .aton-message-bubble.is-actions-open .aton-message-actions {
+    display: flex;
     opacity: 1;
+    transform: none;
   }
 
   .aton-message-action-button {
@@ -6701,4 +6709,44 @@ body {
     margin: 0;
     flex-shrink: 0;
   }
+}
+
+
+/* Отправка: часики, ошибка и «Повторить» */
+.aton-message-ack--sending {
+  opacity: 0.7;
+  font-size: 11px;
+}
+
+.aton-message-ack--failed {
+  color: #f87171;
+  font-weight: 700;
+}
+
+.aton-message-bubble--pending .aton-message-actions {
+  display: none !important;
+}
+
+.aton-message-failed {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #f87171;
+}
+
+.aton-message-failed-btn {
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.aton-message-failed-btn--secondary {
+  color: var(--text-muted, #94a3b8);
 }

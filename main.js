@@ -167,6 +167,10 @@ const I18N = {
   },
   "Ошибка соединения с сервером": { en: "Server connection error", de: "Serververbindungsfehler" },
   "Загрузка фото…": { en: "Loading photo…", de: "Foto wird geladen…" },
+  "Не отправлено": { en: "Not sent", de: "Nicht gesendet" },
+  "Повторить": { en: "Retry", de: "Erneut versuchen" },
+  "Отправляется…": { en: "Sending…", de: "Wird gesendet…" },
+  "печатает…": { en: "typing…", de: "schreibt…" },
   "Загрузка голосового…": { en: "Loading voice message…", de: "Sprachnachricht wird geladen…" },
   "Укажите email, имя и дважды один и тот же пароль.": {
     en: "Enter email, username, and the same password twice.",
@@ -1046,6 +1050,26 @@ function isMessageFromSelf(msg, me, activeChatId) {
  * Галочки исходящих в личке, ближе к Telegram:
  * одна серая ✓ — отправлено/доставлено; две синие ✓✓ — прочитано.
  */
+/** Случайный id сообщения (hex): сервер принимает его как id, поэтому повторная отправка не создаёт дубликат. */
+function newClientMsgId() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Галочки/часики для сообщения: «отправляется», «не отправлено» или обычный статус доставки. */
+function messageAckForMsg(msg, showAck) {
+  if (msg && msg.sendState === "sending") {
+    return `<span class="aton-message-ack aton-message-ack--sending" title="${escHtml(t("Отправляется…"))}" aria-label="${escHtml(t("Отправляется…"))}">🕓</span>`;
+  }
+  if (msg && msg.sendState === "failed") {
+    return `<span class="aton-message-ack aton-message-ack--failed" title="${escHtml(t("Не отправлено"))}" aria-label="${escHtml(t("Не отправлено"))}">!</span>`;
+  }
+  if (!showAck) return "";
+  const st = msg && msg.status && ["sent", "delivered", "read"].includes(msg.status) ? msg.status : "sent";
+  return messageAckHtml(st);
+}
+
 function messageAckHtml(status) {
   const s = status === "delivered" || status === "read" || status === "sent" ? status : "sent";
   if (s === "sent" || s === "delivered") {
@@ -1450,6 +1474,9 @@ function audioCaptionText(msg) {
   return raw && !isAudioDurationLabel(raw) ? raw : "";
 }
 
+/** Живой онлайн-статус по сокету: username → { online, lastSeen }. Перекрывает lastSeen из /api/users. */
+const livePresence = new Map();
+
 /** Статус «был в сети» для шапки и списка личных чатов. При blockedMe не показываем реальный lastSeen. */
 function formatPeerPresence(peerUser) {
   const blockedMe = Boolean(peerUser && peerUser.blockedMe);
@@ -1460,7 +1487,11 @@ function formatPeerPresence(peerUser) {
       title: t("Статус скрыт"),
     };
   }
-  const iso = peerUser && peerUser.lastSeen;
+  const live = peerUser && livePresence.get(peerUser.username);
+  if (live && live.online) {
+    return { text: t("онлайн"), online: true, title: t("Сейчас онлайн") };
+  }
+  const iso = (live && live.lastSeen) || (peerUser && peerUser.lastSeen);
   if (!iso) {
     return {
       text: t("нет данных о последнем визите"),
@@ -2437,6 +2468,7 @@ function createApp() {
   let golosPendingReplies = 0;
   let openReactionPicker = null;
   let openReactionTrigger = null;
+  let openActionsMessageId = "";
   let openChatMenu = null;
   let currentSocketChat = null;
   let mainView = "chat";
@@ -2695,6 +2727,7 @@ function createApp() {
     currentSocketChat = newChatId || null;
     if (currentSocketChat) {
       socket.emit("join_chat", currentSocketChat);
+      scheduleWatchPresence();
     }
   }
 
@@ -2802,10 +2835,8 @@ function createApp() {
       const timeLabel = formatMessageDateTimeLabel(msg.time);
       const editedLabel = msg.editedAt ? ` · ${t("изм.")}` : "";
       const pinnedLabel = msg.pinned ? " ★" : "";
-      const st =
-        msg.status && ["sent", "delivered", "read"].includes(msg.status) ? msg.status : "sent";
       const showAck = isSelf && isPrivateDirectChat(currentChatId);
-      const ack = showAck ? messageAckHtml(st) : "";
+      const ack = messageAckForMsg(msg, showAck);
       meta.innerHTML = `<span class="aton-message-time">${escHtml(timeLabel)}${escHtml(editedLabel)}${escHtml(pinnedLabel)}</span>${ack}`;
     }
   }
@@ -3105,6 +3136,7 @@ function createApp() {
     if (!msg) return;
     // Если сообщение уже есть в истории, не дублируем
     if (allMessages.some((m) => m.id === msg.id)) return;
+    if (msg.from && msg.chatId) clearTypingFor(msg.chatId, msg.from);
     if (msg.from === GOLOS_ATON_USERNAME && currentChatId && messageBelongsToOpenChat(msg, currentChatId)) {
       golosPendingReplies = Math.max(0, golosPendingReplies - 1);
     }
@@ -3175,6 +3207,84 @@ function createApp() {
     }
   });
 
+  // ===== «Печатает…» у собеседника и онлайн-статус в реальном времени =====
+  const TYPING_SHOW_MS = 4500;
+  const typingNow = new Map(); // chatId → Map(username → timeoutId)
+
+  function typingLabelForChat(chatId) {
+    const byUser = typingNow.get(chatId);
+    if (!byUser || !byUser.size || !currentUser) return "";
+    if (isPrivateDirectChat(chatId)) return t("печатает…");
+    const names = [...byUser.keys()]
+      .slice(0, 2)
+      .map((n) => displayNameForPeer(currentUser.username, n, userByUsername(n)));
+    return `${names.join(", ")} ${t("печатает…")}`;
+  }
+
+  function clearTypingFor(chatId, username) {
+    const byUser = typingNow.get(chatId);
+    if (!byUser || !byUser.has(username)) return;
+    clearTimeout(byUser.get(username));
+    byUser.delete(username);
+    if (!byUser.size) typingNow.delete(chatId);
+    if (currentChatId === chatId) updateTopbarTitle();
+  }
+
+  socket.on("typing", (p) => {
+    if (!p || !p.chatId || !p.from || !currentUser || p.from === currentUser.username) return;
+    let byUser = typingNow.get(p.chatId);
+    if (!byUser) {
+      byUser = new Map();
+      typingNow.set(p.chatId, byUser);
+    }
+    if (byUser.has(p.from)) clearTimeout(byUser.get(p.from));
+    byUser.set(
+      p.from,
+      setTimeout(() => clearTypingFor(p.chatId, p.from), TYPING_SHOW_MS)
+    );
+    if (currentChatId === p.chatId) updateTopbarTitle();
+  });
+
+  let presenceWatchTimer = 0;
+  function scheduleWatchPresence() {
+    clearTimeout(presenceWatchTimer);
+    presenceWatchTimer = setTimeout(() => {
+      if (!currentUser || !socket.connected) return;
+      const peers = new Set();
+      if (currentChatId && isPrivateDirectChat(currentChatId)) {
+        const p = currentChatPeer();
+        if (p) peers.add(p);
+      }
+      for (const m of allMessages) {
+        const cid = m && m.chatId;
+        if (!isPrivateDirectChat(cid)) continue;
+        const [a, b] = cid.split("|");
+        const other = a === currentUser.username ? b : a;
+        if (other && other !== GOLOS_ATON_USERNAME) peers.add(other);
+        if (peers.size >= 100) break;
+      }
+      if (!peers.size) return;
+      socket.emit("presence:watch", [...peers], (online) => {
+        if (!online || typeof online !== "object") return;
+        for (const [name, isOnline] of Object.entries(online)) {
+          const prev = livePresence.get(name);
+          livePresence.set(name, { online: Boolean(isOnline), lastSeen: prev ? prev.lastSeen : null });
+        }
+        renderChatList();
+        updateTopbarTitle();
+      });
+    }, 400);
+  }
+
+  socket.on("presence", (p) => {
+    if (!p || !p.username) return;
+    livePresence.set(p.username, { online: Boolean(p.online), lastSeen: p.lastSeen || null });
+    renderChatList();
+    if (currentChatId && isPrivateDirectChat(currentChatId) && currentChatPeer() === p.username) {
+      updateTopbarTitle();
+    }
+  });
+
   socket.on("message:status", (p) => {
     if (!p || !p.chatId) return;
     const cid = p.chatId;
@@ -3191,6 +3301,7 @@ function createApp() {
 
   // При переподключении возвращаемся в активную комнату, если она есть
   socket.on("connect", () => {
+    scheduleWatchPresence();
     if (currentSocketChat) {
       socket.emit("join_chat", currentSocketChat);
       void pullChatReceipts(currentSocketChat);
@@ -3837,6 +3948,7 @@ function createApp() {
          приходящие чаты/users/contacts пересоздают DOM ленты и сбрасывают воспроизведение ГС. */
       function paintBootstrapSidebar() {
         if (version !== bootstrapVersion) return;
+        scheduleWatchPresence();
         renderChatList();
         updateTopbarTitle();
         updateFriendsBadge();
@@ -6006,6 +6118,18 @@ function createApp() {
 
       const bubble = document.createElement("div");
       bubble.className = "aton-message-bubble" + (isSelf ? " self" : "");
+      // Мобильный: кнопки действий скрыты, открываются тапом по сообщению (как в Telegram); на десктопе — по hover
+      if (openActionsMessageId && String(msg.id || "") === openActionsMessageId) {
+        bubble.classList.add("is-actions-open");
+      }
+      bubble.addEventListener("click", (event) => {
+        if (!window.matchMedia("(max-width: 840px)").matches) return;
+        if (event.target.closest("a, button, audio, input, textarea, img, .aton-voice-player, .aton-reaction-picker")) return;
+        const wasOpen = bubble.classList.contains("is-actions-open");
+        messagesEl.querySelectorAll(".aton-message-bubble.is-actions-open").forEach((b) => b.classList.remove("is-actions-open"));
+        openActionsMessageId = wasOpen ? "" : String(msg.id || "");
+        if (!wasOpen) bubble.classList.add("is-actions-open");
+      });
       const text = document.createElement("div");
       text.className = "aton-message-text";
       const cachedMediaUrl = messageMediaUrlCache.get(String(msg.id || ""));
@@ -6147,13 +6271,37 @@ function createApp() {
       const meta = document.createElement("div");
       meta.className = "aton-message-meta" + (isSelf ? " aton-message-meta--self" : "");
       {
-        const st =
-          msg.status && ["sent", "delivered", "read"].includes(msg.status) ? msg.status : "sent";
         const showAck = isSelf && privateDmUi;
-        const ack = showAck ? messageAckHtml(st) : "";
+        const ack = messageAckForMsg(msg, showAck);
         meta.innerHTML = `<span class="aton-message-time">${escHtml(timeLabel)}${escHtml(editedLabel)}${escHtml(pinnedLabel)}</span>${ack}`;
       }
       bubble.appendChild(meta);
+
+      if (msg.sendState) bubble.classList.add("aton-message-bubble--pending");
+      if (msg.sendState === "failed") {
+        const failedRow = document.createElement("div");
+        failedRow.className = "aton-message-failed";
+        const failedLabel = document.createElement("span");
+        failedLabel.textContent = t("Не отправлено");
+        const retryBtn = document.createElement("button");
+        retryBtn.type = "button";
+        retryBtn.className = "aton-message-failed-btn";
+        retryBtn.textContent = t("Повторить");
+        retryBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          retryOutgoing(msg.id);
+        });
+        const discardBtn = document.createElement("button");
+        discardBtn.type = "button";
+        discardBtn.className = "aton-message-failed-btn aton-message-failed-btn--secondary";
+        discardBtn.textContent = t("Удалить");
+        discardBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          discardOutgoing(msg.id);
+        });
+        failedRow.append(failedLabel, retryBtn, discardBtn);
+        bubble.appendChild(failedRow);
+      }
 
       const actions = document.createElement("div");
       actions.className = "aton-message-actions";
@@ -6399,9 +6547,6 @@ function createApp() {
     }
     const text = inputMessage.value.trim();
     if (!text) return;
-    // Защита от двойного клика
-    if (sendButton.dataset.sending === "1") return;
-
     const peer = currentChatPeer();
     if (peer && contacts.blocked.some((u) => u.username === peer)) {
       alert(t("Вы заблокировали этого пользователя. Разблокируйте его в контактах, чтобы писать."));
@@ -6414,8 +6559,9 @@ function createApp() {
     const chatId = currentChatId;
     const replyToId = replyToMessage ? replyToMessage.id : null;
 
-    // Оптимистичная вставка: показываем сообщение сразу
-    const tempId = `_temp_${Date.now()}`;
+    // Оптимистичная вставка: показываем сообщение сразу (с часиками), можно слать следующее не дожидаясь ответа
+    const clientId = newClientMsgId();
+    const tempId = `_temp_${clientId}`;
     const tempMsg = {
       id: tempId,
       from: user.username,
@@ -6426,45 +6572,114 @@ function createApp() {
       time: new Date().toISOString(),
       replyTo: replyToId,
       status: "sent",
+      sendState: "sending",
     };
+    pendingOutgoing.set(tempId, { clientId, chatId, text, to, replyToId, toGolos, attempts: 0 });
     allMessages.push(tempMsg);
     inputMessage.value = "";
     adjustComposeInputHeight();
     clearReplyToMessage();
     renderMessages();
 
-    sendButton.dataset.sending = "1";
-
-    (async () => {
-      try {
-        const msg = await api("/api/messages", {
-          method: "POST",
-          body: JSON.stringify({ chatId, type: "text", text, to, replyTo: replyToId }),
-        });
-        // Заменяем временное сообщение настоящим
-        const idx = allMessages.findIndex((m) => m.id === tempId);
-        if (!allMessages.some((m) => m.id === msg.id)) {
-          if (idx !== -1) allMessages.splice(idx, 1, msg);
-          else allMessages.push(msg);
-        } else if (idx !== -1) {
-          allMessages.splice(idx, 1); // сокет уже добавил настоящее
-        }
-        renderMessages();
-        renderChatList();
-      } catch (err) {
-        if (toGolos) golosPendingReplies = Math.max(0, golosPendingReplies - 1);
-        // Откат оптимистичной вставки
-        allMessages = allMessages.filter((m) => m.id !== tempId);
-        renderMessages();
-        alert(err.message);
-      } finally {
-        delete sendButton.dataset.sending;
-      }
-    })();
+    void deliverOutgoing(tempId);
   });
 
+  /** Исходящие, ещё не подтверждённые сервером: tempId → параметры для (повторной) отправки. */
+  const pendingOutgoing = new Map();
+
+  async function deliverOutgoing(tempId) {
+    const job = pendingOutgoing.get(tempId);
+    const tempMsg = allMessages.find((m) => m.id === tempId);
+    if (!job || !tempMsg) return;
+    tempMsg.sendState = "sending";
+    job.attempts += 1;
+    try {
+      const msg = await api("/api/messages", {
+        method: "POST",
+        body: JSON.stringify({
+          id: job.clientId,
+          chatId: job.chatId,
+          type: "text",
+          text: job.text,
+          to: job.to,
+          replyTo: job.replyToId,
+        }),
+      });
+      pendingOutgoing.delete(tempId);
+      // Заменяем временное сообщение настоящим
+      const idx = allMessages.findIndex((m) => m.id === tempId);
+      if (!allMessages.some((m) => m.id === msg.id)) {
+        if (idx !== -1) allMessages.splice(idx, 1, msg);
+        else allMessages.push(msg);
+      } else if (idx !== -1) {
+        allMessages.splice(idx, 1); // сокет уже добавил настоящее
+      }
+      renderMessages();
+      renderChatList();
+    } catch (err) {
+      const status = err && err.status;
+      const retryable = !status || status >= 500 || status === 429 || status === 408 || Boolean(err && err.isNetwork);
+      if (!retryable) {
+        // Сервер отклонил само сообщение (слишком длинное, нет доступа…) — повтор бессмысленен
+        pendingOutgoing.delete(tempId);
+        if (job.toGolos) golosPendingReplies = Math.max(0, golosPendingReplies - 1);
+        allMessages = allMessages.filter((m) => m.id !== tempId);
+        if (!inputMessage.value) {
+          inputMessage.value = job.text;
+          adjustComposeInputHeight();
+        }
+        renderMessages();
+        alert(err.message);
+        return;
+      }
+      if (job.attempts < 3) {
+        // Короткая пауза и ещё попытка, как в мессенджерах; сообщение пока висит с часиками
+        renderMessages();
+        setTimeout(() => void deliverOutgoing(tempId), job.attempts * 2000);
+        return;
+      }
+      if (job.toGolos) golosPendingReplies = Math.max(0, golosPendingReplies - 1);
+      tempMsg.sendState = "failed";
+      renderMessages();
+    }
+  }
+
+  function retryOutgoing(tempId) {
+    const job = pendingOutgoing.get(tempId);
+    if (!job) return;
+    job.attempts = 0;
+    if (job.toGolos) golosPendingReplies += 1;
+    const msg = allMessages.find((m) => m.id === tempId);
+    if (msg) msg.sendState = "sending";
+    renderMessages();
+    void deliverOutgoing(tempId);
+  }
+
+  function discardOutgoing(tempId) {
+    pendingOutgoing.delete(tempId);
+    allMessages = allMessages.filter((m) => m.id !== tempId);
+    renderMessages();
+  }
+
+  // Вернулась сеть — автоматически повторяем всё, что не отправилось
+  window.addEventListener("online", () => {
+    for (const tempId of pendingOutgoing.keys()) {
+      const msg = allMessages.find((m) => m.id === tempId);
+      if (msg && msg.sendState === "failed") retryOutgoing(tempId);
+    }
+  });
+
+  let lastTypingEmitAt = 0;
   inputMessage.addEventListener("input", () => {
     adjustComposeInputHeight();
+    // Сообщаем собеседнику «печатает…» (не чаще раза в 3 с)
+    if (currentChatId && inputMessage.value && socket.connected) {
+      const now = Date.now();
+      if (now - lastTypingEmitAt > 3000) {
+        lastTypingEmitAt = now;
+        socket.emit("typing", { chatId: currentChatId });
+      }
+    }
   });
 
   inputMessage.addEventListener("keydown", (event) => {
@@ -7940,12 +8155,14 @@ function createApp() {
         if (chatMeta) {
           const verified = Boolean(chatMeta.verified);
           setTitle(chatMeta.title, verified);
+          const groupTyping = typingLabelForChat(currentChatId);
           statusEl.textContent =
-            currentChatId.startsWith("channel:") && !canPostCurrentChat()
+            groupTyping ||
+            (currentChatId.startsWith("channel:") && !canPostCurrentChat()
               ? t("Канал · писать могут владелец и администраторы")
               : currentChatId.startsWith("channel:")
                 ? t("Канал")
-                : t("Групповой чат");
+                : t("Групповой чат"));
           statusEl.removeAttribute("title");
           return;
         }
@@ -7979,9 +8196,10 @@ function createApp() {
       setTitle(name, verified);
 
       const presence = formatPeerPresence(peerUser);
-      statusEl.textContent = presence.text;
+      const typingLabel = typingLabelForChat(currentChatId);
+      statusEl.textContent = typingLabel || presence.text;
       statusEl.title = presence.title || presence.text;
-      statusEl.classList.toggle("aton-topbar-status--online", presence.online);
+      statusEl.classList.toggle("aton-topbar-status--online", presence.online || Boolean(typingLabel));
     } finally {
       updatePeerActionBar();
       updateGolosChatChrome();

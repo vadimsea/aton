@@ -579,10 +579,75 @@ io.use(async (socket, next) => {
   next();
 });
 
+/** Присутствие: username → число открытых сокетов (вкладки/устройства). Онлайн, пока есть хотя бы один. */
+const onlineSockets = new Map();
+const offlineTimers = new Map();
+
+function broadcastPresence(username, online, lastSeenIso) {
+  io.to(`presence:${username}`).emit("presence", { username, online, lastSeen: lastSeenIso || null });
+}
+
+function blockedListOf(row) {
+  return row && Array.isArray(row.blocked) ? row.blocked : [];
+}
+
 io.on("connection", (socket) => {
-  if (socket.user && socket.user.username) {
-    socket.join(`user:${socket.user.username}`);
+  const me = socket.user && socket.user.username;
+  if (me) {
+    socket.join(`user:${me}`);
+    const pendingOffline = offlineTimers.get(me);
+    if (pendingOffline) {
+      clearTimeout(pendingOffline);
+      offlineTimers.delete(me);
+    }
+    const count = (onlineSockets.get(me) || 0) + 1;
+    onlineSockets.set(me, count);
+    if (count === 1) broadcastPresence(me, true, null);
   }
+
+  // Подписка на онлайн-статус собеседников; в ответе — кто сейчас онлайн.
+  socket.on("presence:watch", async (names, ack) => {
+    if (!me || !Array.isArray(names)) return typeof ack === "function" && ack({});
+    const list = [...new Set(names.filter((n) => typeof n === "string" && n && n.length <= 64))].slice(0, 100);
+    const result = {};
+    try {
+      const rows = await prisma.user.findMany({
+        where: { username: { in: list } },
+        select: { username: true, blocked: true },
+      });
+      for (const row of rows) {
+        if (blockedListOf(row).includes(me)) continue; // заблокировавший нас статус не видим
+        socket.join(`presence:${row.username}`);
+        result[row.username] = (onlineSockets.get(row.username) || 0) > 0;
+      }
+    } catch (err) {
+      console.error("presence:watch:", err);
+    }
+    if (typeof ack === "function") ack(result);
+  });
+
+  // «Печатает…»: личка — собеседнику, группа — остальным участникам комнаты. Не чаще раза в 2 с с сокета.
+  let lastTypingAt = 0;
+  socket.on("typing", async (payload) => {
+    const chatId = payload && payload.chatId;
+    if (!me || typeof chatId !== "string" || chatId.length > 200) return;
+    const now = Date.now();
+    if (now - lastTypingAt < 2000) return;
+    lastTypingAt = now;
+    try {
+      if (isDirectMessageChatId(chatId)) {
+        const peer = dmPeerFromChatId(chatId, me);
+        if (!peer || peer === GOLOS_ATON_USERNAME) return;
+        const peerRow = await prisma.user.findUnique({ where: { username: peer }, select: { blocked: true } });
+        if (!peerRow || blockedListOf(peerRow).includes(me)) return;
+        io.to(`user:${peer}`).emit("typing", { chatId, from: me });
+      } else if (socket.rooms.has(chatId)) {
+        socket.to(chatId).emit("typing", { chatId, from: me });
+      }
+    } catch (err) {
+      console.error("typing:", err);
+    }
+  });
 
   socket.on("join_chat", async (chatId) => {
     if (!chatId || typeof chatId !== "string") return;
@@ -623,7 +688,26 @@ io.on("connection", (socket) => {
     socket.leave(chatId);
   });
 
-  socket.on("disconnect", () => {});
+  socket.on("disconnect", () => {
+    if (!me) return;
+    const left = (onlineSockets.get(me) || 1) - 1;
+    if (left > 0) {
+      onlineSockets.set(me, left);
+      return;
+    }
+    onlineSockets.delete(me);
+    // Небольшая задержка, чтобы переподключение (обновление страницы) не мигало «офлайн».
+    offlineTimers.set(
+      me,
+      setTimeout(() => {
+        offlineTimers.delete(me);
+        if (onlineSockets.get(me)) return;
+        const iso = new Date().toISOString();
+        prisma.user.update({ where: { username: me }, data: { lastSeen: new Date(iso) } }).catch(() => {});
+        broadcastPresence(me, false, iso);
+      }, 4000)
+    );
+  });
 });
 
 function generateToken() {
@@ -3947,9 +4031,24 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
     return res.status(400).json({ error: "Пустое сообщение" });
   }
 
-  const msgId = generateToken();
+  // Клиентский id делает повторную отправку идемпотентной: если первый запрос дошёл, но ответ потерялся, дубля не будет.
+  const clientMsgId = typeof req.body.id === "string" && /^[a-f0-9]{32,64}$/.test(req.body.id) ? req.body.id : null;
+  const msgId = clientMsgId || generateToken();
   const now = new Date();
   try {
+    if (clientMsgId) {
+      const existing = await prisma.message.findUnique({ where: { id: clientMsgId } });
+      if (existing) {
+        if (existing.senderUsername !== req.user.username) {
+          return res.status(409).json({ error: "Идентификатор сообщения уже занят" });
+        }
+        return res.json({
+          ...messageFromPrismaRow(existing),
+          senderDisplayName: req.user.displayName || req.user.username,
+          senderAvatarDataUrl: req.user.avatarDataUrl || "",
+        });
+      }
+    }
     if (
       isDirectMessageChatId(String(chatId)) &&
       dmPeerFromChatId(String(chatId), myUsername) === GOLOS_ATON_USERNAME
