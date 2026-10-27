@@ -1,9 +1,13 @@
 #include "net/ApiClient.h"
 
+#include <QCryptographicHash>
+#include <QDir>
+#include <QFile>
 #include <QJsonObject>
 #include <QJsonParseError>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QStandardPaths>
 #include <algorithm>
 #include <utility>
 
@@ -113,7 +117,7 @@ void ApiClient::getMessagesAll()
 void ApiClient::getMessages(const QString &chatId, int limit, const QString &before)
 {
     const auto encoded = QString::fromUtf8(QUrl::toPercentEncoding(chatId));
-    QString endpoint = QString("/api/messages?chatId=%1&limit=%2").arg(encoded).arg(std::max(1, limit));
+    QString endpoint = QString("/api/messages?chatId=%1&limit=%2&lite=1").arg(encoded).arg(std::max(1, limit));
     if (!before.trimmed().isEmpty()) {
         endpoint += QString("&before=%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(before.trimmed())));
     }
@@ -163,6 +167,7 @@ void ApiClient::markMessagesRead(const QString &chatId)
     }
     QJsonObject payload;
     payload.insert("chatId", chatId);
+    payload.insert("lite", true);
     postJson("/api/messages/read", payload);
 }
 
@@ -384,6 +389,79 @@ QNetworkRequest ApiClient::makeRequest(const QString &endpoint) const
     }
 
     return request;
+}
+
+namespace {
+
+QString mediaCacheDir()
+{
+    auto dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    if (dir.isEmpty()) {
+        dir = QDir::tempPath() + "/aten-desktop";
+    }
+    QDir().mkpath(dir);
+    return dir;
+}
+
+QString mediaFileStem(const QString &messageId)
+{
+    const auto hash = QCryptographicHash::hash(messageId.toUtf8(), QCryptographicHash::Sha1).toHex();
+    return QString("media-%1").arg(QString::fromLatin1(hash));
+}
+
+QString extensionForMime(const QString &mime)
+{
+    if (mime.contains("mpeg") || mime.contains("mp3")) return "mp3";
+    if (mime.contains("wav")) return "wav";
+    if (mime.contains("mp4")) return "m4a";
+    if (mime.contains("ogg")) return "ogg";
+    if (mime.contains("png")) return "png";
+    if (mime.contains("jpeg") || mime.contains("jpg")) return "jpg";
+    if (mime.contains("gif")) return "gif";
+    if (mime.contains("webp")) return "webp";
+    return "webm";
+}
+
+} // namespace
+
+QString ApiClient::cachedMediaPath(const QString &messageId) const
+{
+    if (messageId.isEmpty()) return {};
+    const QDir dir(mediaCacheDir());
+    const auto files = dir.entryList({mediaFileStem(messageId) + ".*"}, QDir::Files);
+    return files.isEmpty() ? QString() : dir.filePath(files.constFirst());
+}
+
+void ApiClient::fetchMessageMedia(const QString &messageId)
+{
+    if (messageId.isEmpty() || m_pendingMedia.contains(messageId) || m_failedMedia.contains(messageId)) return;
+    if (!m_sessionStore || !m_sessionStore->hasToken()) return;
+    if (!cachedMediaPath(messageId).isEmpty()) return;
+    m_pendingMedia.insert(messageId);
+
+    auto request = makeRequest(QString("/api/messages/%1/media").arg(QString::fromUtf8(QUrl::toPercentEncoding(messageId))));
+    request.setRawHeader("Accept", "*/*");
+    auto *reply = m_network.get(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, messageId]() {
+        reply->deleteLater();
+        m_pendingMedia.remove(messageId);
+        const auto status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const auto bytes = reply->readAll();
+        if (reply->error() != QNetworkReply::NoError || status >= 400 || bytes.isEmpty()) {
+            m_failedMedia.insert(messageId);
+            return;
+        }
+        const auto mime = reply->header(QNetworkRequest::ContentTypeHeader).toString().toLower();
+        const auto path = QDir(mediaCacheDir()).filePath(mediaFileStem(messageId) + "." + extensionForMime(mime));
+        QFile file(path);
+        if (!file.open(QIODevice::WriteOnly)) {
+            m_failedMedia.insert(messageId);
+            return;
+        }
+        file.write(bytes);
+        file.close();
+        emit messageMediaReady(messageId);
+    });
 }
 
 } // namespace aten

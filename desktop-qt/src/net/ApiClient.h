@@ -55,12 +55,16 @@ public:
     void sendImageMessage(const QString &chatId, const QString &imageDataUrl, const QString &replyTo = {});
     void sendAudioMessage(const QString &chatId, const QString &audioDataUrl, const QString &replyTo = {});
     void markMessagesRead(const QString &chatId);
+    // Медиа сообщения (фото/голос) лежит в дисковом кэше; пока нет файла — fetchMessageMedia() качает его бинарно.
+    QString cachedMediaPath(const QString &messageId) const;
+    void fetchMessageMedia(const QString &messageId);
     void resetSessionAuthState();
 
 signals:
     void requestSucceeded(QString endpoint, QJsonDocument body);
     void requestFailed(QString endpoint, QString message);
     void sessionExpired();
+    void messageMediaReady(QString messageId);
 
 private:
     void getJson(const QString &endpoint);
@@ -75,6 +79,8 @@ private:
     SessionStore *m_sessionStore;
     QNetworkAccessManager m_network;
     QSet<QString> m_pendingGets;
+    QSet<QString> m_pendingMedia;
+    QSet<QString> m_failedMedia;
     bool m_sessionExpiredEmitted = false;
 };
 

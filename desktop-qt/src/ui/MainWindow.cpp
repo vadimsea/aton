@@ -1086,7 +1086,18 @@ QWidget *makeMessageRowWidget(
 
     if (type == "image") {
         const auto imageDataUrl = msg.value("imageDataUrl").toString();
-        const auto pixmap = pixmapFromImageDataUrl(imageDataUrl);
+        QPixmap pixmap = pixmapFromImageDataUrl(imageDataUrl);
+        bool mediaPending = false;
+        if (pixmap.isNull() && imageDataUrl.isEmpty() && apiClient && msg.value("hasMedia").toBool()) {
+            const auto mediaId = msg.value("id").toString();
+            const auto cachedPath = apiClient->cachedMediaPath(mediaId);
+            if (!cachedPath.isEmpty()) {
+                pixmap.load(cachedPath);
+            } else {
+                apiClient->fetchMessageMedia(mediaId);
+                mediaPending = true;
+            }
+        }
         if (!pixmap.isNull()) {
             auto *image = new QPushButton(bubble);
             image->setObjectName("MessageImageButton");
@@ -1114,13 +1125,22 @@ QWidget *makeMessageRowWidget(
             });
             bubbleLayout->addWidget(image);
         } else {
-            auto *fallback = new QLabel("Фото не удалось открыть", bubble);
+            auto *fallback = new QLabel(mediaPending ? "Загрузка фото..." : "Фото не удалось открыть", bubble);
             fallback->setObjectName("MessageMediaFallback");
             bubbleLayout->addWidget(fallback);
         }
     } else if (type == "audio") {
         const auto audioDataUrl = msg.value("audioDataUrl").toString();
-        const auto audioPath = writeAudioDataUrlToCache(audioDataUrl);
+        QString audioPath = writeAudioDataUrlToCache(audioDataUrl);
+        bool audioPending = false;
+        if (audioPath.isEmpty() && audioDataUrl.isEmpty() && apiClient && msg.value("hasMedia").toBool()) {
+            const auto mediaId = msg.value("id").toString();
+            audioPath = apiClient->cachedMediaPath(mediaId);
+            if (audioPath.isEmpty()) {
+                apiClient->fetchMessageMedia(mediaId);
+                audioPending = true;
+            }
+        }
         auto *voiceRow = new QWidget(bubble);
         auto *voiceLayout = new QHBoxLayout(voiceRow);
         voiceLayout->setContentsMargins(0, 2, 0, 2);
@@ -1135,7 +1155,7 @@ QWidget *makeMessageRowWidget(
         track->setObjectName("VoiceTrack");
         track->setRange(0, 0);
         track->setEnabled(!audioPath.isEmpty());
-        auto *label = new QLabel(audioPath.isEmpty() ? "Голосовое недоступно" : "0:00 / 0:00", voiceRow);
+        auto *label = new QLabel(audioPath.isEmpty() ? (audioPending ? "Загрузка голосового..." : "Голосовое недоступно") : "0:00 / 0:00", voiceRow);
         label->setObjectName("VoiceMessageLabel");
         voiceLayout->addWidget(playButton);
         auto *voiceProgress = new QWidget(voiceRow);
@@ -2839,6 +2859,21 @@ void MainWindow::wireApi()
         refreshChatStatusText();
     });
 
+    // Медиа докачалось в кэш — перерисовываем открытый чат (пачкой, чтобы не мигать на каждый файл).
+    connect(m_apiClient, &ApiClient::messageMediaReady, this, [this](const QString &) {
+        if (m_mediaRerenderQueued) return;
+        m_mediaRerenderQueued = true;
+        QTimer::singleShot(150, this, [this]() {
+            m_mediaRerenderQueued = false;
+            if (m_currentChatId.isEmpty()) return;
+            QJsonArray chatMessages;
+            for (const auto &value : std::as_const(m_allMessages)) {
+                if (messageChatId(value.toObject()) == m_currentChatId) chatMessages.append(value);
+            }
+            m_renderedMessagesFingerprint.clear();
+            renderMessages(QJsonDocument(chatMessages), m_currentChatId);
+        });
+    });
     connect(m_apiClient, &ApiClient::requestFailed, this, [this](const QString &endpoint, const QString &message) {
         const auto readableMessage = [&message]() {
             if (message.contains(QStringLiteral("Service Unavailable"), Qt::CaseInsensitive) ||

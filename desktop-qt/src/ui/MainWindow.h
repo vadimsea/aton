@@ -196,6 +196,7 @@ private:
     QByteArray m_renderedMessagesFingerprint;
     QString m_renderedMessagesChatId;
     bool m_scrollToBottomOnNextMessages = false;
+    bool m_mediaRerenderQueued = false;
     QJsonObject m_replyToMessage;
     QString m_replyToMessageId;
     QTimer *m_syncTimer = nullptr;
