@@ -1,7 +1,7 @@
 {
   "name": "aton-messenger",
-  "version": "0.1.5",
-  "description": "Веб‑мессенджер Атон: фронтенд + Node.js backend (PostgreSQL, Prisma).",
+  "version": "0.1.7",
+  "description": "Веб-мессенджер Атон: frontend + Node.js backend (PostgreSQL, Prisma).",
   "engines": {
     "node": ">=18.0.0"
   },
@@ -23,10 +23,11 @@
     "qa:bot:social": "node qa-bots/social-daily.mjs",
     "qa:print-token": "node qa-bots/print-aton-token.mjs",
     "dev:embedded": "node scripts/embedded-dev.mjs",
-    "deploy:site": "node scripts/ftp-upload-site.mjs",
+    "deploy:site": "node scripts/sftp-upload-site.mjs",
     "build": "prisma migrate deploy",
     "ci": "node --check server.js && prisma validate",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "start:prod": "prisma migrate deploy && node server.js"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
@@ -37,13 +38,14 @@
     "express-rate-limit": "^8.3.1",
     "google-tts-api": "^2.0.2",
     "nodemailer": "^6.9.13",
+    "prisma": "^6.19.0",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
     "basic-ftp": "^5.2.1",
     "embedded-postgres": "^18.3.0-beta.16",
     "playwright": "^1.49.1",
-    "prisma": "^6.19.0",
-    "socket.io-client": "^4.8.3"
+    "socket.io-client": "^4.8.3",
+    "ssh2-sftp-client": "^12.1.1"
   }
 }
