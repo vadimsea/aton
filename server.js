@@ -591,6 +591,59 @@ function blockedListOf(row) {
   return row && Array.isArray(row.blocked) ? row.blocked : [];
 }
 
+/** Кто печатает: chatId → Map(username → время последнего события). Нужен клиентам без сокета (десктоп опрашивает). */
+const TYPING_TTL_MS = 5000;
+const typingState = new Map();
+
+function noteTyping(chatId, username) {
+  let byUser = typingState.get(chatId);
+  if (!byUser) {
+    byUser = new Map();
+    typingState.set(chatId, byUser);
+  }
+  byUser.set(username, Date.now());
+}
+
+function currentTypers(chatId, exceptUsername) {
+  const byUser = typingState.get(chatId);
+  if (!byUser) return [];
+  const now = Date.now();
+  const out = [];
+  for (const [name, ts] of byUser) {
+    if (now - ts > TYPING_TTL_MS) byUser.delete(name);
+    else if (name !== exceptUsername) out.push(name);
+  }
+  if (!byUser.size) typingState.delete(chatId);
+  return out;
+}
+
+/**
+ * Рассылает «печатает…» (сокеты) и запоминает для опроса. user = {id, username}.
+ * socket передаём из сокет-события: для групп членство проверяем по его комнатам, иначе по БД.
+ */
+async function relayTyping(user, chatId, socket) {
+  if (!user || typeof chatId !== "string" || !chatId || chatId.length > 200) return false;
+  if (isDirectMessageChatId(chatId)) {
+    const peer = dmPeerFromChatId(chatId, user.username);
+    if (!peer || peer === GOLOS_ATON_USERNAME) return false;
+    const peerRow = await prisma.user.findUnique({ where: { username: peer }, select: { blocked: true } });
+    if (!peerRow || blockedListOf(peerRow).includes(user.username)) return false;
+    noteTyping(chatId, user.username);
+    io.to(`user:${peer}`).emit("typing", { chatId, from: user.username });
+    return true;
+  }
+  if (!chatId.startsWith("group:") && !chatId.startsWith("channel:")) return false;
+  let member = Boolean(socket && socket.rooms.has(chatId));
+  if (!member) {
+    const row = await prisma.chat.findUnique({ where: { id: chatId }, select: { members: true } });
+    member = Boolean(row && Array.isArray(row.members) && row.members.includes(user.id));
+  }
+  if (!member) return false;
+  noteTyping(chatId, user.username);
+  (socket ? socket.to(chatId) : io.to(chatId)).emit("typing", { chatId, from: user.username });
+  return true;
+}
+
 io.on("connection", (socket) => {
   const me = socket.user && socket.user.username;
   if (me) {
@@ -635,15 +688,7 @@ io.on("connection", (socket) => {
     if (now - lastTypingAt < 2000) return;
     lastTypingAt = now;
     try {
-      if (isDirectMessageChatId(chatId)) {
-        const peer = dmPeerFromChatId(chatId, me);
-        if (!peer || peer === GOLOS_ATON_USERNAME) return;
-        const peerRow = await prisma.user.findUnique({ where: { username: peer }, select: { blocked: true } });
-        if (!peerRow || blockedListOf(peerRow).includes(me)) return;
-        io.to(`user:${peer}`).emit("typing", { chatId, from: me });
-      } else if (socket.rooms.has(chatId)) {
-        socket.to(chatId).emit("typing", { chatId, from: me });
-      }
+      await relayTyping(socket.user, chatId, socket);
     } catch (err) {
       console.error("typing:", err);
     }
@@ -3751,6 +3796,54 @@ app.get("/api/messages/:id/media", authMiddleware, requireVerified, async (req, 
     res.end(buf);
   } catch (err) {
     console.error("GET /api/messages/:id/media:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+// «Печатает…» для клиентов без сокета (десктоп). Веб-клиенты получают то же по socket-событию typing.
+const typingRestLog = new Map();
+app.post("/api/typing", authMiddleware, requireVerified, async (req, res) => {
+  const chatId = req.body && req.body.chatId;
+  if (typeof chatId !== "string" || !chatId || chatId.length > 200) {
+    return res.status(400).json({ error: "Некорректный чат" });
+  }
+  const now = Date.now();
+  if (now - (typingRestLog.get(req.user.id) || 0) < 1500) return res.json({ ok: true });
+  typingRestLog.set(req.user.id, now);
+  try {
+    await relayTyping({ id: req.user.id, username: req.user.username }, chatId, null);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("POST /api/typing:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+// Живое состояние чата для опроса: кто печатает и онлайн ли собеседник (сокет или недавняя активность через REST).
+app.get("/api/chat-live", authMiddleware, requireVerified, async (req, res) => {
+  const chatId = String(req.query.chatId || "");
+  try {
+    const ac = await assertUserCanAccessChat(req, chatId);
+    if (!ac.ok) return res.status(ac.error === "Чат не найден" ? 404 : 403).json({ error: ac.error });
+    const out = { typing: currentTypers(chatId, req.user.username), peer: null };
+    const peer = isDirectMessageChatId(chatId) ? dmPeerFromChatId(chatId, req.user.username) : null;
+    if (peer && peer !== GOLOS_ATON_USERNAME) {
+      const row = await prisma.user.findUnique({
+        where: { username: peer },
+        select: { username: true, lastSeen: true, blocked: true },
+      });
+      if (row && !blockedListOf(row).includes(req.user.username)) {
+        const seen = row.lastSeen ? new Date(row.lastSeen).getTime() : 0;
+        out.peer = {
+          username: row.username,
+          online: (onlineSockets.get(row.username) || 0) > 0 || Date.now() - seen < 60_000,
+          lastSeen: row.lastSeen ? new Date(row.lastSeen).toISOString() : null,
+        };
+      }
+    }
+    res.json(out);
+  } catch (err) {
+    console.error("GET /api/chat-live:", err);
     res.status(500).json({ error: "Ошибка сервера" });
   }
 });

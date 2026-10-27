@@ -391,6 +391,58 @@ QNetworkRequest ApiClient::makeRequest(const QString &endpoint) const
     return request;
 }
 
+void ApiClient::postTyping(const QString &chatId)
+{
+    if (!m_sessionStore || !m_sessionStore->hasToken() || chatId.isEmpty()) return;
+    QJsonObject payload;
+    payload.insert("chatId", chatId);
+    postJson("/api/typing", payload);
+}
+
+void ApiClient::getChatLive(const QString &chatId)
+{
+    if (!m_sessionStore || !m_sessionStore->hasToken() || chatId.isEmpty()) return;
+    getJson(QString("/api/chat-live?chatId=%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(chatId))));
+}
+
+void ApiClient::sendTextMessageTracked(const QString &clientId, const QString &chatId, const QString &text, const QString &replyTo)
+{
+    if (!m_sessionStore || !m_sessionStore->hasToken()) {
+        emit textSendFinished(clientId, false, false, QStringLiteral("Нет активной сессии"), {});
+        return;
+    }
+    QJsonObject payload;
+    payload.insert("id", clientId);
+    payload.insert("chatId", chatId);
+    payload.insert("type", "text");
+    payload.insert("text", text);
+    if (!replyTo.trimmed().isEmpty()) {
+        payload.insert("replyTo", replyTo.trimmed());
+    }
+    auto *reply = m_network.post(makeRequest("/api/messages"), QJsonDocument(payload).toJson(QJsonDocument::Compact));
+    connect(reply, &QNetworkReply::finished, this, [this, reply, clientId]() {
+        reply->deleteLater();
+        const auto status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const auto doc = QJsonDocument::fromJson(reply->readAll());
+        if (reply->error() == QNetworkReply::NoError && status < 400 && doc.isObject()) {
+            emit textSendFinished(clientId, true, false, {}, doc.object());
+            return;
+        }
+        if (status == 401 && !m_sessionExpiredEmitted) {
+            m_sessionExpiredEmitted = true;
+            emit sessionExpired();
+        }
+        QString message = reply->errorString();
+        if (doc.isObject()) {
+            const auto apiError = doc.object().value("error").toString();
+            if (!apiError.isEmpty()) message = apiError;
+        }
+        // Сеть/таймаут/5xx/429 — имеет смысл повторить; 4xx (слишком длинно, нет доступа) — нет.
+        const bool retryable = status == 0 || status >= 500 || status == 429 || status == 408;
+        emit textSendFinished(clientId, false, retryable, message, {});
+    });
+}
+
 namespace {
 
 QString mediaCacheDir()

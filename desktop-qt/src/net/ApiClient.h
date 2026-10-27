@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QSet>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QUrl>
 
@@ -55,6 +56,11 @@ public:
     void sendImageMessage(const QString &chatId, const QString &imageDataUrl, const QString &replyTo = {});
     void sendAudioMessage(const QString &chatId, const QString &audioDataUrl, const QString &replyTo = {});
     void markMessagesRead(const QString &chatId);
+    // Живое состояние чата без сокетов: «печатает…» и онлайн собеседника (опрос), сигнал собеседнику о наборе.
+    void postTyping(const QString &chatId);
+    void getChatLive(const QString &chatId);
+    // Отправка текста с отслеживанием: clientId уходит на сервер как id сообщения, повтор не создаёт дубликат.
+    void sendTextMessageTracked(const QString &clientId, const QString &chatId, const QString &text, const QString &replyTo);
     // Медиа сообщения (фото/голос) лежит в дисковом кэше; пока нет файла — fetchMessageMedia() качает его бинарно.
     QString cachedMediaPath(const QString &messageId) const;
     void fetchMessageMedia(const QString &messageId);
@@ -65,6 +71,7 @@ signals:
     void requestFailed(QString endpoint, QString message);
     void sessionExpired();
     void messageMediaReady(QString messageId);
+    void textSendFinished(QString clientId, bool ok, bool retryable, QString error, QJsonObject message);
 
 private:
     void getJson(const QString &endpoint);

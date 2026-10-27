@@ -1017,6 +1017,8 @@ QWidget *makeMessageRowWidget(
     const std::function<void(const QJsonObject &)> &replyHandler,
     const std::function<void(const QJsonObject &)> &reportHandler,
     const std::function<void(const QString &)> &deleteHandler,
+    const std::function<void(const QString &)> &retryHandler,
+    const std::function<void(const QString &)> &discardHandler,
     QWidget *parent)
 {
     const auto from = msg.value("from").toString(msg.value("senderUsername").toString("user"));
@@ -1381,8 +1383,33 @@ QWidget *makeMessageRowWidget(
             timeLabel->setObjectName("MessageTime");
             actionsLayout->addWidget(timeLabel);
         }
+        const auto sendState = msg.value("sendState").toString();
+        if (sendState == "sending") {
+            auto *stateLabel = new QLabel(QStringLiteral("🕓 Отправляется…"), actionsRow);
+            stateLabel->setObjectName("MessageTime");
+            actionsLayout->addWidget(stateLabel);
+        } else if (sendState == "failed") {
+            auto *stateLabel = new QLabel(QStringLiteral("Не отправлено"), actionsRow);
+            stateLabel->setObjectName("MessageTime");
+            stateLabel->setStyleSheet("color: #f87171; font-weight: 600;");
+            actionsLayout->addWidget(stateLabel);
+            auto *retryButton = new QPushButton(QStringLiteral("Повторить"), actionsRow);
+            retryButton->setObjectName("MessageActionButton");
+            retryButton->setCursor(Qt::PointingHandCursor);
+            QObject::connect(retryButton, &QPushButton::clicked, retryButton, [retryHandler, messageId]() {
+                if (retryHandler) retryHandler(messageId);
+            });
+            actionsLayout->addWidget(retryButton);
+            auto *discardButton = new QPushButton(QStringLiteral("Удалить"), actionsRow);
+            discardButton->setObjectName("MessageActionButton");
+            discardButton->setCursor(Qt::PointingHandCursor);
+            QObject::connect(discardButton, &QPushButton::clicked, discardButton, [discardHandler, messageId]() {
+                if (discardHandler) discardHandler(messageId);
+            });
+            actionsLayout->addWidget(discardButton);
+        }
         actionsLayout->addStretch(1);
-        if (!messageId.isEmpty() && apiClient) {
+        if (!messageId.isEmpty() && apiClient && sendState.isEmpty()) {
         const auto ownEmoji = ownReactionEmoji(reactions, currentUsername);
         auto *reactButton = new QPushButton(actionsRow);
         reactButton->setObjectName(ownEmoji.isEmpty() ? "MessageActionButton" : "MessageActionButtonActive");
@@ -1605,6 +1632,14 @@ MainWindow::MainWindow(ApiClient *apiClient, SessionStore *sessionStore, QWidget
     m_syncTimer = new QTimer(this);
     m_syncTimer->setInterval(8000);
     connect(m_syncTimer, &QTimer::timeout, this, &MainWindow::syncActiveChat);
+    m_liveTimer = new QTimer(this);
+    m_liveTimer->setInterval(2500);
+    connect(m_liveTimer, &QTimer::timeout, this, &MainWindow::pollChatLive);
+    m_liveTimer->start();
+    connect(m_apiClient, &ApiClient::textSendFinished, this,
+            [this](const QString &clientId, bool ok, bool retryable, const QString &error, const QJsonObject &) {
+                handleTextSendFinished(clientId, ok, retryable, error);
+            });
     m_updateNetwork = new QNetworkAccessManager(this);
     m_updateTimer = new QTimer(this);
     m_updateTimer->setInterval(6 * 60 * 60 * 1000);
@@ -2491,6 +2526,14 @@ QWidget *MainWindow::buildMessengerPage()
         if (!m_composer) return;
         const int documentHeight = qCeil(m_composer->document()->size().height());
         m_composer->setFixedHeight(std::clamp(documentHeight + 12, 46, 116));
+        // Сообщаем собеседнику «печатает…» (не чаще раза в 3 с)
+        if (m_apiClient && !m_currentChatId.isEmpty() && !m_composer->toPlainText().isEmpty()) {
+            const auto nowMs = QDateTime::currentMSecsSinceEpoch();
+            if (nowMs - m_lastTypingPostMs > 3000) {
+                m_lastTypingPostMs = nowMs;
+                m_apiClient->postTyping(m_currentChatId);
+            }
+        }
     });
     connect(m_replyComposeCloseButton, &QPushButton::clicked, this, &MainWindow::clearReplyToMessage);
     connect(m_chatSearch, &QLineEdit::textChanged, this, [this](const QString &text) {
@@ -2511,6 +2554,11 @@ void MainWindow::wireApi()
     if (!m_apiClient) return;
 
     connect(m_apiClient, &ApiClient::requestSucceeded, this, [this](const QString &endpoint, const QJsonDocument &body) {
+        if (endpoint == "/api/typing") return;
+        if (endpoint.startsWith("/api/chat-live")) {
+            handleChatLive(endpoint, body);
+            return;
+        }
         if (endpoint == "/api/health") {
             const auto obj = body.object();
             const auto service = obj.value("service").toString("aton-api");
@@ -2792,7 +2840,10 @@ void MainWindow::wireApi()
             for (const auto &value : page) {
                 const auto msg = value.toObject();
                 const auto id = msg.value("id").toString();
-                if (!id.isEmpty()) mergedById.insert(id, msg);
+                if (!id.isEmpty()) {
+                    mergedById.insert(id, msg);
+                    mergedById.remove("_temp_" + id); // реальное сообщение пришло - оптимистичная копия не нужна
+                }
             }
             if (page.size() < 20) {
                 m_messagesHistoryComplete.insert(chatId);
@@ -2823,22 +2874,7 @@ void MainWindow::wireApi()
             return;
         }
         if (endpoint == "/api/messages") {
-            setStatusText("Сообщение отправлено");
-            if (!m_currentChatId.isEmpty()) {
-                m_scrollToBottomOnNextMessages = true;
-                m_apiClient->getMessages(m_currentChatId);
-                if (m_currentChatId.contains("golos_aton", Qt::CaseInsensitive)) {
-                    const QString chatId = m_currentChatId;
-                    for (const int delayMs : {1500, 3500, 7000, 12000}) {
-                        QTimer::singleShot(delayMs, this, [this, chatId]() {
-                            if (m_apiClient && m_currentChatId == chatId) {
-                                m_apiClient->getMessages(chatId);
-                            }
-                        });
-                    }
-                }
-            }
-            m_apiClient->getDialogs();
+            afterMessageSent();
             return;
         }
         if (endpoint.startsWith("/api/messages/") && endpoint.endsWith("/react")) {
@@ -2865,16 +2901,11 @@ void MainWindow::wireApi()
         m_mediaRerenderQueued = true;
         QTimer::singleShot(150, this, [this]() {
             m_mediaRerenderQueued = false;
-            if (m_currentChatId.isEmpty()) return;
-            QJsonArray chatMessages;
-            for (const auto &value : std::as_const(m_allMessages)) {
-                if (messageChatId(value.toObject()) == m_currentChatId) chatMessages.append(value);
-            }
-            m_renderedMessagesFingerprint.clear();
-            renderMessages(QJsonDocument(chatMessages), m_currentChatId);
+            rerenderCurrentChat();
         });
     });
     connect(m_apiClient, &ApiClient::requestFailed, this, [this](const QString &endpoint, const QString &message) {
+        if (endpoint == "/api/typing" || endpoint.startsWith("/api/chat-live")) return;
         const auto readableMessage = [&message]() {
             if (message.contains(QStringLiteral("Service Unavailable"), Qt::CaseInsensitive) ||
                 message.contains(QStringLiteral("server replied"), Qt::CaseInsensitive) ||
@@ -3462,6 +3493,8 @@ void MainWindow::renderMessages(const QJsonDocument &body, const QString &reques
             [this](const QJsonObject &message) { setReplyToMessage(message); },
             [this](const QJsonObject &message) { reportMessage(message); },
             [this](const QString &messageId) { removeMessageRowAnimated(messageId); },
+            [this](const QString &messageId) { retryPendingText(messageId); },
+            [this](const QString &messageId) { discardPendingText(messageId); },
             m_messageList);
         auto *item = new QListWidgetItem();
         item->setData(Qt::UserRole, msg.value("id").toString());
@@ -4984,10 +5017,173 @@ void MainWindow::sendComposerText()
     }
     if (text.isEmpty()) return;
     m_composer->clear();
-    setStatusText(trAuth(m_authLanguage, "sending"));
     const auto replyTo = m_replyToMessageId;
     clearReplyToMessage();
-    m_apiClient->sendTextMessage(m_currentChatId, text, replyTo);
+
+    // Оптимистичное сообщение: видно сразу (часики), уходит с клиентским id - повтор не создаст дубликат.
+    const auto clientId = QUuid::createUuid().toString(QUuid::Id128);
+    m_pendingTexts.insert(clientId, PendingText{m_currentChatId, text, replyTo, 0});
+    const auto nowIso = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    QJsonObject temp;
+    temp.insert("id", "_temp_" + clientId);
+    temp.insert("chatId", m_currentChatId);
+    temp.insert("from", m_currentUsername);
+    temp.insert("senderUsername", m_currentUsername);
+    temp.insert("type", "text");
+    temp.insert("text", text);
+    temp.insert("time", nowIso);
+    temp.insert("createdAt", nowIso);
+    temp.insert("status", "sent");
+    temp.insert("sendState", "sending");
+    temp.insert("reactions", QJsonArray());
+    if (!replyTo.isEmpty()) temp.insert("replyTo", replyTo);
+    m_allMessages.append(temp);
+    m_scrollToBottomOnNextMessages = true;
+    rerenderCurrentChat();
+    deliverPendingText(clientId);
+}
+
+void MainWindow::deliverPendingText(const QString &clientId)
+{
+    auto it = m_pendingTexts.find(clientId);
+    if (it == m_pendingTexts.end() || !m_apiClient) return;
+    it->attempts += 1;
+    setTempSendState(clientId, "sending");
+    m_apiClient->sendTextMessageTracked(clientId, it->chatId, it->text, it->replyTo);
+}
+
+void MainWindow::setTempSendState(const QString &clientId, const QString &state)
+{
+    const auto tempId = "_temp_" + clientId;
+    QJsonArray next;
+    bool changed = false;
+    for (const auto &value : std::as_const(m_allMessages)) {
+        auto msg = value.toObject();
+        if (msg.value("id").toString() == tempId && msg.value("sendState").toString() != state) {
+            msg.insert("sendState", state);
+            changed = true;
+        }
+        next.append(msg);
+    }
+    if (!changed) return;
+    m_allMessages = next;
+    rerenderCurrentChat();
+}
+
+void MainWindow::removeTempMessage(const QString &clientId)
+{
+    const auto tempId = "_temp_" + clientId;
+    QJsonArray next;
+    for (const auto &value : std::as_const(m_allMessages)) {
+        if (value.toObject().value("id").toString() != tempId) next.append(value);
+    }
+    m_allMessages = next;
+}
+
+void MainWindow::handleTextSendFinished(const QString &clientId, bool ok, bool retryable, const QString &error)
+{
+    auto it = m_pendingTexts.find(clientId);
+    if (it == m_pendingTexts.end()) return;
+    if (ok) {
+        m_pendingTexts.erase(it);
+        removeTempMessage(clientId);
+        afterMessageSent();
+        return;
+    }
+    if (retryable) {
+        if (it->attempts < 3) {
+            // Короткая пауза и ещё попытка; сообщение пока висит с часиками
+            QTimer::singleShot(it->attempts * 2000, this, [this, clientId]() { deliverPendingText(clientId); });
+            return;
+        }
+        setTempSendState(clientId, "failed");
+        setStatusText("Не удалось отправить сообщение. Нажмите «Повторить».");
+        return;
+    }
+    // Сервер отклонил само сообщение (слишком длинное, нет доступа...): повтор бессмыслен, возвращаем текст в поле
+    const auto text = it->text;
+    m_pendingTexts.erase(it);
+    removeTempMessage(clientId);
+    if (m_composer && m_composer->toPlainText().isEmpty()) m_composer->setPlainText(text);
+    setStatusText(error);
+    rerenderCurrentChat();
+}
+
+void MainWindow::retryPendingText(const QString &messageId)
+{
+    const auto clientId = messageId.mid(QStringLiteral("_temp_").size());
+    auto it = m_pendingTexts.find(clientId);
+    if (it == m_pendingTexts.end()) return;
+    it->attempts = 0;
+    deliverPendingText(clientId);
+}
+
+void MainWindow::discardPendingText(const QString &messageId)
+{
+    const auto clientId = messageId.mid(QStringLiteral("_temp_").size());
+    m_pendingTexts.remove(clientId);
+    removeTempMessage(clientId);
+    rerenderCurrentChat();
+}
+
+void MainWindow::afterMessageSent()
+{
+    setStatusText("Сообщение отправлено");
+    if (!m_currentChatId.isEmpty()) {
+        m_scrollToBottomOnNextMessages = true;
+        m_apiClient->getMessages(m_currentChatId);
+        if (m_currentChatId.contains("golos_aton", Qt::CaseInsensitive)) {
+            const QString chatId = m_currentChatId;
+            for (const int delayMs : {1500, 3500, 7000, 12000}) {
+                QTimer::singleShot(delayMs, this, [this, chatId]() {
+                    if (m_apiClient && m_currentChatId == chatId) {
+                        m_apiClient->getMessages(chatId);
+                    }
+                });
+            }
+        }
+    }
+    m_apiClient->getDialogs();
+}
+
+void MainWindow::rerenderCurrentChat()
+{
+    if (m_currentChatId.isEmpty()) return;
+    QJsonArray chatMessages;
+    for (const auto &value : std::as_const(m_allMessages)) {
+        if (messageChatId(value.toObject()) == m_currentChatId) chatMessages.append(value);
+    }
+    m_renderedMessagesFingerprint.clear();
+    renderMessages(QJsonDocument(chatMessages), m_currentChatId);
+}
+
+void MainWindow::pollChatLive()
+{
+    if (!m_apiClient || !m_sessionStore || !m_sessionStore->hasToken()) return;
+    if (!m_stack || m_stack->currentWidget() != m_messengerPage) return;
+    if (m_currentChatId.isEmpty() || (m_profilePage && m_profilePage->isVisible())) return;
+    if (!isActiveWindow() || isMinimized()) return;
+    if (m_currentChatId.contains("golos_aton", Qt::CaseInsensitive)) return;
+    m_apiClient->getChatLive(m_currentChatId);
+}
+
+void MainWindow::handleChatLive(const QString &endpoint, const QJsonDocument &body)
+{
+    const QUrl endpointUrl(QString("https://aton.local%1").arg(endpoint));
+    const auto chatId = QUrlQuery(endpointUrl).queryItemValue("chatId", QUrl::FullyDecoded);
+    if (chatId.isEmpty() || chatId != m_currentChatId || !body.isObject()) return;
+    const auto obj = body.object();
+    QStringList typers;
+    for (const auto &value : obj.value("typing").toArray()) typers.append(value.toString());
+    const auto peer = obj.value("peer");
+    const bool hasPeer = peer.isObject();
+    const bool online = hasPeer && peer.toObject().value("online").toBool();
+    const bool changed = m_liveChatId != chatId || m_liveTypers != typers || m_liveHasPeer != hasPeer || m_liveOnline != online;
+    m_liveChatId = chatId;
+    m_liveTypers = typers;
+    m_liveHasPeer = hasPeer;
+    m_liveOnline = online;
+    if (changed) refreshChatStatusText();
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event)
@@ -5388,6 +5584,13 @@ void MainWindow::refreshChatStatusText()
         m_statusLabel->setText("Принцип, не служба");
         return;
     }
+    const bool liveForThisChat = m_liveChatId == m_currentChatId;
+    if (liveForThisChat && !m_liveTypers.isEmpty()) {
+        const bool isGroupLike = m_currentChatId.startsWith("group:") || m_currentChatId.startsWith("channel:");
+        m_statusLabel->setText(isGroupLike ? QString("%1 печатает…").arg(m_liveTypers.mid(0, 2).join(", "))
+                                           : QStringLiteral("печатает…"));
+        return;
+    }
     if (m_currentChatId.startsWith("group:") || m_currentChatId.startsWith("channel:")) {
         if (m_currentChatId.startsWith("channel:") && !canPostCurrentChat()) {
             m_statusLabel->setText("Канал · писать могут владелец и администраторы");
@@ -5404,7 +5607,9 @@ void MainWindow::refreshChatStatusText()
             if (lastSeen.isEmpty() && !m_currentPeerUsername.isEmpty()) {
                 lastSeen = m_peerLastSeenByUsername.value(m_currentPeerUsername.toLower());
             }
-            const auto lastSeenText = formatPeerLastSeenText(lastSeen);
+            const auto lastSeenText = (liveForThisChat && m_liveHasPeer && m_liveOnline)
+                ? QStringLiteral("в сети")
+                : formatPeerLastSeenText(lastSeen);
             const auto bio = m_currentPeerUsername.isEmpty()
                 ? QString()
                 : m_peerBioByUsername.value(m_currentPeerUsername.toLower()).simplified();

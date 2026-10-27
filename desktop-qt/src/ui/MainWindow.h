@@ -5,7 +5,9 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QMap>
+#include <QHash>
 #include <QSet>
+#include <QStringList>
 #include <functional>
 
 class QLabel;
@@ -53,6 +55,18 @@ private:
     void renderSidebar();
     void renderMessages(const QJsonDocument &body, const QString &requestedChatId);
     void removeMessageRowAnimated(const QString &messageId);
+    // Отправка текста: оптимистичное сообщение, автоповтор, ручной повтор/удаление при ошибке.
+    void deliverPendingText(const QString &clientId);
+    void handleTextSendFinished(const QString &clientId, bool ok, bool retryable, const QString &error);
+    void setTempSendState(const QString &clientId, const QString &state);
+    void removeTempMessage(const QString &clientId);
+    void retryPendingText(const QString &messageId);
+    void discardPendingText(const QString &messageId);
+    void afterMessageSent();
+    void rerenderCurrentChat();
+    // «Печатает…» и онлайн собеседника без сокетов: короткий опрос открытого чата.
+    void pollChatLive();
+    void handleChatLive(const QString &endpoint, const QJsonDocument &body);
     void showProfileDialog();
     bool isSuperAdmin() const;
     void updateAdminControls();
@@ -196,6 +210,19 @@ private:
     QByteArray m_renderedMessagesFingerprint;
     QString m_renderedMessagesChatId;
     bool m_scrollToBottomOnNextMessages = false;
+    struct PendingText {
+        QString chatId;
+        QString text;
+        QString replyTo;
+        int attempts = 0;
+    };
+    QHash<QString, PendingText> m_pendingTexts; // clientId -> параметры отправки
+    QTimer *m_liveTimer = nullptr;
+    QString m_liveChatId;
+    QStringList m_liveTypers;
+    bool m_liveHasPeer = false;
+    bool m_liveOnline = false;
+    qint64 m_lastTypingPostMs = 0;
     bool m_mediaRerenderQueued = false;
     QJsonObject m_replyToMessage;
     QString m_replyToMessageId;
