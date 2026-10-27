@@ -1389,24 +1389,10 @@ QWidget *makeMessageRowWidget(
             stateLabel->setObjectName("MessageTime");
             actionsLayout->addWidget(stateLabel);
         } else if (sendState == "failed") {
-            auto *stateLabel = new QLabel(QStringLiteral("Не отправлено"), actionsRow);
+            auto *stateLabel = new QLabel(QStringLiteral("⚠ Не отправлено"), actionsRow);
             stateLabel->setObjectName("MessageTime");
             stateLabel->setStyleSheet("color: #f87171; font-weight: 600;");
             actionsLayout->addWidget(stateLabel);
-            auto *retryButton = new QPushButton(QStringLiteral("Повторить"), actionsRow);
-            retryButton->setObjectName("MessageActionButton");
-            retryButton->setCursor(Qt::PointingHandCursor);
-            QObject::connect(retryButton, &QPushButton::clicked, retryButton, [retryHandler, messageId]() {
-                if (retryHandler) retryHandler(messageId);
-            });
-            actionsLayout->addWidget(retryButton);
-            auto *discardButton = new QPushButton(QStringLiteral("Удалить"), actionsRow);
-            discardButton->setObjectName("MessageActionButton");
-            discardButton->setCursor(Qt::PointingHandCursor);
-            QObject::connect(discardButton, &QPushButton::clicked, discardButton, [discardHandler, messageId]() {
-                if (discardHandler) discardHandler(messageId);
-            });
-            actionsLayout->addWidget(discardButton);
         }
         actionsLayout->addStretch(1);
         if (!messageId.isEmpty() && apiClient && sendState.isEmpty()) {
@@ -1515,6 +1501,31 @@ QWidget *makeMessageRowWidget(
         }
         }
         bubbleLayout->addWidget(actionsRow);
+        if (msg.value("sendState").toString() == "failed") {
+            // Кнопки в отдельной строке: в узком пузыре они не помещаются рядом со временем и статусом
+            auto *failedRow = new QWidget(bubble);
+            auto *failedLayout = new QHBoxLayout(failedRow);
+            failedLayout->setContentsMargins(0, 2, 0, 0);
+            failedLayout->setSpacing(8);
+            auto *retryButton = new QPushButton(QStringLiteral("Повторить"), failedRow);
+            retryButton->setObjectName("MessageActionButton");
+            retryButton->setCursor(Qt::PointingHandCursor);
+            retryButton->setMinimumWidth(96);
+            QObject::connect(retryButton, &QPushButton::clicked, retryButton, [retryHandler, messageId]() {
+                if (retryHandler) retryHandler(messageId);
+            });
+            failedLayout->addWidget(retryButton);
+            auto *discardButton = new QPushButton(QStringLiteral("Удалить"), failedRow);
+            discardButton->setObjectName("MessageActionButton");
+            discardButton->setCursor(Qt::PointingHandCursor);
+            discardButton->setMinimumWidth(80);
+            QObject::connect(discardButton, &QPushButton::clicked, discardButton, [discardHandler, messageId]() {
+                if (discardHandler) discardHandler(messageId);
+            });
+            failedLayout->addWidget(discardButton);
+            failedLayout->addStretch(1);
+            bubbleLayout->addWidget(failedRow);
+        }
     }
 
     if (isSelf) {
