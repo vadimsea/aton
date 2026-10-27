@@ -852,11 +852,30 @@ async function unreadBadgeCount(username) {
   }
 }
 
+let deviceTokenTableWarningShown = false;
+
+function isMissingDeviceTokenTableError(error) {
+  const message = String(error?.message || "");
+  return error?.code === "P2021" || /device_tokens.+does not exist|table.+device_tokens/i.test(message);
+}
+
 async function sendPushToUser(username, notification) {
   if (!username) return;
-  const rows = await prisma.deviceToken.findMany({
-    where: { username, enabled: true, platform: "ios" },
-  });
+  let rows = [];
+  try {
+    rows = await prisma.deviceToken.findMany({
+      where: { username, enabled: true, platform: "ios" },
+    });
+  } catch (e) {
+    if (isMissingDeviceTokenTableError(e)) {
+      if (!deviceTokenTableWarningShown) {
+        deviceTokenTableWarningShown = true;
+        console.warn("device_tokens table is missing; push notifications are skipped until migrations are applied.");
+      }
+      return;
+    }
+    throw e;
+  }
   if (!rows.length) return;
   const badge = await unreadBadgeCount(username);
   for (const row of rows) {
@@ -3533,30 +3552,86 @@ app.get("/api/messages", authMiddleware, requireVerified, async (req, res) => {
             senderUsername: { not: me },
             status: "sent",
           };
-      await prisma.message.updateMany({
+      const delivered = await prisma.message.updateMany({
         where: deliveredWhere,
         data: { status: "delivered" },
       });
-      emitMessageStatusForChat(chatId, {
-        chatId,
-        kind: "delivered",
-        viewer: me,
-      });
+      // Только при реальном изменении: иначе клиенты по message:status снова дёргают этот GET — бесконечный цикл.
+      if (delivered.count > 0) {
+        emitMessageStatusForChat(chatId, {
+          chatId,
+          kind: "delivered",
+          viewer: me,
+        });
+      }
     }
     const where = dmThreadWhereClause(chatId, me);
     const whereWithCursor =
       beforeDate && !Number.isNaN(beforeDate.getTime())
         ? { AND: [where, { createdAt: { lt: beforeDate } }] }
         : where;
+    const lite = String(req.query.lite || "") === "1";
     const rows = await prisma.message.findMany({
       where: whereWithCursor,
       orderBy: { createdAt: "desc" },
       take: limit,
+      ...(lite ? { select: MESSAGE_BOOTSTRAP_SELECT } : {}),
     });
     rows.reverse();
-    res.json(await attachSenderProfiles(rows.map(messageFromPrismaRow)));
+    res.json(await attachSenderProfiles(rows.map((row) => messageFromPrismaRow(row, { omitMedia: lite }))));
   } catch (err) {
     console.error("GET /api/messages:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+// Медиа одного сообщения бинарно (не base64 в JSON): браузер кэширует, <audio>/<img> грузятся лениво.
+app.get("/api/messages/:id/media", authMiddleware, requireVerified, async (req, res) => {
+  try {
+    const row = await prisma.message.findUnique({
+      where: { id: String(req.params.id) },
+      select: {
+        chatId: true,
+        senderUsername: true,
+        recipientUsername: true,
+        type: true,
+        imageDataUrl: true,
+        audioDataUrl: true,
+      },
+    });
+    const dataUrl = row && (row.type === "audio" ? row.audioDataUrl : row.type === "image" ? row.imageDataUrl : null);
+    if (!row || !dataUrl) return res.status(404).json({ error: "Медиа не найдено" });
+    const chatId =
+      row.chatId ||
+      (row.senderUsername && row.recipientUsername
+        ? dmChatIdForUsernames(row.senderUsername, row.recipientUsername)
+        : null);
+    const ac = await assertUserCanAccessChat(req, chatId);
+    if (!ac.ok) return res.status(ac.error === "Чат не найден" ? 404 : 403).json({ error: ac.error });
+    const m = /^data:([^;,]+)((?:;[^;,]+)*?);base64,(.*)$/is.exec(dataUrl);
+    if (!m) return res.status(404).json({ error: "Медиа не найдено" });
+    const buf = Buffer.from(m[3], "base64");
+    res.setHeader("Content-Type", m[1] || "application/octet-stream");
+    res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
+    res.setHeader("Accept-Ranges", "bytes");
+    const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range || ""));
+    if (range && (range[1] || range[2])) {
+      let start = range[1] ? parseInt(range[1], 10) : Math.max(0, buf.length - parseInt(range[2], 10));
+      let end = range[1] && range[2] ? parseInt(range[2], 10) : buf.length - 1;
+      end = Math.min(end, buf.length - 1);
+      if (start > end || start >= buf.length) {
+        res.setHeader("Content-Range", `bytes */${buf.length}`);
+        return res.status(416).end();
+      }
+      res.status(206);
+      res.setHeader("Content-Range", `bytes ${start}-${end}/${buf.length}`);
+      res.setHeader("Content-Length", end - start + 1);
+      return res.end(buf.subarray(start, end + 1));
+    }
+    res.setHeader("Content-Length", buf.length);
+    res.end(buf);
+  } catch (err) {
+    console.error("GET /api/messages/:id/media:", err);
     res.status(500).json({ error: "Ошибка сервера" });
   }
 });
@@ -3604,23 +3679,27 @@ app.post("/api/messages/read", authMiddleware, requireVerified, async (req, res)
             senderUsername: { not: me },
             status: { in: ["sent", "delivered"] },
           };
-      await prisma.message.updateMany({
+      const marked = await prisma.message.updateMany({
         where: readWhere,
         data: { status: "read" },
       });
-      emitMessageStatusForChat(chatId, {
-        chatId,
-        kind: "read",
-        reader: me,
-      });
+      if (marked.count > 0) {
+        emitMessageStatusForChat(chatId, {
+          chatId,
+          kind: "read",
+          reader: me,
+        });
+      }
     }
+    const lite = req.body && req.body.lite === true;
     const rows = await prisma.message.findMany({
       where: dmThreadWhereClause(chatId, me),
       orderBy: { createdAt: "desc" },
-      take: 80,
+      take: lite ? 40 : 80,
+      ...(lite ? { select: MESSAGE_BOOTSTRAP_SELECT } : {}),
     });
     rows.reverse();
-    const list = await attachSenderProfiles(rows.map(messageFromPrismaRow));
+    const list = await attachSenderProfiles(rows.map((row) => messageFromPrismaRow(row, { omitMedia: lite })));
     res.json({ ok: true, messages: list });
   } catch (err) {
     console.error("POST /api/messages/read:", err);

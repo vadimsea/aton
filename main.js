@@ -711,7 +711,7 @@ function getApiBase() {
   const meta = document.querySelector('meta[name="aton-api-base"]')?.getAttribute("content")?.trim();
   if (meta) return meta.replace(/\/$/, "");
   if (host === "aten.vadzim.by" || host === "www.aten.vadzim.by") {
-    return "https://atonapi-tr6vkx09.b4a.run";
+    return "https://aton-api-2.onrender.com";
   }
   const origin = window.location.origin;
   if (!origin) return "";
@@ -1549,17 +1549,59 @@ function pauseOtherVoiceAudios(except) {
   });
 }
 
-/** Кастомный плеер голосового (без нативных controls). */
-function createVoicePlayer(audioSrc, isSelf) {
+/** Медиа сообщения (фото/голос) отдельным бинарным запросом: в списке сообщений base64 больше не гоняем. */
+const messageMediaUrlCache = new Map();
+const messageMediaInflight = new Map();
+function loadMessageMediaUrl(msgId) {
+  const id = String(msgId);
+  if (messageMediaUrlCache.has(id)) return Promise.resolve(messageMediaUrlCache.get(id));
+  if (messageMediaInflight.has(id)) return messageMediaInflight.get(id);
+  const p = fetch(`${API_BASE}/api/messages/${encodeURIComponent(id)}/media`, {
+    headers: { Authorization: `Bearer ${getToken() || ""}` },
+  })
+    .then((r) => {
+      if (!r.ok) throw new Error(`media ${r.status}`);
+      return r.blob();
+    })
+    .then((blob) => {
+      const url = URL.createObjectURL(blob);
+      messageMediaUrlCache.set(id, url);
+      return url;
+    })
+    .finally(() => messageMediaInflight.delete(id));
+  messageMediaInflight.set(id, p);
+  return p;
+}
+
+/** Вызвать cb, когда элемент почти попал в видимую область. */
+function whenNearViewport(el, cb) {
+  if (!("IntersectionObserver" in window)) {
+    cb();
+    return;
+  }
+  const io = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((e) => e.isIntersecting)) {
+        io.disconnect();
+        cb();
+      }
+    },
+    { rootMargin: "400px" }
+  );
+  io.observe(el);
+}
+
+/** Кастомный плеер голосового (без нативных controls). audioSrc можно не задавать — тогда lazyLoad() вернёт URL. */
+function createVoicePlayer(audioSrc, isSelf, lazyLoad) {
   const wrap = document.createElement("div");
   wrap.className =
     "aton-voice-player" + (isSelf ? " aton-voice-player--self" : "");
 
   const audio = document.createElement("audio");
   audio.className = "aton-voice-audio";
-  audio.preload = "auto";
+  audio.preload = "metadata";
   audio.setAttribute("playsinline", "");
-  audio.src = audioSrc;
+  if (audioSrc) audio.src = audioSrc;
 
   const playBtn = document.createElement("button");
   playBtn.type = "button";
@@ -1621,11 +1663,35 @@ function createVoicePlayer(audioSrc, isSelf) {
     }
   }
 
+  let lazyPromise = null;
+  function ensureSrc() {
+    if (audio.getAttribute("src") || !lazyLoad) return Promise.resolve();
+    if (!lazyPromise) {
+      lazyPromise = lazyLoad()
+        .then((url) => {
+          audio.src = url;
+        })
+        .catch(() => {
+          lazyPromise = null;
+          timeEl.textContent = t("Не удалось загрузить");
+          throw new Error("voice load failed");
+        });
+    }
+    return lazyPromise;
+  }
+  if (!audioSrc && lazyLoad) {
+    whenNearViewport(wrap, () => {
+      ensureSrc().catch(() => {});
+    });
+  }
+
   playBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     if (audio.paused) {
       pauseOtherVoiceAudios(audio);
-      audio.play().catch(() => {});
+      ensureSrc()
+        .then(() => audio.play())
+        .catch(() => {});
     } else {
       audio.pause();
     }
@@ -1674,8 +1740,20 @@ function createVoicePlayer(audioSrc, isSelf) {
   });
 
   audio.addEventListener("loadedmetadata", () => {
+    // MediaRecorder-webm без длительности в заголовке: duration === Infinity → 0:00 / 0:00.
+    // Прыжок в конец заставляет браузер посчитать реальную длительность.
+    if (audio.duration === Infinity) {
+      const onFixed = () => {
+        audio.removeEventListener("timeupdate", onFixed);
+        audio.currentTime = 0;
+        updateUi();
+      };
+      audio.addEventListener("timeupdate", onFixed);
+      audio.currentTime = 1e7;
+    }
     updateUi();
   });
+  audio.addEventListener("durationchange", updateUi);
   audio.addEventListener("timeupdate", updateUi);
   audio.addEventListener("play", () => {
     syncPlayingClass();
@@ -2683,7 +2761,7 @@ function createApp() {
       renderMessages({ preserveTop: true });
     }
     try {
-      const older = await api(`/api/messages?chatId=${encodeURIComponent(chatId)}&before=${before}&limit=${CHAT_PAGE_LIMIT}`);
+      const older = await api(`/api/messages?chatId=${encodeURIComponent(chatId)}&before=${before}&limit=${CHAT_PAGE_LIMIT}&lite=1`);
       if (!Array.isArray(older) || currentChatId !== chatId) return;
       if (older.length < CHAT_PAGE_LIMIT) state.hasMore = false;
       if (older.length) {
@@ -2759,7 +2837,7 @@ function createApp() {
         const list =
           warmOpenChatId === chatId && warmOpenChatMessagesPromise
             ? await warmOpenChatMessagesPromise
-            : await api(`/api/messages?chatId=${encodeURIComponent(chatId)}&limit=${CHAT_PAGE_LIMIT}`);
+            : await api(`/api/messages?chatId=${encodeURIComponent(chatId)}&limit=${CHAT_PAGE_LIMIT}&lite=1`);
         if (receiptsInFlight !== token) return;
         if (!Array.isArray(list)) return;
         allMessages = applyMessagesForChatInAll(allMessages, chatId, list);
@@ -2774,7 +2852,7 @@ function createApp() {
         if (markRead && isPrivateDirectChat(chatId)) {
           const r = await api("/api/messages/read", {
             method: "POST",
-            body: JSON.stringify({ chatId, userId: currentUser.id }),
+            body: JSON.stringify({ chatId, userId: currentUser.id, lite: true }),
           });
           if (receiptsInFlight !== token) return;
           if (r && Array.isArray(r.messages)) {
@@ -2928,7 +3006,7 @@ function createApp() {
     if (!saved || typeof saved !== "string") return;
     if (!String(saved).includes("|") && !String(saved).startsWith("group:") && !String(saved).startsWith("channel:")) return;
     warmOpenChatId = saved;
-    warmOpenChatMessagesPromise = api(`/api/messages?chatId=${encodeURIComponent(saved)}&limit=${CHAT_PAGE_LIMIT}`)
+    warmOpenChatMessagesPromise = api(`/api/messages?chatId=${encodeURIComponent(saved)}&limit=${CHAT_PAGE_LIMIT}&lite=1`)
       .then((list) => (Array.isArray(list) ? list : []))
       .catch(() => null);
   }
@@ -5929,25 +6007,47 @@ function createApp() {
       bubble.className = "aton-message-bubble" + (isSelf ? " self" : "");
       const text = document.createElement("div");
       text.className = "aton-message-text";
-      if (msg.type === "audio" && msg.audioDataUrl) {
+      const cachedMediaUrl = messageMediaUrlCache.get(String(msg.id || ""));
+      if (msg.type === "audio" && (msg.audioDataUrl || msg.hasMedia)) {
         text.classList.add("aton-message-text--media", "aton-message-text--voice");
         bubble.classList.add("aton-message-bubble--voice");
-        text.appendChild(createVoicePlayer(msg.audioDataUrl, isSelf));
+        text.appendChild(
+          createVoicePlayer(
+            msg.audioDataUrl || cachedMediaUrl || "",
+            isSelf,
+            msg.hasMedia ? () => loadMessageMediaUrl(msg.id) : null
+          )
+        );
       } else if (msg.type === "audio") {
         text.classList.add("aton-message-text--media-pending");
         text.textContent = t("Загрузка голосового…");
-      } else if (msg.type === "image" && msg.imageDataUrl) {
+      } else if (msg.type === "image" && (msg.imageDataUrl || msg.hasMedia)) {
         text.classList.add("aton-message-text--media");
         const img = document.createElement("img");
-        img.src = msg.imageDataUrl;
         img.className = "aton-message-image";
+        img.decoding = "async";
+        img.loading = "lazy";
+        const imgSrcOf = (item) => item.imageDataUrl || messageMediaUrlCache.get(String(item.id || "")) || "";
+        if (msg.imageDataUrl || cachedMediaUrl) {
+          img.src = msg.imageDataUrl || cachedMediaUrl;
+        } else {
+          whenNearViewport(img, () => {
+            loadMessageMediaUrl(msg.id)
+              .then((url) => {
+                img.src = url;
+              })
+              .catch(() => {});
+          });
+        }
         img.addEventListener("click", () => {
+          const full = imgSrcOf(msg);
+          if (!full) return;
           const imageMessages = messagesForChatId(currentChatId).filter(
-            (item) => item && item.type === "image" && item.imageDataUrl
+            (item) => item && item.type === "image" && imgSrcOf(item)
           );
-          const gallery = imageMessages.map((item) => String(item.imageDataUrl));
+          const gallery = imageMessages.map((item) => String(imgSrcOf(item)));
           const clickedIndex = imageMessages.findIndex((item) => String(item.id || "") === String(msg.id || ""));
-          openImageLightbox(msg.imageDataUrl, gallery, clickedIndex);
+          openImageLightbox(full, gallery, clickedIndex);
         });
         text.appendChild(img);
       } else if (msg.type === "image") {
@@ -6373,14 +6473,7 @@ function createApp() {
       sendButton.click();
     }
 
-    // Локальный индикатор «печатает…»
-    if (typingTimeoutId) clearTimeout(typingTimeoutId);
-    typingIndicator.textContent = t("Печатаете сообщение…");
-    typingIndicator.style.display =
-      !replyToMessage && (inputMessage.value.trim() || event.key !== "Enter") ? "block" : "none";
-    typingTimeoutId = setTimeout(() => {
-      if (!replyToMessage) typingIndicator.style.display = "none";
-    }, 1200);
+    // Собственный индикатор «Печатаете сообщение…» не показываем (как в Telegram): он только мозолил глаза.
   });
 
   // Отправка фотографий
