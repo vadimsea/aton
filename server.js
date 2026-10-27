@@ -179,6 +179,28 @@ function golosRateAllow(username) {
   return rec.count <= GOLOS_MAX_PER_WINDOW;
 }
 
+/** Как в Telegram: до 4096 символов в сообщении. */
+const MESSAGE_TEXT_MAX_CHARS = 4096;
+
+/** Антиспам: не больше 30 сообщений за 10 секунд на пользователя (в памяти процесса). */
+const messageSendLog = new Map();
+function messageSendAllow(userId) {
+  const now = Date.now();
+  const recent = (messageSendLog.get(userId) || []).filter((t) => now - t < 10_000);
+  if (recent.length >= 30) {
+    messageSendLog.set(userId, recent);
+    return false;
+  }
+  recent.push(now);
+  messageSendLog.set(userId, recent);
+  if (messageSendLog.size > 5000) {
+    for (const [k, v] of messageSendLog) {
+      if (!v.length || now - v[v.length - 1] > 10_000) messageSendLog.delete(k);
+    }
+  }
+  return true;
+}
+
 function dmChatIdForUsernames(a, b) {
   return [a, b].sort().join("|");
 }
@@ -1504,20 +1526,33 @@ async function buildLinkPreview(rawUrl) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 6000);
   try {
-    const response = await fetch(cacheKey, {
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        "user-agent": "ATEN link preview bot/0.1",
-        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.5",
-      },
-    });
+    // Редиректы идём вручную и проверяем каждый хоп: иначе внешний URL может перенаправить сервер во внутреннюю сеть (SSRF).
+    let currentUrl = cacheKey;
+    let response;
+    for (let hop = 0; hop <= 4; hop++) {
+      await assertPublicPreviewUrl(new URL(currentUrl));
+      response = await fetch(currentUrl, {
+        redirect: "manual",
+        signal: controller.signal,
+        headers: {
+          "user-agent": "ATEN link preview bot/0.1",
+          accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.5",
+        },
+      });
+      const location = response.headers.get("location");
+      if (response.status >= 300 && response.status < 400 && location) {
+        currentUrl = new URL(location, currentUrl).toString();
+        continue;
+      }
+      break;
+    }
+    if (response.status >= 300 && response.status < 400) throw new Error("Too many redirects");
     const contentType = response.headers.get("content-type") || "";
     if (!response.ok || !contentType.toLowerCase().includes("text/html")) throw new Error("Not an HTML page");
     const contentLength = Number(response.headers.get("content-length") || "0");
     if (contentLength > LINK_PREVIEW_MAX_HTML) throw new Error("Page is too large");
     const html = (await response.text()).slice(0, LINK_PREVIEW_MAX_HTML);
-    const finalUrl = new URL(response.url || cacheKey);
+    const finalUrl = new URL(currentUrl);
     await assertPublicPreviewUrl(finalUrl);
     const title =
       metaContent(html, ["og:title", "twitter:title"]) ||
@@ -3807,10 +3842,32 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
     return res.status(400).json({ error: "Неподдерживаемый тип сообщения" });
   }
 
+  if (typeof chatId !== "string" || !chatId || chatId.length > 200) {
+    return res.status(400).json({ error: "Некорректный чат" });
+  }
+  if (!messageSendAllow(req.user.id)) {
+    return res.status(429).json({ error: "Слишком много сообщений, подождите пару секунд" });
+  }
+  if (type === "text" && typeof text === "string" && text.length > MESSAGE_TEXT_MAX_CHARS) {
+    return res.status(400).json({ error: `Сообщение слишком длинное (максимум ${MESSAGE_TEXT_MAX_CHARS} символов)` });
+  }
+  if (replyTo != null && (typeof replyTo !== "string" || replyTo.length > 200)) {
+    return res.status(400).json({ error: "Некорректный replyTo" });
+  }
+
   const toTrimmed = to != null && String(to).trim() !== "" ? String(to).trim() : null;
   const myUsername = req.user.username;
-  const peerFromChatId = dmPeerFromChatId(typeof chatId === "string" ? chatId : String(chatId), myUsername);
-  const recipientForDb = toTrimmed || peerFromChatId || null;
+  const isGroupLike = chatId.startsWith("group:") || chatId.startsWith("channel:");
+  let recipientForDb = null;
+  if (isDirectMessageChatId(chatId)) {
+    // Писать можно только в свою личку, получатель — второй участник (иначе можно вбросить сообщение в чужой диалог).
+    const peer = dmPeerFromChatId(chatId, myUsername);
+    if (!peer) return res.status(403).json({ error: "Нет доступа к этому чату" });
+    if (toTrimmed && toTrimmed !== peer) return res.status(400).json({ error: "Получатель не совпадает с чатом" });
+    recipientForDb = peer;
+  } else if (chatId !== "global" && !isGroupLike) {
+    return res.status(400).json({ error: "Некорректный чат" });
+  }
 
   // Проверка блокировок для личных сообщений
   if (recipientForDb) {
@@ -3912,7 +3969,7 @@ app.post("/api/messages", authMiddleware, requireVerified, async (req, res) => {
         createdAt: now,
         editedAt: null,
         replyTo: replyTo == null ? undefined : replyTo,
-        pinned: Boolean(pinned),
+        pinned: false,
         reactions: [],
         status: "sent",
       },
@@ -3964,6 +4021,9 @@ app.patch("/api/messages/:id", authMiddleware, requireVerified, async (req, res)
     }
     if (typeof text !== "string" || !text.trim()) {
       return res.status(400).json({ error: "Новый текст обязателен" });
+    }
+    if (text.length > MESSAGE_TEXT_MAX_CHARS) {
+      return res.status(400).json({ error: `Сообщение слишком длинное (максимум ${MESSAGE_TEXT_MAX_CHARS} символов)` });
     }
     const updated = await prisma.message.update({
       where: { id },
@@ -4056,30 +4116,6 @@ app.delete("/api/messages/:id", authMiddleware, requireVerified, async (req, res
   } catch (err) {
     console.error("DELETE /api/messages/:id:", err);
     res.status(500).json({ error: "Ошибка сервера" });
-  }
-});
-
-app.get("/api/test-db-user", async (req, res) => {
-  try {
-    const users = await prisma.user.findMany({
-      take: 5,
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        displayName: true,
-        publicId: true,
-        createdAt: true,
-      },
-    });
-    res.json({ ok: true, users });
-  } catch (err) {
-    console.error("GET /api/test-db-user:", err);
-    res.status(500).json({
-      ok: false,
-      error: err instanceof Error ? err.message : "Ошибка базы данных",
-    });
   }
 });
 

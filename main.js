@@ -3213,6 +3213,7 @@ function createApp() {
   const userPill = document.getElementById("aton-user-pill");
   const userNameLabel = document.getElementById("aton-user-name");
   const inputMessage = document.getElementById("aton-input");
+  inputMessage.maxLength = 4096; // как в Telegram; сервер тоже отклоняет длиннее
   const sendButton = document.getElementById("aton-send");
   const replyComposeEl = document.getElementById("aton-reply-compose");
   const replyComposeLabelEl = document.getElementById("aton-reply-compose-label");
