@@ -66,6 +66,8 @@ private:
     void rerenderCurrentChat();
     // «Печатает…» и онлайн собеседника без сокетов: короткий опрос открытого чата.
     void pollChatLive();
+    // Автопроверка (только по переменным окружения ATEN_QA_*): открыть чат, отправить текст, сохранить снимки окна.
+    void setupQaAutomation();
     void handleChatLive(const QString &endpoint, const QJsonDocument &body);
     void showProfileDialog();
     bool isSuperAdmin() const;

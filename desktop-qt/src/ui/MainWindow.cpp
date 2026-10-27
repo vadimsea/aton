@@ -808,6 +808,7 @@ int messageRowHeight(const QJsonObject &msg)
         }
     }
     if (!msg.value("replyTo").toString().isEmpty()) height += 54;
+    if (msg.value("sendState").toString() == "failed") height += 56; // строка «Повторить / Удалить»
     if (!msg.value("reactions").toArray().isEmpty()) height += 36;
     return std::clamp(height, 82, 680);
 }
@@ -1260,7 +1261,7 @@ QWidget *makeMessageRowWidget(
         const auto textWidth = messageTextWidth(textValue, label->font());
         label->setFixedWidth(textWidth);
         label->setMinimumHeight(richMessageTextHeight(label->text(), label->font(), textWidth));
-        const int actionWidth = isSelf ? 190 : 104;
+        const int actionWidth = isSelf ? 250 : 140; // в узком пузыре обрезалось время рядом с кнопками действий
         bubble->setFixedWidth(std::max(textWidth + 32, actionWidth));
         label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Minimum);
         bubbleLayout->addWidget(label);
@@ -1508,17 +1509,25 @@ QWidget *makeMessageRowWidget(
             failedLayout->setContentsMargins(0, 2, 0, 0);
             failedLayout->setSpacing(8);
             auto *retryButton = new QPushButton(QStringLiteral("Повторить"), failedRow);
-            retryButton->setObjectName("MessageActionButton");
+            retryButton->setObjectName("MessageFailedButton");
             retryButton->setCursor(Qt::PointingHandCursor);
-            retryButton->setMinimumWidth(96);
+            retryButton->setFixedHeight(28);
+            retryButton->setStyleSheet(
+                "QPushButton { border: 1px solid #f87171; border-radius: 13px; padding: 0 14px; color: #dc2626;"
+                " background: transparent; min-width: 90px; max-width: 16777215px; }"
+                "QPushButton:hover { background: rgba(248, 113, 113, 0.14); }");
             QObject::connect(retryButton, &QPushButton::clicked, retryButton, [retryHandler, messageId]() {
                 if (retryHandler) retryHandler(messageId);
             });
             failedLayout->addWidget(retryButton);
             auto *discardButton = new QPushButton(QStringLiteral("Удалить"), failedRow);
-            discardButton->setObjectName("MessageActionButton");
+            discardButton->setObjectName("MessageFailedButton");
             discardButton->setCursor(Qt::PointingHandCursor);
-            discardButton->setMinimumWidth(80);
+            discardButton->setFixedHeight(28);
+            discardButton->setStyleSheet(
+                "QPushButton { border: 1px solid #94a3b8; border-radius: 13px; padding: 0 14px; color: #64748b;"
+                " background: transparent; min-width: 70px; max-width: 16777215px; }"
+                "QPushButton:hover { background: rgba(148, 163, 184, 0.16); }");
             QObject::connect(discardButton, &QPushButton::clicked, discardButton, [discardHandler, messageId]() {
                 if (discardHandler) discardHandler(messageId);
             });
@@ -1647,6 +1656,7 @@ MainWindow::MainWindow(ApiClient *apiClient, SessionStore *sessionStore, QWidget
     m_liveTimer->setInterval(2500);
     connect(m_liveTimer, &QTimer::timeout, this, &MainWindow::pollChatLive);
     m_liveTimer->start();
+    setupQaAutomation();
     connect(m_apiClient, &ApiClient::textSendFinished, this,
             [this](const QString &clientId, bool ok, bool retryable, const QString &error, const QJsonObject &) {
                 handleTextSendFinished(clientId, ok, retryable, error);
@@ -2977,7 +2987,10 @@ void MainWindow::wireApi()
             setStatusText(QString("Не удалось загрузить диалоги: %1").arg(readableMessage));
             return;
         }
-        setStatusText(QString("Ошибка %1: %2").arg(endpoint, readableMessage));
+        // Фоновый опрос сообщений при обрыве сети: коротко, без адреса запроса в шапке чата
+        setStatusText(endpoint.startsWith("/api/messages?")
+                          ? QStringLiteral("Нет соединения. Повторяем…")
+                          : QString("Ошибка %1: %2").arg(endpoint, readableMessage));
     });
 
     connect(m_apiClient, &ApiClient::sessionExpired, this, [this]() {
@@ -5168,12 +5181,72 @@ void MainWindow::rerenderCurrentChat()
     renderMessages(QJsonDocument(chatMessages), m_currentChatId);
 }
 
+void MainWindow::setupQaAutomation()
+{
+    // ATEN_QA_SHOT_DIR   — папка для снимков (включает режим);
+    // ATEN_QA_SHOT_TIMES — «мс,мс,…» от запуска; после последнего приложение закрывается;
+    // ATEN_QA_OPEN_PEER  — часть имени собеседника: на 4-й секунде откроется его чат;
+    // ATEN_QA_SEND       — «мс|текст;мс|текст»: отправить текст в открытом чате в заданный момент.
+    const auto dir = qEnvironmentVariable("ATEN_QA_SHOT_DIR");
+    if (dir.isEmpty()) return;
+    resize(1400, 900);
+
+    const auto peer = qEnvironmentVariable("ATEN_QA_OPEN_PEER").toLower();
+    if (!peer.isEmpty()) {
+        QTimer::singleShot(4000, this, [this, peer]() {
+            for (int i = 0; m_chatList && i < m_chatList->count(); ++i) {
+                auto *item = m_chatList->item(i);
+                if (item->data(Qt::UserRole + 2).toString().toLower().contains(peer)
+                    || item->data(Qt::UserRole + 1).toString().toLower().contains(peer)) {
+                    m_chatList->setCurrentRow(i);
+                    return;
+                }
+            }
+        });
+    }
+
+    for (const auto &entry : qEnvironmentVariable("ATEN_QA_SEND").split(';', Qt::SkipEmptyParts)) {
+        const auto parts = entry.split('|');
+        if (parts.size() < 2) continue;
+        const int ms = parts.at(0).toInt();
+        const QString text = parts.mid(1).join('|');
+        QTimer::singleShot(ms, this, [this, text]() {
+            if (!m_composer) return;
+            m_composer->setPlainText(text);
+            sendComposerText();
+        });
+    }
+
+    // ATEN_QA_RETRY_AT — в этот момент нажать «Повторить» у всех неотправленных сообщений
+    const int retryAt = qEnvironmentVariableIntValue("ATEN_QA_RETRY_AT");
+    if (retryAt > 0) {
+        QTimer::singleShot(retryAt, this, [this]() {
+            const auto ids = m_pendingTexts.keys();
+            for (const auto &clientId : ids) retryPendingText("_temp_" + clientId);
+        });
+    }
+
+    int lastMs = 0;
+    for (const auto &token : qEnvironmentVariable("ATEN_QA_SHOT_TIMES").split(',', Qt::SkipEmptyParts)) {
+        const int ms = token.trimmed().toInt();
+        if (ms <= 0) continue;
+        lastMs = std::max(lastMs, ms);
+        QTimer::singleShot(ms, this, [this, dir, ms]() {
+            QDir().mkpath(dir);
+            grab().save(QDir(dir).filePath(QString("shot_%1.png").arg(ms)));
+        });
+    }
+    if (lastMs > 0) {
+        QTimer::singleShot(lastMs + 1500, this, []() { QCoreApplication::quit(); });
+    }
+}
+
 void MainWindow::pollChatLive()
 {
     if (!m_apiClient || !m_sessionStore || !m_sessionStore->hasToken()) return;
     if (!m_stack || m_stack->currentWidget() != m_messengerPage) return;
     if (m_currentChatId.isEmpty() || (m_profilePage && m_profilePage->isVisible())) return;
-    if (!isActiveWindow() || isMinimized()) return;
+    if ((!isActiveWindow() || isMinimized()) && !qEnvironmentVariableIsSet("ATEN_QA_SHOT_DIR")) return;
     if (m_currentChatId.contains("golos_aton", Qt::CaseInsensitive)) return;
     m_apiClient->getChatLive(m_currentChatId);
 }

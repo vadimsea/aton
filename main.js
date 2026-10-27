@@ -3366,9 +3366,21 @@ function createApp() {
     '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="aton-scroll-down__badge"></span>';
   chat.appendChild(scrollDownBtn);
   let unreadBelowCount = 0;
+  /** Лента «прилипла» к низу (читаем самое свежее): картинки, догружаясь, не должны сдвигать вид. */
+  let stickToBottom = true;
+  messagesEl.addEventListener(
+    "load",
+    (event) => {
+      if (stickToBottom && event.target && event.target.tagName === "IMG") {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+    },
+    true
+  );
 
   function updateScrollDownButton() {
     const distance = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight;
+    stickToBottom = distance < 140;
     const show = distance > 260 && Boolean(currentChatId);
     if (!show) unreadBelowCount = 0;
     scrollDownBtn.classList.toggle("is-visible", show);
