@@ -617,31 +617,44 @@ QPixmap circularPixmap(const QPixmap &source, int size)
     return out;
 }
 
-QPixmap letterAvatarPixmap(const QString &title, int size, bool voice)
+/** Постоянный оттенок аватара по имени (как в вебе): один человек или чат — всегда один цвет. */
+QColor avatarHueColor(const QString &seed, qreal lightness, int hueShift = 0)
+{
+    quint32 h = 0;
+    const QString key = seed.isEmpty() ? QStringLiteral("?") : seed;
+    for (const QChar &ch : key) h = h * 31u + ch.unicode();
+    const qreal hue = static_cast<qreal>((h % 360u + static_cast<quint32>(hueShift)) % 360u) / 360.0;
+    return QColor::fromHslF(hue, 0.66, lightness);
+}
+
+QPixmap letterAvatarPixmap(const QString &title, int size, bool voice, const QString &seed = QString())
 {
     QPixmap out(size, size);
     out.fill(Qt::transparent);
 
     QPainter painter(&out);
     painter.setRenderHint(QPainter::Antialiasing, true);
-    QRadialGradient gradient(size * 0.4, size * 0.34, size * 0.74);
     if (voice) {
+        QRadialGradient gradient(size * 0.4, size * 0.34, size * 0.74);
         gradient.setColorAt(0.0, QColor("#fef3c7"));
         gradient.setColorAt(0.42, QColor("#f59e0b"));
         gradient.setColorAt(1.0, QColor("#111827"));
+        painter.setBrush(gradient);
+        painter.setPen(QPen(QColor("#111827"), 1.2));
     } else {
-        gradient.setColorAt(0.0, QColor("#eff6ff"));
-        gradient.setColorAt(1.0, QColor("#bfdbfe"));
+        QLinearGradient gradient(0, 0, size, size);
+        gradient.setColorAt(0.0, avatarHueColor(seed.isEmpty() ? title : seed, 0.56));
+        gradient.setColorAt(1.0, avatarHueColor(seed.isEmpty() ? title : seed, 0.40, 38));
+        painter.setBrush(gradient);
+        painter.setPen(Qt::NoPen);
     }
-    painter.setBrush(gradient);
-    painter.setPen(QPen(voice ? QColor("#111827") : QColor("#bfdbfe"), 1.2));
     painter.drawEllipse(QRectF(0.8, 0.8, size - 1.6, size - 1.6));
 
     auto font = painter.font();
     font.setPixelSize(size * 0.42);
     font.setBold(true);
     painter.setFont(font);
-    painter.setPen(voice ? QColor("#111827") : QColor("#2563eb"));
+    painter.setPen(voice ? QColor("#111827") : QColor("#ffffff"));
     painter.drawText(QRectF(0, 0, size, size), Qt::AlignCenter, title.left(1).toUpper());
     return out;
 }
@@ -786,7 +799,7 @@ QPushButton *makeToolbarButton(UiIcon icon, const QString &toolTip, QWidget *par
     return button;
 }
 
-int messageRowHeight(const QJsonObject &msg)
+[[maybe_unused]] int messageRowHeight(const QJsonObject &msg)
 {
     const auto type = msg.value("type").toString("text");
     int height = type == "image" ? 320 : type == "audio" ? 108 : 82;
@@ -852,7 +865,7 @@ QWidget *makeChatRowWidget(const ChatRow &row, QWidget *parent)
     }
     auto avatarPixmap = circularPixmap(pixmapFromAvatarRef(avatarSource), 46);
     if (avatarPixmap.isNull()) {
-        avatarPixmap = letterAvatarPixmap(row.title, 46, voice);
+        avatarPixmap = letterAvatarPixmap(row.title, 46, voice, row.id);
     }
     avatar->setPixmap(avatarPixmap);
 
@@ -1010,6 +1023,42 @@ QString messageReplyExcerpt(const QJsonObject &msg)
     return text.size() > 90 ? text.left(87) + "..." : text;
 }
 
+/** Высота текста без лишних отступов (для компактных пузырей). */
+int compactTextHeight(const QString &html, const QFont &font, int width)
+{
+    QTextDocument doc;
+    doc.setDefaultFont(font);
+    doc.setDocumentMargin(0);
+    doc.setTextWidth(width);
+    doc.setHtml(html);
+    return static_cast<int>(std::ceil(doc.size().height())) + 2;
+}
+
+/** Панель действий сообщения показывается только при наведении на строку (как в Telegram Desktop). */
+class MessageHoverFilter final : public QObject {
+public:
+    MessageHoverFilter(QWidget *row, QWidget *pill) : QObject(row), m_row(row), m_pill(pill) {}
+
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (watched == m_row && event) {
+            if (event->type() == QEvent::Enter) {
+                m_pill->show();
+            } else if (event->type() == QEvent::Leave) {
+                // Открытое меню реакций уводит курсор со строки — не прячем панель, пока меню на экране
+                QTimer::singleShot(140, m_pill, [row = m_row, pill = m_pill]() {
+                    if (!row->underMouse() && !QApplication::activePopupWidget()) pill->hide();
+                });
+            }
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    QWidget *m_row;
+    QWidget *m_pill;
+};
+
 QWidget *makeMessageRowWidget(
     const QJsonObject &msg,
     const QString &currentUsername,
@@ -1020,6 +1069,8 @@ QWidget *makeMessageRowWidget(
     const std::function<void(const QString &)> &deleteHandler,
     const std::function<void(const QString &)> &retryHandler,
     const std::function<void(const QString &)> &discardHandler,
+    bool joinsPrev,
+    bool joinsNext,
     QWidget *parent)
 {
     const auto from = msg.value("from").toString(msg.value("senderUsername").toString("user"));
@@ -1028,14 +1079,18 @@ QWidget *makeMessageRowWidget(
     const auto time = messageDateTimeLabel(msg.value("createdAt").toString(msg.value("time").toString()));
 
     const bool isSelf = !currentUsername.isEmpty() && from == currentUsername;
+    const auto chatIdText = msg.value("chatId").toString();
+    const bool groupLike = chatIdText.startsWith("group:") || chatIdText.startsWith("channel:");
+    const bool isDirect = chatIdText.contains('|') && !groupLike;
     auto *row = new QWidget(parent);
     row->setObjectName("MessageRow");
     auto *rowLayout = new QHBoxLayout(row);
-    rowLayout->setContentsMargins(18, 4, 18, 4);
+    // Серия подряд идущих сообщений: между ними 1 px, между сериями 7 px
+    rowLayout->setContentsMargins(18, joinsPrev ? 1 : 7, 18, joinsNext ? 1 : 7);
     rowLayout->setSpacing(8);
 
     QLabel *senderAvatar = nullptr;
-    if (!isSelf) {
+    if (!isSelf && groupLike) {
         senderAvatar = new QLabel(row);
         senderAvatar->setObjectName("MessageSenderAvatar");
         senderAvatar->setFixedSize(34, 34);
@@ -1046,20 +1101,74 @@ QWidget *makeMessageRowWidget(
         }
         auto avatarPixmap = circularPixmap(pixmapFromAvatarRef(avatarSource), 34);
         if (avatarPixmap.isNull()) {
-            avatarPixmap = letterAvatarPixmap(senderTitle, 34, from.compare("golos_aton", Qt::CaseInsensitive) == 0);
+            avatarPixmap = letterAvatarPixmap(senderTitle, 34, from.compare("golos_aton", Qt::CaseInsensitive) == 0, from);
         }
         senderAvatar->setPixmap(avatarPixmap);
+        if (joinsNext) {
+            // Аватар показываем только у последнего сообщения серии; место под него сохраняем
+            QPixmap blank(34, 34);
+            blank.fill(Qt::transparent);
+            senderAvatar->setPixmap(blank);
+        }
     }
 
     auto *bubble = new QFrame(row);
     bubble->setObjectName(isSelf ? "MessageBubbleSelf" : "MessageBubbleOther");
+    bubble->setProperty("joinsPrev", joinsPrev);
+    bubble->setProperty("joinsNext", joinsNext);
     bubble->setMinimumWidth(type == "audio" ? 320 : 72);
     bubble->setMaximumWidth(type == "image" ? 390 : 460);
     auto *bubbleLayout = new QVBoxLayout(bubble);
-    bubbleLayout->setContentsMargins(12, 8, 12, 8);
-    bubbleLayout->setSpacing(5);
+    bubbleLayout->setContentsMargins(12, 6, 10, 5);
+    bubbleLayout->setSpacing(3);
     if (type == "audio") {
         bubble->setFixedWidth(330);
+    }
+
+    // Имя автора — у первого сообщения серии в группах и каналах (цвет постоянный, как у аватара)
+    if (!isSelf && groupLike && !joinsPrev) {
+        auto *authorLabel = new QLabel(senderTitle, bubble);
+        authorLabel->setObjectName("MessageAuthorName");
+        authorLabel->setStyleSheet(QString("color: %1; font-size: 12px; font-weight: 700; background: transparent;")
+                                       .arg(avatarHueColor(from, 0.52).name()));
+        bubbleLayout->addWidget(authorLabel, 0, Qt::AlignLeft);
+    }
+
+    // Мета-строка: время, статус отправки и галочки — в правом нижнем углу пузыря
+    const auto sendState = msg.value("sendState").toString();
+    bool metaPlaced = false;
+    auto *metaRow = new QWidget(bubble);
+    metaRow->setObjectName("MessageMetaRow");
+    auto *metaLayout = new QHBoxLayout(metaRow);
+    metaLayout->setContentsMargins(0, 0, 0, 0);
+    metaLayout->setSpacing(4);
+    if (!time.isEmpty()) {
+        const bool edited = !msg.value("editedAt").toString().isEmpty();
+        auto *timeLabel = new QLabel(edited ? QString("изм. %1").arg(time) : time, metaRow);
+        timeLabel->setObjectName("MessageTime");
+        metaLayout->addWidget(timeLabel);
+    }
+    if (sendState == "sending") {
+        auto *stateLabel = new QLabel(QStringLiteral("🕓"), metaRow);
+        stateLabel->setObjectName("MessageTime");
+        stateLabel->setToolTip("Отправляется…");
+        metaLayout->addWidget(stateLabel);
+    } else if (sendState == "failed") {
+        auto *stateLabel = new QLabel(QStringLiteral("⚠ Не отправлено"), metaRow);
+        stateLabel->setObjectName("MessageTime");
+        stateLabel->setStyleSheet("color: #f87171; font-weight: 600;");
+        metaLayout->addWidget(stateLabel);
+    } else if (isSelf && isDirect) {
+        const bool read = msg.value("status").toString() == "read";
+        auto *ticks = new QLabel(read ? QStringLiteral("✓✓") : QStringLiteral("✓"), metaRow);
+        ticks->setObjectName("MessageTime");
+        ticks->setStyleSheet(read ? "color: #3b82f6; font-weight: 700;" : "font-weight: 700;");
+        ticks->setToolTip(read ? "Прочитано" : "Отправлено");
+        metaLayout->addWidget(ticks);
+    }
+    if (metaLayout->count() == 0) {
+        delete metaRow;
+        metaRow = nullptr;
     }
 
     if (msg.value("pinned").toBool()) {
@@ -1258,13 +1367,31 @@ QWidget *makeMessageRowWidget(
         label->setTextFormat(Qt::RichText);
         label->setOpenExternalLinks(true);
         label->setTextInteractionFlags(Qt::TextBrowserInteraction);
-        const auto textWidth = messageTextWidth(textValue, label->font());
+        // Замеряем тем же шрифтом, каким текст реально рисуется (стиль задаёт 15–16 px), иначе короткие фразы переносятся
+        QFont measureFont = label->font();
+        measureFont.setPixelSize(16);
+        const auto textWidth = messageTextWidth(textValue, measureFont);
         label->setFixedWidth(textWidth);
-        label->setMinimumHeight(richMessageTextHeight(label->text(), label->font(), textWidth));
-        const int actionWidth = isSelf ? 250 : 140; // в узком пузыре обрезалось время рядом с кнопками действий
-        bubble->setFixedWidth(std::max(textWidth + 32, actionWidth));
+        const int textHeight = compactTextHeight(label->text(), measureFont, textWidth);
+        const int oneLineHeight = compactTextHeight(QStringLiteral("Ag"), measureFont, 360);
+        label->setMinimumHeight(textHeight);
         label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Minimum);
-        bubbleLayout->addWidget(label);
+        const int metaWidth = metaRow ? metaRow->sizeHint().width() : 0;
+        const bool inlineMeta = metaRow && textHeight <= oneLineHeight + 1 && firstMessageUrl(textValue).isEmpty();
+        if (inlineMeta) {
+            // Короткое сообщение: время стоит справа в той же строке, пузырь получается компактным
+            auto *line = new QHBoxLayout();
+            line->setContentsMargins(0, 0, 0, 0);
+            line->setSpacing(10);
+            line->addWidget(label, 0, Qt::AlignBottom);
+            line->addWidget(metaRow, 0, Qt::AlignBottom);
+            bubbleLayout->addLayout(line);
+            bubble->setFixedWidth(textWidth + 10 + metaWidth + 22);
+            metaPlaced = true;
+        } else {
+            bubble->setFixedWidth(std::max(textWidth, metaWidth) + 22);
+            bubbleLayout->addWidget(label);
+        }
         const QString previewUrl = firstMessageUrl(textValue);
         if (apiClient && !previewUrl.isEmpty()) {
             auto *previewCard = new QFrame(bubble);
@@ -1373,30 +1500,21 @@ QWidget *makeMessageRowWidget(
     }
 
     const auto messageId = msg.value("id").toString();
-    if (!time.isEmpty() || (!messageId.isEmpty() && apiClient)) {
-        auto *actionsRow = new QWidget(bubble);
-        actionsRow->setObjectName("MessageActionsRow");
-        auto *actionsLayout = new QHBoxLayout(actionsRow);
-        actionsLayout->setContentsMargins(0, 0, 0, 0);
-        actionsLayout->setSpacing(4);
-        if (!time.isEmpty()) {
-            auto *timeLabel = new QLabel(time, actionsRow);
-            timeLabel->setObjectName("MessageTime");
-            actionsLayout->addWidget(timeLabel);
+    QFrame *actionsRow = nullptr;
+    {
+        if (metaRow && !metaPlaced) {
+            bubbleLayout->addWidget(metaRow, 0, Qt::AlignRight);
+            metaPlaced = true;
         }
-        const auto sendState = msg.value("sendState").toString();
-        if (sendState == "sending") {
-            auto *stateLabel = new QLabel(QStringLiteral("🕓 Отправляется…"), actionsRow);
-            stateLabel->setObjectName("MessageTime");
-            actionsLayout->addWidget(stateLabel);
-        } else if (sendState == "failed") {
-            auto *stateLabel = new QLabel(QStringLiteral("⚠ Не отправлено"), actionsRow);
-            stateLabel->setObjectName("MessageTime");
-            stateLabel->setStyleSheet("color: #f87171; font-weight: 600;");
-            actionsLayout->addWidget(stateLabel);
-        }
-        actionsLayout->addStretch(1);
+        QHBoxLayout *actionsLayout = nullptr;
         if (!messageId.isEmpty() && apiClient && sendState.isEmpty()) {
+            // Плавающая «пилюля» рядом с пузырём: видна только при наведении на сообщение
+            actionsRow = new QFrame(row);
+            actionsRow->setObjectName("MessageActionsPill");
+            actionsLayout = new QHBoxLayout(actionsRow);
+            actionsLayout->setContentsMargins(4, 3, 4, 3);
+            actionsLayout->setSpacing(2);
+            actionsRow->hide();
         const auto ownEmoji = ownReactionEmoji(reactions, currentUsername);
         auto *reactButton = new QPushButton(actionsRow);
         reactButton->setObjectName(ownEmoji.isEmpty() ? "MessageActionButton" : "MessageActionButtonActive");
@@ -1428,6 +1546,11 @@ QWidget *makeMessageRowWidget(
             });
         }
         reactButton->setMenu(menu);
+        QObject::connect(menu, &QMenu::aboutToHide, actionsRow, [row, actionsRow]() {
+            QTimer::singleShot(160, actionsRow, [row, actionsRow]() {
+                if (!row->underMouse()) actionsRow->hide();
+            });
+        });
         actionsLayout->addWidget(reactButton);
         auto *replyButton = new QPushButton(actionsRow);
         replyButton->setObjectName("MessageReplyButton");
@@ -1501,8 +1624,7 @@ QWidget *makeMessageRowWidget(
             actionsLayout->addWidget(deleteButton);
         }
         }
-        bubbleLayout->addWidget(actionsRow);
-        if (msg.value("sendState").toString() == "failed") {
+        if (sendState == "failed") {
             // Кнопки в отдельной строке: в узком пузыре они не помещаются рядом со временем и статусом
             auto *failedRow = new QWidget(bubble);
             auto *failedLayout = new QHBoxLayout(failedRow);
@@ -1539,15 +1661,71 @@ QWidget *makeMessageRowWidget(
 
     if (isSelf) {
         rowLayout->addStretch(1);
+        if (actionsRow) rowLayout->addWidget(actionsRow, 0, Qt::AlignVCenter);
         rowLayout->addWidget(bubble);
     } else {
         if (senderAvatar) {
             rowLayout->addWidget(senderAvatar, 0, Qt::AlignBottom);
         }
         rowLayout->addWidget(bubble);
+        if (actionsRow) rowLayout->addWidget(actionsRow, 0, Qt::AlignVCenter);
         rowLayout->addStretch(1);
     }
+    if (actionsRow) row->installEventFilter(new MessageHoverFilter(row, actionsRow));
     return row;
+}
+
+/** Дизайн сообщений (компактные пузыри, серии, панель действий). Подключается поверх темы. */
+QString messageDesignQss(bool dark)
+{
+    QString qss = R"(
+        QFrame#MessageBubbleOther,
+        QFrame#MessageBubbleSelf {
+            border-radius: 16px;
+        }
+        QFrame#MessageBubbleOther {
+            border-bottom-left-radius: 4px;
+        }
+        QFrame#MessageBubbleSelf {
+            border-bottom-right-radius: 4px;
+        }
+        QFrame#MessageBubbleOther[joinsPrev="true"] {
+            border-top-left-radius: 6px;
+        }
+        QFrame#MessageBubbleOther[joinsNext="true"] {
+            border-bottom-left-radius: 6px;
+        }
+        QFrame#MessageBubbleSelf[joinsPrev="true"] {
+            border-top-right-radius: 6px;
+        }
+        QFrame#MessageBubbleSelf[joinsNext="true"] {
+            border-bottom-right-radius: 6px;
+        }
+        #MessageTime {
+            font-size: 11px;
+        }
+        QFrame#MessageActionsPill {
+            background: #ffffff;
+            border: 1px solid #d5dde8;
+            border-radius: 16px;
+        }
+        QFrame#MessageActionsPill QPushButton {
+            min-width: 24px;
+            max-width: 24px;
+            min-height: 24px;
+            max-height: 24px;
+            border-radius: 12px;
+        }
+    )";
+    if (dark) {
+        qss += R"(
+        QFrame#MessageActionsPill {
+            background: #1b2230;
+            border-color: #334155;
+        }
+        )";
+    }
+    return qss;
 }
 
 QString trAuth(const QString &lang, const QString &key)
@@ -3493,9 +3671,24 @@ void MainWindow::renderMessages(const QJsonDocument &body, const QString &reques
         loaderItem->setSizeHint(QSize(900, 34));
         m_messageList->addItem(loaderItem);
     }
+    // Серия: тот же автор, не больше 5 минут между сообщениями, один день
+    auto sameRun = [](const QJsonObject &a, const QJsonObject &b) -> bool {
+        const auto fromOf = [](const QJsonObject &m) {
+            return m.value("from").toString(m.value("senderUsername").toString());
+        };
+        if (a.isEmpty() || b.isEmpty() || fromOf(a) != fromOf(b)) return false;
+        const auto isoA = a.value("createdAt").toString(a.value("time").toString());
+        const auto isoB = b.value("createdAt").toString(b.value("time").toString());
+        const auto ta = parseMessageDateTime(isoA);
+        const auto tb = parseMessageDateTime(isoB);
+        if (!ta.isValid() || !tb.isValid()) return false;
+        return std::abs(ta.secsTo(tb)) <= 5 * 60 && ta.toLocalTime().date() == tb.toLocalTime().date();
+    };
     QString previousMessageDateKey;
-    for (const auto &value : messages) {
-        const auto msg = value.toObject();
+    for (qsizetype messageIndex = 0; messageIndex < messages.size(); ++messageIndex) {
+        const auto msg = messages.at(messageIndex).toObject();
+        const auto prevMsg = messageIndex > 0 ? messages.at(messageIndex - 1).toObject() : QJsonObject();
+        const auto nextMsg = messageIndex + 1 < messages.size() ? messages.at(messageIndex + 1).toObject() : QJsonObject();
         const auto messageIso = msg.value("createdAt").toString(msg.value("time").toString());
         const auto currentMessageDateKey = messageDateKey(messageIso);
         if (!currentMessageDateKey.isEmpty() && currentMessageDateKey != previousMessageDateKey) {
@@ -3519,12 +3712,17 @@ void MainWindow::renderMessages(const QJsonDocument &body, const QString &reques
             [this](const QString &messageId) { removeMessageRowAnimated(messageId); },
             [this](const QString &messageId) { retryPendingText(messageId); },
             [this](const QString &messageId) { discardPendingText(messageId); },
+            sameRun(prevMsg, msg),
+            sameRun(msg, nextMsg),
             m_messageList);
         auto *item = new QListWidgetItem();
         item->setData(Qt::UserRole, msg.value("id").toString());
+        // Дочерние виджеты нужно «отполировать» стилем до замера, иначе минимальные размеры кнопок не учтены
         row->ensurePolished();
+        for (auto *child : row->findChildren<QWidget *>()) child->ensurePolished();
+        if (row->layout()) row->layout()->activate();
         row->adjustSize();
-        item->setSizeHint(QSize(900, std::max(messageRowHeight(msg), row->sizeHint().height() + 8)));
+        item->setSizeHint(QSize(900, std::max(40, row->sizeHint().height())));
         m_messageList->addItem(item);
         m_messageList->setItemWidget(item, row);
     }
@@ -5226,6 +5424,27 @@ void MainWindow::setupQaAutomation()
         });
     }
 
+    // ATEN_QA_DARK=1 — включить тёмную тему
+    if (qEnvironmentVariableIntValue("ATEN_QA_DARK") == 1) {
+        QTimer::singleShot(2000, this, [this]() { applyDesktopTheme(true); });
+    }
+
+    // ATEN_QA_SHOW_ACTIONS_AT — показать панель действий у последнего сообщения (наведение в offscreen не сымитировать)
+    const int actionsAt = qEnvironmentVariableIntValue("ATEN_QA_SHOW_ACTIONS_AT");
+    if (actionsAt > 0) {
+        QTimer::singleShot(actionsAt, this, [this]() {
+            if (!m_messageList) return;
+            for (int i = m_messageList->count() - 1; i >= 0; --i) {
+                if (auto *w = m_messageList->itemWidget(m_messageList->item(i))) {
+                    if (auto *pill = w->findChild<QFrame *>("MessageActionsPill")) {
+                        pill->show();
+                        return;
+                    }
+                }
+            }
+        });
+    }
+
     int lastMs = 0;
     for (const auto &token : qEnvironmentVariable("ATEN_QA_SHOT_TIMES").split(',', Qt::SkipEmptyParts)) {
         const int ms = token.trimmed().toInt();
@@ -5299,7 +5518,7 @@ void MainWindow::setStatusText(const QString &text)
 void MainWindow::applyDesktopTheme(bool dark)
 {
     if (!dark) {
-        setStyleSheet(Theme::styleSheet());
+        setStyleSheet(Theme::styleSheet() + messageDesignQss(false));
         return;
     }
 
@@ -5653,7 +5872,7 @@ void MainWindow::applyDesktopTheme(bool dark)
         QScrollBar::handle:vertical {
             background: #484e56;
         }
-    )");
+    )" + messageDesignQss(true));
 }
 
 void MainWindow::refreshChatStatusText()
