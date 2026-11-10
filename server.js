@@ -2216,7 +2216,8 @@ app.get("/api/webpush/key", async (req, res) => {
     res.json({ publicKey: webPushKeys.publicKey });
   } catch (err) {
     console.error("GET /api/webpush/key:", err);
-    res.status(503).json({ error: "Уведомления временно недоступны" });
+    // TODO(диагностика): убрать detail после проверки боевой базы
+    res.status(503).json({ error: "Уведомления временно недоступны", detail: String((err && err.message) || err).slice(0, 240) });
   }
 });
 
