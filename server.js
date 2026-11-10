@@ -568,7 +568,9 @@ app.get("/api/health", async (req, res) => {
     });
     out.golosUserExists = Boolean(golos);
   } catch (e) {
-    out.dbError = e instanceof Error ? e.message : String(e);
+    console.error("health: БД недоступна:", e instanceof Error ? e.message : e);
+    out.dbOk = false;
+    out.dbError = "database unreachable";
   }
   res.json(out);
 });
@@ -2216,8 +2218,7 @@ app.get("/api/webpush/key", async (req, res) => {
     res.json({ publicKey: webPushKeys.publicKey });
   } catch (err) {
     console.error("GET /api/webpush/key:", err);
-    // TODO(диагностика): убрать detail после проверки боевой базы
-    res.status(503).json({ error: "Уведомления временно недоступны", detail: String((err && err.message) || err).slice(0, 240) });
+    res.status(503).json({ error: "Уведомления временно недоступны" });
   }
 });
 
