@@ -60,6 +60,7 @@ const SITE_FILES = [
   "golos-aton-avatar.png",
   "aten-logo.png",
   "manifest.webmanifest",
+  "sw.js",
 ];
 
 async function listIcons() {

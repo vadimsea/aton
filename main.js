@@ -252,6 +252,19 @@ const I18N = {
   "Не удалось сохранить": { en: "Could not save", de: "Speichern fehlgeschlagen" },
   "Не удалось удалить": { en: "Could not delete", de: "Löschen fehlgeschlagen" },
   "Вниз, к новым сообщениям": { en: "Down to new messages", de: "Zu neuen Nachrichten" },
+  "Уведомления как в Telegram": { en: "Notifications like in Telegram", de: "Benachrichtigungen wie in Telegram" },
+  "Включить уведомления": { en: "Turn on notifications", de: "Benachrichtigungen aktivieren" },
+  "Сообщения будут приходить, даже когда телефон заблокирован": {
+    en: "Messages will arrive even when your phone is locked",
+    de: "Nachrichten kommen auch bei gesperrtem Telefon an",
+  },
+  "Добавьте ATEN на экран «Домой», чтобы получать сообщения на заблокированный экран": {
+    en: "Add ATEN to your Home Screen to get messages on the lock screen",
+    de: "Fuegen Sie ATEN zum Home-Bildschirm hinzu, um Nachrichten auf dem Sperrbildschirm zu erhalten",
+  },
+  "Как это сделать": { en: "How to do it", de: "So geht's" },
+  "Включить": { en: "Turn on", de: "Aktivieren" },
+  "Понятно": { en: "Got it", de: "Verstanden" },
   "Отменить ответ": { en: "Cancel reply", de: "Antwort abbrechen" },
   "Вы": { en: "You", de: "Sie" },
   "Редактировать": { en: "Edit", de: "Bearbeiten" },
@@ -1054,6 +1067,87 @@ function isMessageFromSelf(msg, me, activeChatId) {
  * Галочки исходящих в личке, ближе к Telegram:
  * одна серая ✓ — отправлено/доставлено; две синие ✓✓ — прочитано.
  */
+// ===== Web Push: уведомления на заблокированный экран (бесплатно, через веб-приложение на экране «Домой») =====
+/** Только для проверки интерфейса iPhone на компьютере: localStorage.aton_qa_ios = "1". */
+function qaForceIos() {
+  try {
+    return localStorage.getItem("aton_qa_ios") === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+function isIosDevice() {
+  return qaForceIos() || /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function isStandalonePwa() {
+  if (qaForceIos()) return false;
+  return Boolean(window.navigator.standalone) || Boolean(window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+}
+
+function pushSupported() {
+  return "serviceWorker" in navigator && "PushManager" in window && typeof Notification !== "undefined";
+}
+
+function urlBase64ToUint8Array(base64) {
+  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+  const raw = atob((base64 + padding).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+
+let swRegistrationPromise = null;
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return Promise.resolve(null);
+  if (!swRegistrationPromise) {
+    swRegistrationPromise = navigator.serviceWorker
+      .register("/sw.js", { scope: "/" })
+      .then(() => navigator.serviceWorker.ready)
+      .catch(() => null);
+  }
+  return swRegistrationPromise;
+}
+
+/** Подписывает это устройство на Web Push и передаёт подписку серверу. */
+async function subscribeToWebPush() {
+  const reg = await registerServiceWorker();
+  if (!reg) throw new Error("service worker недоступен");
+  const { publicKey } = await api("/api/webpush/key");
+  const key = urlBase64ToUint8Array(publicKey);
+  let sub = await reg.pushManager.getSubscription();
+  if (sub && sub.options && sub.options.applicationServerKey) {
+    // подписка сделана с другим ключом сервера — пересоздаём
+    const current = new Uint8Array(sub.options.applicationServerKey);
+    if (current.length !== key.length || current.some((b, i) => b !== key[i])) {
+      await sub.unsubscribe().catch(() => {});
+      sub = null;
+    }
+  }
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+  await api("/api/webpush/subscribe", { method: "POST", body: JSON.stringify({ subscription: sub.toJSON() }) });
+  return sub;
+}
+
+/** При выходе из аккаунта отвязываем устройство, чтобы чужие сообщения не приходили на него. */
+async function unsubscribeFromWebPush(token) {
+  try {
+    if (!("serviceWorker" in navigator)) return;
+    const reg = await navigator.serviceWorker.getRegistration("/");
+    const sub = reg && (await reg.pushManager.getSubscription());
+    if (!sub) return;
+    if (token && API_BASE) {
+      await fetch(`${API_BASE}/api/webpush/unsubscribe`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: sub.endpoint }),
+      }).catch(() => {});
+    }
+    await sub.unsubscribe().catch(() => {});
+  } catch (_) {}
+}
+
+registerServiceWorker();
+
 /** Постоянный цвет аватара по имени: один и тот же человек/чат всегда одного цвета (как в Telegram). */
 function avatarBackgroundFor(name) {
   let h = 0;
@@ -1869,6 +1963,7 @@ function playIncomingMessageSound() {
 function notifyServerLogout() {
   const t = getToken();
   if (!t || !API_BASE) return;
+  void unsubscribeFromWebPush(t);
   void fetch(`${API_BASE}/api/logout`, {
     method: "POST",
     headers: { Authorization: `Bearer ${t}` },
@@ -3136,16 +3231,167 @@ function createApp() {
     }
   }
 
+  let pushSyncedForUser = "";
+  const NOTIFY_BANNER_DISMISS_KEY = "aton_notify_banner_dismissed";
+
+  function notifyBannerDismissed() {
+    try {
+      const at = Number(localStorage.getItem(NOTIFY_BANNER_DISMISS_KEY) || 0);
+      return at > 0 && Date.now() - at < 7 * 24 * 60 * 60 * 1000;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /** iPhone: уведомления доступны только веб-приложению, добавленному на экран «Домой». */
+  function needsHomeScreenInstall() {
+    return Boolean(currentUser && currentUser.verified && isIosDevice() && !isStandalonePwa());
+  }
+
+  function canAskForNotifications() {
+    return Boolean(currentUser && currentUser.verified && pushSupported() && Notification.permission === "default");
+  }
+
   function updateNotifyPermissionButton() {
     const btn = document.getElementById("aton-notify-permission");
-    if (!btn) return;
-    const show =
+    if (btn) btn.style.display = needsHomeScreenInstall() || canAskForNotifications() ? "inline-flex" : "none";
+    renderNotifyBanner();
+    // разрешение уже есть — тихо обновляем подписку (ключ сервера или устройство могли смениться)
+    if (
       currentUser &&
       currentUser.verified &&
-      typeof Notification !== "undefined" &&
-      Notification.permission === "default";
-    btn.style.display = show ? "inline-flex" : "none";
+      pushSupported() &&
+      Notification.permission === "granted" &&
+      pushSyncedForUser !== currentUser.username
+    ) {
+      pushSyncedForUser = currentUser.username;
+      void subscribeToWebPush().catch(() => {
+        pushSyncedForUser = "";
+      });
+    }
   }
+
+  /** Карточка над списком чатов: «Включить уведомления» или «Добавьте на экран „Домой“». */
+  function renderNotifyBanner() {
+    let banner = document.getElementById("aton-notify-banner");
+    const mode = needsHomeScreenInstall() ? "install" : canAskForNotifications() ? "enable" : "";
+    if (!mode || notifyBannerDismissed()) {
+      if (banner) banner.remove();
+      return;
+    }
+    if (!chatListEl || !chatListEl.parentElement) return;
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.id = "aton-notify-banner";
+      banner.className = "aton-notify-banner";
+      chatListEl.parentElement.insertBefore(banner, chatListEl);
+    }
+    if (banner.dataset.mode === mode) return;
+    banner.dataset.mode = mode;
+    const subtitle =
+      mode === "install"
+        ? t("Добавьте ATEN на экран «Домой», чтобы получать сообщения на заблокированный экран")
+        : t("Сообщения будут приходить, даже когда телефон заблокирован");
+    banner.innerHTML = `
+      <div class="aton-notify-banner__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </div>
+      <div class="aton-notify-banner__text">
+        <div class="aton-notify-banner__title">${escHtml(t("Уведомления как в Telegram"))}</div>
+        <div class="aton-notify-banner__sub">${escHtml(subtitle)}</div>
+      </div>
+      <button type="button" class="aton-notify-banner__btn">${escHtml(mode === "install" ? t("Как это сделать") : t("Включить"))}</button>
+      <button type="button" class="aton-notify-banner__close" aria-label="${escHtml(t("Закрыть"))}">×</button>
+    `;
+    banner.querySelector(".aton-notify-banner__btn").addEventListener("click", () => void enableNotifications());
+    banner.querySelector(".aton-notify-banner__close").addEventListener("click", () => {
+      try {
+        localStorage.setItem(NOTIFY_BANNER_DISMISS_KEY, String(Date.now()));
+      } catch (_) {}
+      banner.remove();
+    });
+  }
+
+  /** Шторка с инструкцией: как добавить ATEN на экран «Домой» на iPhone. */
+  function openNotifyInstallSheet() {
+    if (document.getElementById("aton-install-sheet")) return;
+    const overlay = document.createElement("div");
+    overlay.id = "aton-install-sheet";
+    overlay.className = "aton-sheet-overlay";
+    const shareIcon =
+      '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m8 7 4-4 4 4"/><path d="M6 11H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1"/></svg>';
+    const plusIcon =
+      '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>';
+    const bellIcon =
+      '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
+    overlay.innerHTML = `
+      <div class="aton-sheet" role="dialog" aria-modal="true" aria-label="${escHtml(t("Уведомления как в Telegram"))}">
+        <div class="aton-sheet__grip" aria-hidden="true"></div>
+        <div class="aton-sheet__title">${escHtml(t("Уведомления как в Telegram"))}</div>
+        <div class="aton-sheet__lead">${escHtml(t("Добавьте ATEN на экран «Домой», чтобы получать сообщения на заблокированный экран"))}</div>
+        <ol class="aton-sheet__steps">
+          <li><span class="aton-sheet__icon">${shareIcon}</span><span>Откройте этот сайт в <b>Safari</b> и нажмите <b>«Поделиться»</b> внизу экрана</span></li>
+          <li><span class="aton-sheet__icon">${plusIcon}</span><span>Выберите <b>«На экран „Домой“»</b> и нажмите <b>«Добавить»</b></span></li>
+          <li><span class="aton-sheet__icon">${bellIcon}</span><span>Откройте <b>ATEN с экрана «Домой»</b>, войдите в аккаунт и нажмите <b>«Включить уведомления»</b></span></li>
+        </ol>
+        <div class="aton-sheet__note">Нужен iOS 16.4 или новее. Приложение с экрана «Домой» работает как обычное и получает сообщения при заблокированном телефоне.</div>
+        <button type="button" class="aton-sheet__btn">${escHtml(t("Понятно"))}</button>
+      </div>
+    `;
+    const close = () => overlay.remove();
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) close();
+    });
+    overlay.querySelector(".aton-sheet__btn").addEventListener("click", close);
+    document.body.appendChild(overlay);
+  }
+
+  /** Разрешение, подписка и пробное уведомление — сразу видно, что всё работает. */
+  async function enableNotifications() {
+    if (needsHomeScreenInstall()) {
+      openNotifyInstallSheet();
+      return;
+    }
+    if (!pushSupported()) {
+      showToast(t("Уведомления не поддерживаются в этом браузере"));
+      return;
+    }
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        showToast(
+          permission === "denied"
+            ? t("Разрешите уведомления в настройках сайта в браузере")
+            : t("Уведомления не включены")
+        );
+        updateNotifyPermissionButton();
+        return;
+      }
+      await subscribeToWebPush();
+      pushSyncedForUser = currentUser ? currentUser.username : "";
+      showToast(t("Уведомления включены — отправляю пробное"));
+      await api("/api/webpush/test", { method: "POST" }).catch(() => {});
+    } catch (err) {
+      showToast(t("Не удалось включить уведомления"));
+    }
+    updateNotifyPermissionButton();
+  }
+
+  // Нажатие на уведомление, пока приложение открыто в фоне: service worker просит открыть нужный чат
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("message", (event) => {
+      const data = event.data;
+      if (data && data.type === "aton-open-chat" && data.chatId) openChatFromNotification(data.chatId);
+    });
+  }
+
+  // Серверу нужно знать, видно ли приложение: пока видно, пуш не отправляется (иначе дубль к тому, что уже на экране)
+  function reportAppVisibility() {
+    const visible = document.visibilityState === "visible";
+    if (socket.connected) socket.emit("app:visibility", { visible });
+    if (visible && navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {});
+  }
+  document.addEventListener("visibilitychange", reportAppVisibility);
 
   // Realtime обновление сообщений по WebSocket
   socket.on("message:new", (msg) => {
@@ -3332,6 +3578,7 @@ function createApp() {
 
   // При переподключении возвращаемся в активную комнату, если она есть
   socket.on("connect", () => {
+    reportAppVisibility();
     scheduleWatchPresence();
     if (currentSocketChat) {
       socket.emit("join_chat", currentSocketChat);
@@ -4253,6 +4500,11 @@ function createApp() {
       }
 
       restoreLastOpenChatIfValid();
+      const chatFromUrl = new URLSearchParams(location.search).get("chat");
+      if (chatFromUrl) {
+        history.replaceState(null, "", location.pathname);
+        openChatFromNotification(chatFromUrl);
+      }
     } catch (err) {
       console.error(err);
 
@@ -7696,20 +7948,7 @@ function createApp() {
     });
   }
   if (notifyPermissionBtn) {
-    notifyPermissionBtn.addEventListener("click", async () => {
-      if (typeof Notification === "undefined") {
-        showToast(t("Уведомления не поддерживаются в этом браузере"));
-        return;
-      }
-      try {
-        const p = await Notification.requestPermission();
-        updateNotifyPermissionButton();
-        if (p === "granted") showToast(t("Когда вкладка в фоне, вы будете видеть уведомления о сообщениях"));
-        else if (p === "denied") showToast(t("Разрешите уведомления в настройках сайта в браузере"));
-      } catch (_) {
-        showToast(t("Не удалось запросить разрешение"));
-      }
-    });
+    notifyPermissionBtn.addEventListener("click", () => void enableNotifications());
   }
 
   function openReportModal({ title, endpoint }) {

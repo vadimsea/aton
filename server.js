@@ -12,6 +12,7 @@ const dns = require("dns").promises;
 const net = require("net");
 const { Server } = require("socket.io");
 const rateLimit = require("express-rate-limit");
+const webpush = require("web-push");
 const { prisma } = require("./lib/prisma");
 const {
   ensureLists,
@@ -83,6 +84,7 @@ const STATIC_FILE_ALLOWLIST = new Set([
   "/golos-aton-avatar.png",
   "/aten-logo.png",
   "/manifest.webmanifest",
+  "/sw.js",
   "/icons/favicon.ico",
   "/icons/icon-16.png",
   "/icons/icon-32.png",
@@ -539,6 +541,11 @@ app.get([...STATIC_FILE_ALLOWLIST], (req, res, next) => {
   const requestPath = req.path === "/" ? "/index.html" : req.path;
   if (!STATIC_FILE_ALLOWLIST.has(req.path)) return next();
   res.setHeader("X-Content-Type-Options", "nosniff");
+  if (req.path === "/sw.js") {
+    // service worker не должен кешироваться, иначе обновления доходят до телефонов с задержкой
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Service-Worker-Allowed", "/");
+  }
   res.sendFile(path.join(__dirname, requestPath));
 });
 
@@ -701,6 +708,22 @@ io.on("connection", (socket) => {
     if (typeof ack === "function") ack(result);
   });
 
+  // Клиент сообщает, видно ли приложение на экране: пока видно, Web Push не отправляем
+  socket.on("app:visibility", (payload) => {
+    if (!me) return;
+    let set = visibleSockets.get(me);
+    if (payload && payload.visible === true) {
+      if (!set) {
+        set = new Set();
+        visibleSockets.set(me, set);
+      }
+      set.add(socket.id);
+    } else if (set) {
+      set.delete(socket.id);
+      if (!set.size) visibleSockets.delete(me);
+    }
+  });
+
   // «Печатает…»: личка — собеседнику, группа — остальным участникам комнаты. Не чаще раза в 2 с с сокета.
   let lastTypingAt = 0;
   socket.on("typing", async (payload) => {
@@ -756,6 +779,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    const visible = me && visibleSockets.get(me);
+    if (visible) {
+      visible.delete(socket.id);
+      if (!visible.size) visibleSockets.delete(me);
+    }
     if (!me) return;
     const left = (onlineSockets.get(me) || 1) - 1;
     if (left > 0) {
@@ -1025,6 +1053,101 @@ async function unreadBadgeCount(username) {
   }
 }
 
+// ===== Web Push: бесплатные уведомления на заблокированный экран (веб-приложение на экране «Домой») =====
+// Ключи VAPID хранятся в БД (или берутся из VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY), таблицы создаются при первом запуске.
+let webPushKeys = null;
+let webPushInit = null;
+
+async function ensureWebPush() {
+  if (webPushInit) return webPushInit;
+  webPushInit = (async () => {
+    await prisma.$executeRawUnsafe(
+      "CREATE TABLE IF NOT EXISTS app_settings (setting_key TEXT PRIMARY KEY, setting_value TEXT NOT NULL)"
+    );
+    await prisma.$executeRawUnsafe(
+      "CREATE TABLE IF NOT EXISTS web_push_subscriptions (" +
+        "endpoint TEXT PRIMARY KEY, username TEXT NOT NULL, p256dh TEXT NOT NULL, auth TEXT NOT NULL, " +
+        "user_agent TEXT, enabled BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT now())"
+    );
+    await prisma.$executeRawUnsafe(
+      "CREATE INDEX IF NOT EXISTS web_push_subscriptions_username_idx ON web_push_subscriptions (username)"
+    );
+    let publicKey = String(process.env.VAPID_PUBLIC_KEY || "").trim();
+    let privateKey = String(process.env.VAPID_PRIVATE_KEY || "").trim();
+    if (!publicKey || !privateKey) {
+      const read = () =>
+        prisma.$queryRawUnsafe("SELECT setting_value FROM app_settings WHERE setting_key = 'vapid_keys'");
+      let rows = await read();
+      if (!rows.length) {
+        await prisma.$executeRawUnsafe(
+          "INSERT INTO app_settings (setting_key, setting_value) VALUES ('vapid_keys', $1) ON CONFLICT (setting_key) DO NOTHING",
+          JSON.stringify(webpush.generateVAPIDKeys())
+        );
+        rows = await read(); // при гонке двух экземпляров берём то, что записалось первым
+      }
+      const keys = JSON.parse(rows[0].setting_value);
+      publicKey = keys.publicKey;
+      privateKey = keys.privateKey;
+    }
+    webpush.setVapidDetails(process.env.VAPID_SUBJECT || "https://aten.vadzim.by", publicKey, privateKey);
+    webPushKeys = { publicKey };
+  })().catch((err) => {
+    webPushInit = null;
+    throw err;
+  });
+  return webPushInit;
+}
+
+/** username → сокеты, у которых приложение сейчас на экране. Пока оно видно, пуш не нужен (iOS требует показывать каждый пуш). */
+const visibleSockets = new Map();
+function isAppVisible(username) {
+  const set = visibleSockets.get(username);
+  return Boolean(set && set.size);
+}
+
+/** Отправляет Web Push на все устройства пользователя. Возвращает число попыток доставки. */
+async function sendWebPushToUser(username, notification, { force = false } = {}) {
+  if (!username || (!force && isAppVisible(username))) return 0;
+  await ensureWebPush();
+  const subs = await prisma.$queryRawUnsafe(
+    "SELECT endpoint, p256dh, auth FROM web_push_subscriptions WHERE username = $1 AND enabled = TRUE",
+    username
+  );
+  if (!subs.length) return 0;
+  const badge = await unreadBadgeCount(username);
+  const chatId = notification.chatId || null;
+  const payload = JSON.stringify({
+    title: String(notification.title || "ATEN").slice(0, 100),
+    body: String(notification.body || "").slice(0, 200),
+    chatId,
+    messageId: notification.messageId || null,
+    url: chatId ? `/?chat=${encodeURIComponent(chatId)}` : "/",
+    badge,
+    ts: Date.now(),
+  });
+  await Promise.all(
+    subs.map(async (sub) => {
+      try {
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          payload,
+          { TTL: 24 * 60 * 60, urgency: "high" }
+        );
+      } catch (err) {
+        if (err && (err.statusCode === 404 || err.statusCode === 410)) {
+          // подписка устарела (приложение удалено / разрешение отозвано)
+          await prisma
+            .$executeRawUnsafe("DELETE FROM web_push_subscriptions WHERE endpoint = $1", sub.endpoint)
+            .catch(() => {});
+        } else {
+          console.error("web push send:", (err && (err.statusCode || err.message)) || err);
+        }
+      }
+    })
+  );
+  return subs.length;
+}
+
 let deviceTokenTableWarningShown = false;
 
 function isMissingDeviceTokenTableError(error) {
@@ -1034,6 +1157,7 @@ function isMissingDeviceTokenTableError(error) {
 
 async function sendPushToUser(username, notification) {
   if (!username) return;
+  sendWebPushToUser(username, notification).catch((e) => console.error("web push:", e));
   let rows = [];
   try {
     rows = await prisma.deviceToken.findMany({
@@ -1076,9 +1200,9 @@ async function notifyNewMessagePush(msg, sender) {
     msg.type === "text"
       ? (msg.text || "").slice(0, 120)
       : msg.type === "audio"
-        ? "Голосовое сообщение"
+        ? "🎤 Голосовое сообщение"
         : msg.type === "image"
-          ? "Изображение"
+          ? "📷 Фото"
           : "Новое сообщение";
   const senderLabel = (sender && (sender.displayName || sender.username)) || msg.from || "Атон";
   const recipientUsername = msg.recipientUsername || msg.to;
@@ -2083,6 +2207,86 @@ app.get("/api/link-preview", authMiddleware, requireVerified, async (req, res) =
     res.json(preview);
   } catch (err) {
     res.status(400).json({ error: "Cannot build link preview" });
+  }
+});
+
+app.get("/api/webpush/key", async (req, res) => {
+  try {
+    await ensureWebPush();
+    res.json({ publicKey: webPushKeys.publicKey });
+  } catch (err) {
+    console.error("GET /api/webpush/key:", err);
+    res.status(503).json({ error: "Уведомления временно недоступны" });
+  }
+});
+
+app.post("/api/webpush/subscribe", authMiddleware, requireVerified, async (req, res) => {
+  const sub = req.body && req.body.subscription;
+  const endpoint = sub && typeof sub.endpoint === "string" ? sub.endpoint : "";
+  const p256dh = sub && sub.keys && typeof sub.keys.p256dh === "string" ? sub.keys.p256dh : "";
+  const authKey = sub && sub.keys && typeof sub.keys.auth === "string" ? sub.keys.auth : "";
+  if (!/^https:\/\//i.test(endpoint) || endpoint.length > 1000 || !p256dh || p256dh.length > 200 || !authKey || authKey.length > 100) {
+    return res.status(400).json({ error: "Некорректная подписка" });
+  }
+  try {
+    await ensureWebPush();
+    await prisma.$executeRawUnsafe(
+      "INSERT INTO web_push_subscriptions (endpoint, username, p256dh, auth, user_agent, enabled) VALUES ($1, $2, $3, $4, $5, TRUE) " +
+        "ON CONFLICT (endpoint) DO UPDATE SET username = EXCLUDED.username, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth, " +
+        "user_agent = EXCLUDED.user_agent, enabled = TRUE, created_at = now()",
+      endpoint,
+      req.user.username,
+      p256dh,
+      authKey,
+      String(req.headers["user-agent"] || "").slice(0, 200)
+    );
+    // не больше 10 устройств на пользователя: старые подписки убираем
+    await prisma.$executeRawUnsafe(
+      "DELETE FROM web_push_subscriptions WHERE username = $1 AND endpoint NOT IN " +
+        "(SELECT endpoint FROM web_push_subscriptions WHERE username = $1 ORDER BY created_at DESC LIMIT 10)",
+      req.user.username
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("POST /api/webpush/subscribe:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+app.post("/api/webpush/unsubscribe", authMiddleware, async (req, res) => {
+  const endpoint = req.body && typeof req.body.endpoint === "string" ? req.body.endpoint : "";
+  if (!endpoint) return res.status(400).json({ error: "endpoint обязателен" });
+  try {
+    await ensureWebPush();
+    await prisma.$executeRawUnsafe(
+      "DELETE FROM web_push_subscriptions WHERE endpoint = $1 AND username = $2",
+      endpoint,
+      req.user.username
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("POST /api/webpush/unsubscribe:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+const webPushTestLog = new Map();
+app.post("/api/webpush/test", authMiddleware, requireVerified, async (req, res) => {
+  const now = Date.now();
+  if (now - (webPushTestLog.get(req.user.id) || 0) < 5000) {
+    return res.status(429).json({ error: "Подождите несколько секунд" });
+  }
+  webPushTestLog.set(req.user.id, now);
+  try {
+    const sent = await sendWebPushToUser(
+      req.user.username,
+      { title: "ATEN", body: "Так будут выглядеть уведомления о сообщениях 🔔", chatId: null },
+      { force: true }
+    );
+    res.json({ ok: true, sent });
+  } catch (err) {
+    console.error("POST /api/webpush/test:", err);
+    res.status(500).json({ error: "Ошибка сервера" });
   }
 });
 
@@ -4385,6 +4589,7 @@ app.delete("/api/messages/:id", authMiddleware, requireVerified, async (req, res
 
 server.listen(PORT, () => {
   console.log(`Атон backend запущен: http://localhost:${PORT}`);
+  ensureWebPush().catch((e) => console.error("ensureWebPush:", e));
   ensureGolosAtonUser().catch((e) => {
     console.error("ensureGolosAtonUser:", e);
   });
