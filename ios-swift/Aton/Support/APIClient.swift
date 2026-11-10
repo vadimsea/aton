@@ -3,6 +3,7 @@ import Foundation
 actor APIClient {
     static let shared = APIClient()
 
+    // Рабочий бэкенд — Render. Адреса Back4App (*.b4a.run) больше не отвечают, приложение с ними не подключится.
     private let baseURL = URL(string: "https://aton-api-2.onrender.com")!
     private let decoder: JSONDecoder
     private let encoder = JSONEncoder()
@@ -68,7 +69,7 @@ actor APIClient {
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else {
-            let message = (try? decoder.decode(APIErrorMessage.self, from: data).error) ?? "РћС€РёР±РєР° СЃРµСЂРІРµСЂР°"
+            let message = (try? decoder.decode(APIErrorMessage.self, from: data).error) ?? "Ошибка сервера"
             throw APIError.server(message, http.statusCode)
         }
         return try decoder.decode(AtonLinkPreview.self, from: data)

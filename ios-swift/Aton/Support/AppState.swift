@@ -84,9 +84,12 @@ final class AppState: ObservableObject {
 
     func olderMessagesText(forLoading loading: Bool) -> String {
         switch language {
-        case .ru: return loading ? "Загружаем ранние сообщения..." : "Прокрутите выше, чтобы открыть ранние сообщения"
-        case .de: return loading ? "Fruehere Nachrichten werden geladen..." : "Nach oben scrollen, um fruehere Nachrichten zu laden"
-        case .en: return loading ? "Loading earlier messages..." : "Scroll up to reveal earlier messages"
+        case .ru:
+            return loading ? "Загружаем ранние сообщения..." : "Прокрутите выше, чтобы открыть ранние сообщения"
+        case .de:
+            return loading ? "Fruehere Nachrichten werden geladen..." : "Nach oben scrollen, um fruehere Nachrichten zu laden"
+        case .en:
+            return loading ? "Loading earlier messages..." : "Scroll up to reveal earlier messages"
         }
     }
 
@@ -164,7 +167,7 @@ final class AppState: ObservableObject {
     private func localizedUpdateMessage() -> String {
         switch language {
         case .ru:
-            return "Доступна новая версия ATEN. Обновитесь, чтобы получить последние исправления и улучшения стабильности."
+            return "Доступна новая версия ATEN. Обновите приложение, чтобы получить последние исправления и улучшения стабильности."
         case .de:
             return "Eine neue ATEN-Version ist verfuegbar. Aktualisieren Sie die App, um die neuesten Verbesserungen zu erhalten."
         case .en:
@@ -612,6 +615,6 @@ private struct AppReleaseManifest: Decodable {
 
 extension Bundle {
     var releaseVersion: String {
-        object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.5"
+        object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.6"
     }
 }

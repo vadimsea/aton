@@ -247,22 +247,23 @@ private struct OlderMessagesIndicator: View {
                     .controlSize(.small)
                     .tint(AtonPalette.blue)
             } else {
-                Image(systemName: "arrow.up")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(AtonPalette.blue)
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AtonPalette.blue.opacity(0.86))
             }
             Text(title)
-                .font(.caption.weight(.semibold))
+                .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
         }
-        .padding(.horizontal, 13)
+        .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .background(.thinMaterial, in: Capsule())
         .overlay(
-            Capsule().stroke(AtonPalette.blue.opacity(0.18), lineWidth: 1)
+            Capsule().stroke(AtonPalette.blue.opacity(0.14), lineWidth: 1)
         )
+        .shadow(color: .black.opacity(0.07), radius: 12, x: 0, y: 6)
         .padding(.top, 2)
         .accessibilityLabel(title)
     }

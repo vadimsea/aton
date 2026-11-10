@@ -78,14 +78,23 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         let userInfo = response.notification.request.content.userInfo
         if let messageId = userInfo["messageId"] as? String {
             await MainActor.run {
-                deepLinks?.handle(URL(string: "aten://message/\(messageId)")!)
+                if let url = deepLinkURL(kind: "message", value: messageId) {
+                    deepLinks?.handle(url)
+                }
             }
             return
         }
         if let chatId = userInfo["chatId"] as? String {
             await MainActor.run {
-                deepLinks?.handle(URL(string: "aten://chat/\(chatId)")!)
+                if let url = deepLinkURL(kind: "chat", value: chatId) {
+                    deepLinks?.handle(url)
+                }
             }
         }
+    }
+
+    private func deepLinkURL(kind: String, value: String) -> URL? {
+        let encoded = value.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? value
+        return URL(string: "aten://\(kind)/\(encoded)")
     }
 }
